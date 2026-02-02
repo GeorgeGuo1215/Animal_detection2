@@ -972,10 +972,13 @@
                     <div class="chat-input-area">
                         <div class="chat-input-container">
                             <textarea id="chatInput" placeholder="输入您的问题...（Enter发送，Shift+Enter换行）" rows="2"></textarea>
+                            <button class="btn btn-voice" onclick="toggleVoiceRecognition()" id="voiceBtn" title="语音输入">
+                                <span id="voiceIcon">🎤</span>
+                            </button>
                             <button class="btn btn-success" onclick="sendChatMessage()" id="sendChatBtn" disabled>发送</button>
                         </div>
                         <div class="chat-tips">
-                            💡 提示：您可以询问宠物的饮食、运动、行为、疾病预防等问题
+                            💡 提示：您可以询问宠物的饮食、运动、行为、疾病预防等问题 | 点击麦克风图标使用语音输入
                         </div>
                     </div>
                 </div>

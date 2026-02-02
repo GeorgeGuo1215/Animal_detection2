@@ -108,6 +108,10 @@ class RadarWebApp {
         this.sleepMonitor = null;
         this.sleepMonitorEnabled = false;
 
+        // ===== 语音识别模块 =====
+        this.voiceRecognition = null;
+        this.voiceRecognitionActive = false;
+
         this.initializeEventListeners();
         this.initBleUploadConfig();
         this.initializeCharts();
@@ -1977,6 +1981,117 @@ class RadarWebApp {
         localStorage.removeItem('petHealthChatHistory');
         this.loadChatHistory();
         this.showMessage('对话历史已清空', 'info');
+    }
+
+    /**
+     * 初始化语音识别
+     */
+    initVoiceRecognition() {
+        // 检查浏览器是否支持语音识别
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (!SpeechRecognition) {
+            console.warn('当前浏览器不支持语音识别功能');
+            return null;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'zh-CN'; // 设置为中文
+        recognition.continuous = false; // 单次识别
+        recognition.interimResults = true; // 显示临时结果
+
+        // 识别结果处理
+        recognition.onresult = (event) => {
+            let transcript = '';
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                transcript += event.results[i][0].transcript;
+            }
+
+            // 更新输入框内容
+            const inputEl = document.getElementById('chatInput');
+            if (inputEl) {
+                inputEl.value = transcript;
+            }
+        };
+
+        // 识别开始
+        recognition.onstart = () => {
+            console.log('语音识别已启动');
+            const voiceBtn = document.getElementById('voiceBtn');
+            const voiceIcon = document.getElementById('voiceIcon');
+            if (voiceBtn) voiceBtn.classList.add('recording');
+            if (voiceIcon) voiceIcon.textContent = '🔴';
+            this.showMessage('正在录音...', 'info');
+        };
+
+        // 识别结束
+        recognition.onend = () => {
+            console.log('语音识别已结束');
+            const voiceBtn = document.getElementById('voiceBtn');
+            const voiceIcon = document.getElementById('voiceIcon');
+            if (voiceBtn) voiceBtn.classList.remove('recording');
+            if (voiceIcon) voiceIcon.textContent = '🎤';
+            this.voiceRecognitionActive = false;
+        };
+
+        // 识别错误处理
+        recognition.onerror = (event) => {
+            console.error('语音识别错误:', event.error);
+            const voiceBtn = document.getElementById('voiceBtn');
+            const voiceIcon = document.getElementById('voiceIcon');
+            if (voiceBtn) voiceBtn.classList.remove('recording');
+            if (voiceIcon) voiceIcon.textContent = '🎤';
+            this.voiceRecognitionActive = false;
+
+            let errorMsg = '语音识别失败';
+            switch(event.error) {
+                case 'no-speech':
+                    errorMsg = '未检测到语音，请重试';
+                    break;
+                case 'audio-capture':
+                    errorMsg = '无法访问麦克风';
+                    break;
+                case 'not-allowed':
+                    errorMsg = '麦克风权限被拒绝';
+                    break;
+                case 'network':
+                    errorMsg = '网络错误，请检查网络连接';
+                    break;
+            }
+            this.showMessage(errorMsg, 'error');
+        };
+
+        return recognition;
+    }
+
+    /**
+     * 切换语音识别状态
+     */
+    toggleVoiceRecognition() {
+        // 初始化语音识别对象（如果还没有）
+        if (!this.voiceRecognition) {
+            this.voiceRecognition = this.initVoiceRecognition();
+            if (!this.voiceRecognition) {
+                this.showMessage('您的浏览器不支持语音识别功能，请使用Chrome、Edge或Safari浏览器', 'error');
+                return;
+            }
+        }
+
+        // 切换录音状态
+        if (this.voiceRecognitionActive) {
+            // 停止录音
+            this.voiceRecognition.stop();
+            this.voiceRecognitionActive = false;
+        } else {
+            // 开始录音
+            try {
+                this.voiceRecognition.start();
+                this.voiceRecognitionActive = true;
+            } catch (error) {
+                console.error('启动语音识别失败:', error);
+                this.showMessage('启动语音识别失败，请重试', 'error');
+            }
+        }
     }
 
     /**
@@ -4475,6 +4590,11 @@ function sendChatMessage() {
 function clearChatHistory() {
     const a = _requireApp();
     if (a) a.clearChatHistory();
+}
+
+function toggleVoiceRecognition() {
+    const a = _requireApp();
+    if (a) a.toggleVoiceRecognition();
 }
 
 // ===== 活动量与步数监测模块控制函数 =====
