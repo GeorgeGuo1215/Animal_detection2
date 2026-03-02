@@ -8,10 +8,10 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>毫米波雷达数据处理系统 - Web版</title>
-    <link rel="stylesheet" href="style.css?v=20260129-1">
+    <link rel="stylesheet" href="style.css?v=20260302-2">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="fft.js?v=20260113-4"></script>
-    <script src="bluetooth.js?v=20260113-4"></script>
+    <script src="fft.js?v=20260302-2"></script>
+    <script src="bluetooth.js?v=20260302-3"></script>
 </head>
 <body>
     <div class="container">
@@ -24,14 +24,21 @@
             <!-- 蓝牙实时数据区域 -->
             <section class="upload-section">
                 <h2>📶 蓝牙实时数据接口</h2>
+
+                <!-- 保存的设备信息 -->
+                <div id="bleSavedDevice" style="display:none; background: #e3f2fd; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                </div>
+
                 <div class="file-actions">
                     <button class="btn btn-primary" id="bleConnectBtn" onclick="bleConnect()">连接蓝牙</button>
-                    <button class="btn btn-secondary" id="bleDisconnectBtn" onclick="bleDisconnect()" style="display:none;">断开</button>
-                    <button class="btn btn-success" id="bleStartRecordBtn" onclick="bleStartRecording()" style="display:none;">开始记录</button>
+                    <button class="btn btn-success" id="bleReconnectBtn" onclick="bleReconnect()" style="display:none;">快速重连</button>
+                    <button class="btn btn-secondary" id="bleDisconnectBtn" onclick="bleDisconnect()">断开</button>
+                    <button class="btn btn-warning" id="bleClearSavedBtn" onclick="bleClearSaved()" style="display:none;">清除保存</button>
+                    <button class="btn btn-success" id="bleStartRecordBtn" onclick="bleStartRecording()">开始记录</button>
                     <button class="btn btn-danger" id="bleStopRecordBtn" onclick="bleStopRecording()" style="display:none;">结束记录</button>
-                    <button class="btn btn-info" id="bleShowChartsBtn" onclick="showBluetoothCharts()" style="display:none;">显示蓝牙图表</button>
-                    <button class="btn btn-secondary" id="bleDiagBtn" onclick="bleQuickDiagnose()" style="display:none;">连接诊断(复制)</button>
-                    <button class="btn btn-primary" id="bleAzureBtn" onclick="bleAzureDiagnose()" style="display:none; margin-left:10px;">AI诊断(本次录制)</button>
+                    <button class="btn btn-info" id="bleShowChartsBtn" onclick="showBluetoothCharts()">显示蓝牙图表</button>
+                    <button class="btn btn-secondary" id="bleDiagBtn" onclick="bleQuickDiagnose()">连接诊断(复制)</button>
+                    <button class="btn btn-primary" id="bleAzureBtn" onclick="bleAzureDiagnose()" style="margin-left:10px;">AI诊断(本次录制)</button>
                     <button class="btn btn-warning" onclick="startSimulationTest()" style="margin-left:10px;">模拟测试</button>
                 </div>
 
@@ -86,12 +93,110 @@
                                 <span class="stat-value" id="bleCurrentIQ">--</span>
                             </div>
                             <div class="stat-item">
+                                <span class="stat-label">陀螺仪 (Gyr):</span>
+                                <span class="stat-value" id="bleCurrentGyr">--</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">加速度 (Acc):</span>
+                                <span class="stat-value" id="bleCurrentAcc">--</span>
+                            </div>
+                            <div class="stat-item">
                                 <span class="stat-label">当前温度:</span>
                                 <span class="stat-value" id="bleCurrentTemp">-- °C</span>
                             </div>
                         </div>
                         <div class="raw-data-log" id="bleRawDataLog">
                             <strong>原始数据:</strong><br/>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 姿态解算模块 -->
+            <section class="upload-section attitude-section" id="attitudeSection">
+                <h2>🎯 IMU 姿态解算</h2>
+                <p class="section-desc">
+                    基于加速度计和陀螺仪数据进行实时姿态解算,支持 Madgwick 和互补滤波器算法
+                </p>
+
+                <div class="file-actions">
+                    <button class="btn btn-primary" id="attitudeEnableBtn" onclick="toggleAttitude()">启用姿态解算</button>
+                    <select id="attitudeAlgorithm" onchange="changeAttitudeAlgorithm()" style="margin-left: 10px; padding: 8px;">
+                        <option value="madgwick">Madgwick 滤波器</option>
+                        <option value="complementary">互补滤波器</option>
+                    </select>
+                    <label style="margin-left: 15px;">
+                        灵敏度:
+                        <input type="range" id="attitudeBeta" min="0.1" max="2.0" step="0.1" value="0.5"
+                               onchange="adjustAttitudeSensitivity()" style="width: 150px; vertical-align: middle;">
+                        <span id="attitudeBetaValue">0.5</span>
+                    </label>
+                </div>
+
+                <div id="attitudeDisplay" style="display:none; margin-top: 20px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <!-- 3D 可视化 -->
+                        <div>
+                            <h3>3D 姿态可视化</h3>
+                            <div id="attitude3DContainer" style="width: 100%; height: 400px; background: #1a1a2e; border-radius: 8px;"></div>
+                        </div>
+
+                        <!-- 数据显示 -->
+                        <div>
+                            <h3>姿态数据</h3>
+                            <div class="attitude-data-panel">
+                                <div class="attitude-data-group">
+                                    <h4>欧拉角 (度)</h4>
+                                    <div class="attitude-data-item">
+                                        <span>Pitch (俯仰):</span>
+                                        <span id="attitudePitch">0.0°</span>
+                                    </div>
+                                    <div class="attitude-data-item">
+                                        <span>Roll (横滚):</span>
+                                        <span id="attitudeRoll">0.0°</span>
+                                    </div>
+                                    <div class="attitude-data-item">
+                                        <span>Yaw (偏航):</span>
+                                        <span id="attitudeYaw">0.0°</span>
+                                    </div>
+                                </div>
+
+                                <div class="attitude-data-group">
+                                    <h4>四元数</h4>
+                                    <div class="attitude-data-item">
+                                        <span>W:</span>
+                                        <span id="attitudeQW">1.000</span>
+                                    </div>
+                                    <div class="attitude-data-item">
+                                        <span>X:</span>
+                                        <span id="attitudeQX">0.000</span>
+                                    </div>
+                                    <div class="attitude-data-item">
+                                        <span>Y:</span>
+                                        <span id="attitudeQY">0.000</span>
+                                    </div>
+                                    <div class="attitude-data-item">
+                                        <span>Z:</span>
+                                        <span id="attitudeQZ">0.000</span>
+                                    </div>
+                                </div>
+
+                                <div class="attitude-data-group">
+                                    <h4>角速度 (deg/s)</h4>
+                                    <div class="attitude-data-item">
+                                        <span>Gx:</span>
+                                        <span id="attitudeGx">0.0</span>
+                                    </div>
+                                    <div class="attitude-data-item">
+                                        <span>Gy:</span>
+                                        <span id="attitudeGy">0.0</span>
+                                    </div>
+                                    <div class="attitude-data-item">
+                                        <span>Gz:</span>
+                                        <span id="attitudeGz">0.0</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -106,7 +211,7 @@
                 
                 <!-- 控制按钮 -->
                 <div class="file-actions">
-                    <button class="btn btn-success" id="restingStartBtn" onclick="startRestingMonitor()" style="display:none;">
+                    <button class="btn btn-success" id="restingStartBtn" onclick="startRestingMonitor()">
                         🎯 开始静息监测
                     </button>
                     <button class="btn btn-danger" id="restingStopBtn" onclick="stopRestingMonitor()" style="display:none;">
@@ -217,7 +322,7 @@
 
                 <!-- 控制按钮 -->
                 <div class="file-actions">
-                    <button class="btn btn-success" id="activityStartBtn" onclick="startActivityMonitor()" style="display:none;">
+                    <button class="btn btn-success" id="activityStartBtn" onclick="startActivityMonitor()">
                         🎯 开始活动监测
                     </button>
                     <button class="btn btn-danger" id="activityStopBtn" onclick="stopActivityMonitor()" style="display:none;">
@@ -856,9 +961,17 @@
                             <canvas id="bleIMUChart"></canvas>
                         </div>
                         <div class="chart-container">
+                            <h3>蓝牙 Ax/Ay/Az 信号(加速度计)</h3>
+                            <canvas id="bleACCChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-row">
+                        <div class="chart-container">
                             <h3>蓝牙 温度变化 (°C)</h3>
                             <canvas id="bleTemperatureChart"></canvas>
                         </div>
+                        <div class="chart-container" style="visibility: hidden;"></div>
                     </div>
                     
                     <div class="chart-row">
@@ -1148,15 +1261,22 @@
         </div>
     </div>
 
-    <script src="radar-processor.js?v=20260129-1"></script>
-    <script src="azure-gpt.js?v=20260129-1"></script>
-    <script src="resting-monitor.js?v=20260129-1"></script>
-    <script src="activity-monitor.js?v=20260129-1"></script>
-    <script src="sleep-monitor.js?v=20260129-1"></script>
+    <script src="radar-processor.js?v=20260213-2"></script>
+    <script src="azure-gpt.js?v=20260213-2"></script>
+    <script src="resting-monitor.js?v=20260302-2"></script>
+    <script src="activity-monitor.js?v=20260302-2"></script>
+    <script src="sleep-monitor.js?v=20260302-2"></script>
     <!-- Markdown 渲染（marked）+ 安全净化（DOMPurify） -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
-    <script src="app.js?v=20260129-1"></script>
+
+    <!-- Three.js 用于 3D 姿态可视化 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- 姿态解算模块 -->
+    <script src="attitude-solver.js?v=20260213-2"></script>
+
+    <script src="app.js?v=20260302-5"></script>
 
     <!-- BLE调试代码 -->
     <script>

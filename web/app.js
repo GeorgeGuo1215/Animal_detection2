@@ -37,6 +37,10 @@ class RadarWebApp {
         this.bleBufferIMU_X = [];
         this.bleBufferIMU_Y = [];
         this.bleBufferIMU_Z = [];
+        // 加速度计三轴缓存：ax/ay/az
+        this.bleBufferACC_X = [];
+        this.bleBufferACC_Y = [];
+        this.bleBufferACC_Z = [];
         this.bleBufferTemperature = []; // 温度数据缓存
         this.bleBufferTimestamps = [];
         this.bleMaxBuffer = 5000; // 逻辑窗口长度
@@ -88,7 +92,8 @@ class RadarWebApp {
         this._bleChartMinIntervalMs = 100; // 10Hz 刷新图表足够流畅
 
         this._bleVitalLogLastTs = 0; // 限制生理参数日志刷屏
-        
+        this._lastVitalUpdateTime = 0; // 上次生理参数更新时间（用于节流）
+
         // 实时保存相关 (参考main.py)
         this.bleRecordingFlag = 0;  // 0: 不记录, 1: 记录中
         this.bleRecordingData = []; // 记录的处理后数据缓存
@@ -113,6 +118,11 @@ class RadarWebApp {
         // ===== 睡眠质量监测模块 =====
         this.sleepMonitor = null;
         this.sleepMonitorEnabled = false;
+
+        // ===== 姿态解算模块 =====
+        this.attitudeSolver = null;
+        this.attitudeVisualizer = null;
+        this.attitudeEnabled = false;
 
         // ===== 语音识别模块 =====
         this.voiceRecognition = null;
@@ -353,45 +363,55 @@ class RadarWebApp {
     initializeBLE() {
         if (!window.BLE) return;
         BLE.onConnect = (device) => {
+            console.log('[DEBUG] onConnect fired, setting bleConnected=true');
             this.bleConnected = true;
             this.addBLELog(`✓ 已连接: ${device.name || '未知设备'} (${device.id})`);
             this.addBLELog(`📡 正在扫描可用服务和特征...`);
-            
+
+            // 更新保存设备的UI
+            if (typeof updateBLESavedDeviceUI === 'function') {
+                updateBLESavedDeviceUI();
+            }
+
             // 显示实时数据区域
-            document.getElementById('bleRealTimeData').style.display = 'block';
-            
+            const rtData = document.getElementById('bleRealTimeData');
+            if (rtData) rtData.style.display = 'block';
+
             // 开始计时
             this.bleConnectStartTime = Date.now();
             this.startBluetoothTimer();
-            
+
             // 重置数据
             this.resetBluetoothData();
-            
-            this.updateBLEButtons();
+
+            console.log('[DEBUG] about to call updateBLEButtons, bleConnected=', this.bleConnected);
+            try {
+                this.updateBLEButtons();
+                console.log('[DEBUG] updateBLEButtons completed OK');
+            } catch(e) {
+                console.error('[DEBUG] updateBLEButtons error:', e);
+            }
 
             // 连接后自动展开蓝牙图表（避免用户觉得“没有gx/gy/gz可视图”）
             const chartsSection = document.getElementById('bluetoothChartsSection');
             if (chartsSection) {
                 chartsSection.style.display = 'block';
-                console.log('✅ 蓝牙图表区域已展开');
             }
 
             // 确保图表已初始化
             if (!this.bleCharts.iSignal || !this.bleCharts.qSignal) {
-                console.log('🔄 重新初始化蓝牙图表...');
                 this.initializeBluetoothCharts();
             }
 
             // 触发一次 resize/update，解决 display:none 时 Chart.js 尺寸为0的问题
             setTimeout(() => {
                 try {
-                    console.log('📊 刷新所有蓝牙图表...');
                     Object.values(this.bleCharts || {}).forEach(ch => {
                         if (ch && typeof ch.resize === 'function') ch.resize();
                         if (ch && typeof ch.update === 'function') ch.update('none');
                     });
                 } catch (error) {
-                    console.error('❌ 图表刷新失败:', error);
+                    console.error('图表刷新失败:', error);
                 }
             }, 100);
 
@@ -439,75 +459,29 @@ class RadarWebApp {
     }
 
     updateBLEButtons() {
+        console.log('[DEBUG] updateBLEButtons called, bleConnected=', this.bleConnected);
         const c = document.getElementById('bleConnectBtn');
-        const d = document.getElementById('bleDisconnectBtn');
-        const s = document.getElementById('bleShowChartsBtn');
-        const diagBtn = document.getElementById('bleDiagBtn');
-        const startBtn = document.getElementById('bleStartRecordBtn');
         const stopBtn = document.getElementById('bleStopRecordBtn');
-        const azureBtn = document.getElementById('bleAzureBtn');
-        const uploadStartBtn = document.getElementById('bleStartUploadBtn');
-        const uploadStopBtn = document.getElementById('bleStopUploadBtn');
-        if (!c || !d || !s || !startBtn || !stopBtn || !azureBtn) return;
-        
+        if (!c) return;
+
+        // 只控制连接按钮：已连接时隐藏
         c.style.display = this.bleConnected ? 'none' : 'inline-block';
-        d.style.display = this.bleConnected ? 'inline-block' : 'none';
-        s.style.display = this.bleConnected ? 'inline-block' : 'none';
-        if (diagBtn) diagBtn.style.display = this.bleConnected ? 'inline-block' : 'none';
-        
-        // 录制按钮分离（开始/结束）
-        if (this.bleConnected) {
-            startBtn.style.display = this.bleRecordingFlag === 1 ? 'none' : 'inline-block';
+
+        // 录制停止按钮根据录制状态控制
+        if (stopBtn) {
             stopBtn.style.display = this.bleRecordingFlag === 1 ? 'inline-block' : 'none';
-            azureBtn.style.display = 'inline-block';
-            if (uploadStartBtn && uploadStopBtn) {
-                uploadStartBtn.style.display = this.bleUploadEnabled ? 'none' : 'inline-block';
-                uploadStopBtn.style.display = this.bleUploadEnabled ? 'inline-block' : 'none';
-            }
-        } else {
-            startBtn.style.display = 'none';
-            stopBtn.style.display = 'none';
-            azureBtn.style.display = 'none';
-            if (uploadStartBtn && uploadStopBtn) {
-                uploadStartBtn.style.display = 'none';
-                uploadStopBtn.style.display = 'none';
-            }
-        }
-        
-        // 静息监测按钮（独立模块）
-        const restingStartBtn = document.getElementById('restingStartBtn');
-        const restingStopBtn = document.getElementById('restingStopBtn');
-        const restingSaveBtn = document.getElementById('restingSaveBtn');
-        const restingConfigBtn = document.getElementById('restingConfigBtn');
-        const restingClearBtn = document.getElementById('restingClearBtn');
-        
-        if (restingStartBtn) {
-            restingStartBtn.style.display = this.bleConnected ? 'inline-block' : 'none';
-        }
-        if (restingStopBtn) {
-            // 由静息监测模块自己控制显示
-        }
-        if (restingSaveBtn) {
-            restingSaveBtn.style.display = this.bleConnected ? 'inline-block' : 'none';
-        }
-        if (restingConfigBtn) {
-            restingConfigBtn.style.display = this.bleConnected ? 'inline-block' : 'none';
-        }
-        if (restingClearBtn) {
-            restingClearBtn.style.display = this.bleConnected ? 'inline-block' : 'none';
         }
 
-        // 活动监测按钮
-        const activityStartBtn = document.getElementById('activityStartBtn');
-        if (activityStartBtn) {
-            activityStartBtn.style.display = this.bleConnected ? 'inline-block' : 'none';
-        }
-
-        // 睡眠监测按钮
-        const sleepStartBtn = document.getElementById('sleepStartBtn');
-        if (sleepStartBtn) {
-            sleepStartBtn.style.display = this.bleConnected ? 'inline-block' : 'none';
-        }
+        // 其他按钮保持默认可见，不受蓝牙连接状态控制：
+        // - 断开按钮 (bleDisconnectBtn)
+        // - 开始记录按钮 (bleStartRecordBtn)
+        // - 显示蓝牙图表按钮 (bleShowChartsBtn)
+        // - 连接诊断按钮 (bleDiagBtn)
+        // - AI诊断按钮 (bleAzureBtn)
+        // - 上报按钮 (bleStartUploadBtn/bleStopUploadBtn)
+        // - 静息/活动/睡眠监测按钮
+        // 用户点击时各功能会检查蓝牙连接状态并提示
+        console.log('[DEBUG] Keeping most buttons visible regardless of BLE connection state');
     }
 
     _setBleUploadStatus(text) {
@@ -998,6 +972,11 @@ class RadarWebApp {
         this.bleBufferIMU_Y.push(Number.isFinite(imuY) ? imuY : 0);
         this.bleBufferIMU_Z.push(Number.isFinite(imuZ) ? imuZ : 0);
 
+        // 加速度计三轴（ax/ay/az），保持与 I/Q 同步长度
+        this.bleBufferACC_X.push(Number.isFinite(accX) ? accX : 0);
+        this.bleBufferACC_Y.push(Number.isFinite(accY) ? accY : 0);
+        this.bleBufferACC_Z.push(Number.isFinite(accZ) ? accZ : 0);
+
         // ===== 活动量监测：将加速度数据传递给ActivityMonitor =====
         if (this.activityMonitorEnabled && this.activityMonitor && accX !== null && accY !== null && accZ !== null) {
             this.activityMonitor.addAccelerometerData(accX, accY, accZ, Date.now());
@@ -1006,6 +985,23 @@ class RadarWebApp {
         // 睡眠监测模块：使用加速度计数据
         if (this.sleepMonitorEnabled && this.sleepMonitor && accX !== null && accY !== null && accZ !== null) {
             this.sleepMonitor.addAccelerometerData(accX, accY, accZ, Date.now());
+        }
+
+        // ===== 姿态解算：使用陀螺仪和加速度计数据 =====
+        if (this.attitudeEnabled && this.attitudeSolver) {
+            // 调试：打印前几次的数据
+            if (this.bleDataCount < 5) {
+                console.log(`📊 姿态数据 #${this.bleDataCount}:`, {
+                    gyr: { x: imuX, y: imuY, z: imuZ },
+                    acc: { x: accX, y: accY, z: accZ }
+                });
+            }
+
+            // 更新姿态解算器
+            this.attitudeSolver.update(imuX, imuY, imuZ, accX, accY, accZ);
+
+            // 更新显示 (每次都更新，不节流)
+            updateAttitudeDisplay();
         }
 
         // 温度数据：只有当设备发送了温度数据时才更新，否则使用null表示无数据
@@ -1062,21 +1058,56 @@ class RadarWebApp {
         this.bleDataCount++;
         document.getElementById('bleDataCount').textContent = this.bleDataCount;
         document.getElementById('bleTotalDataPoints').textContent = this.bleDataCount;
-        
+
+        // 确保实时数据区域和图表区域可见（防止连接时未正确显示）
+        if (this.bleDataCount <= 5) {
+            const bleRealTimeData = document.getElementById('bleRealTimeData');
+            if (bleRealTimeData && bleRealTimeData.style.display === 'none') {
+                bleRealTimeData.style.display = 'block';
+            }
+            const chartsSection = document.getElementById('bluetoothChartsSection');
+            if (chartsSection && chartsSection.style.display === 'none') {
+                chartsSection.style.display = 'block';
+            }
+            // 确保图表已初始化
+            if (!this.bleCharts.iSignal || !this.bleCharts.qSignal) {
+                this.initializeBluetoothCharts();
+            }
+        }
+
         // 通知静息监测模块（如果存在）
         if (typeof restingMonitor !== 'undefined' && restingMonitor) {
             restingMonitor.update();
         }
 
-        // 🔍 调试：在页面上显示最新的I/Q值（每10条更新一次）
+        // 在页面上显示最新的I/Q值和温度（每10条更新一次）
         if (this.bleDataCount % 10 === 0) {
             const lastI = this.bleBufferI[this.bleBufferI.length - 1];
             const lastQ = this.bleBufferQ[this.bleBufferQ.length - 1];
             const debugInfo = `I=${lastI?.toFixed(4)}V, Q=${lastQ?.toFixed(4)}V (共${this.bleBufferI.length}点)`;
-            // 单独的调试区域，避免覆盖“当前心率”显示
             const debugEl = document.getElementById('bleCurrentIQ');
-            if (debugEl && this.bleDataCount < 100) {
+            if (debugEl) {
                 debugEl.textContent = debugInfo;
+            }
+            // 更新陀螺仪和加速度计显示
+            const gyrEl = document.getElementById('bleCurrentGyr');
+            const accEl = document.getElementById('bleCurrentAcc');
+            const tempEl = document.getElementById('bleCurrentTemp');
+            if (gyrEl && this.bleBufferIMU_X.length > 0) {
+                const gx = this.bleBufferIMU_X[this.bleBufferIMU_X.length - 1];
+                const gy = this.bleBufferIMU_Y[this.bleBufferIMU_Y.length - 1];
+                const gz = this.bleBufferIMU_Z[this.bleBufferIMU_Z.length - 1];
+                gyrEl.textContent = `${gx?.toFixed(2)}, ${gy?.toFixed(2)}, ${gz?.toFixed(2)}`;
+            }
+            if (accEl && this.bleBufferACC_X.length > 0) {
+                const ax = this.bleBufferACC_X[this.bleBufferACC_X.length - 1];
+                const ay = this.bleBufferACC_Y[this.bleBufferACC_Y.length - 1];
+                const az = this.bleBufferACC_Z[this.bleBufferACC_Z.length - 1];
+                accEl.textContent = `${ax?.toFixed(3)}, ${ay?.toFixed(3)}, ${az?.toFixed(3)}`;
+            }
+            if (tempEl && this.bleBufferTemperature.length > 0) {
+                const t = this.bleBufferTemperature[this.bleBufferTemperature.length - 1];
+                if (t !== null) tempEl.textContent = `${t.toFixed(1)} °C`;
             }
         }
 
@@ -1086,10 +1117,8 @@ class RadarWebApp {
         // 图表更新节流（每条都刷会卡）
         this._scheduleBleChartUpdate();
 
-        // 每累计一段再做一次完整生理参数估计（降低更新频率以提高稳定性）
-        // 参考main.py每收集一定数量数据才计算一次（第72400个计数）
+        // 每累计一段再做一次完整生理参数估计
         const fs = (this.processor && Number.isFinite(this.processor.fs)) ? this.processor.fs : 50;
-        // 改为每1秒计算一次（50个点），更频繁更新
         if (this.bleBufferI.length % fs === 0 && this.bleBufferI.length >= fs * 5) {
             this.updateBluetoothVitalSigns();
         }
@@ -1109,6 +1138,9 @@ class RadarWebApp {
             this.bleBufferIMU_X,
             this.bleBufferIMU_Y,
             this.bleBufferIMU_Z,
+            this.bleBufferACC_X,
+            this.bleBufferACC_Y,
+            this.bleBufferACC_Z,
             this.bleBufferTemperature
         ].forEach(arr => {
             if (Array.isArray(arr) && arr.length >= removeCount) arr.splice(0, removeCount);
@@ -2437,6 +2469,16 @@ class RadarWebApp {
             return;
         }
 
+        // 销毁已有图表，防止 "Canvas is already in use" 错误
+        Object.keys(this.bleCharts).forEach(key => {
+            try {
+                if (this.bleCharts[key] && typeof this.bleCharts[key].destroy === 'function') {
+                    this.bleCharts[key].destroy();
+                }
+            } catch (e) { /* ignore */ }
+        });
+        this.bleCharts = {};
+
         const chartOptions = {
             responsive: true,
             maintainAspectRatio: false,
@@ -2532,6 +2574,16 @@ class RadarWebApp {
                 type: 'line',
                 data: { labels: [], datasets: [] },
                 options: { ...chartOptions, plugins: { ...chartOptions.plugins, title: { display: true, text: '蓝牙 Gx/Gy/Gz 三轴变化' } } }
+            });
+        }
+
+        // 初始化加速度计(Ax/Ay/Az) 图表
+        const accCanvas = document.getElementById('bleACCChart');
+        if (accCanvas) {
+            this.bleCharts.acc = new Chart(accCanvas, {
+                type: 'line',
+                data: { labels: [], datasets: [] },
+                options: { ...chartOptions, plugins: { ...chartOptions.plugins, title: { display: true, text: '蓝牙 Ax/Ay/Az 三轴变化' } } }
             });
         }
 
@@ -3516,21 +3568,30 @@ class RadarWebApp {
      * 打印原始数据到日志
      */
     printRawData(line) {
+        console.log('📝 printRawData被调用, line:', line.substring(0, 100));
         const log = document.getElementById('bleRawDataLog');
-        if (!log) return;
-        
+        if (!log) {
+            console.warn('❌ 未找到 bleRawDataLog 元素');
+            return;
+        }
+        console.log('✅ 找到 bleRawDataLog 元素');
+
         const ts = new Date().toLocaleTimeString();
         const trimmed = line.trim();
         this._bleRawLines.push(`[${ts}] ${trimmed}`);
         if (this._bleRawLines.length > 50) this._bleRawLines.splice(0, this._bleRawLines.length - 50);
 
         // 节流渲染
-        if (this._bleRawRenderTimer) return;
+        if (this._bleRawRenderTimer) {
+            console.log('⏱️ 节流中，等待渲染');
+            return;
+        }
         this._bleRawRenderTimer = setTimeout(() => {
             this._bleRawRenderTimer = null;
             log.style.whiteSpace = 'pre-wrap';
             log.textContent = `原始数据:\n${this._bleRawLines.join('\n')}\n`;
             log.scrollTop = log.scrollHeight;
+            console.log(`✅ 已渲染原始数据，共 ${this._bleRawLines.length} 行`);
         }, 200);
     }
 
@@ -3663,6 +3724,10 @@ class RadarWebApp {
         document.getElementById('bleCurrentResp').textContent = '-- bpm';
         const iqEl = document.getElementById('bleCurrentIQ');
         if (iqEl) iqEl.textContent = '--';
+        const gyrEl = document.getElementById('bleCurrentGyr');
+        if (gyrEl) gyrEl.textContent = '--';
+        const accEl = document.getElementById('bleCurrentAcc');
+        if (accEl) accEl.textContent = '--';
         document.getElementById('bleAvgHeartRate').textContent = '-- bpm';
         document.getElementById('bleAvgRespRate').textContent = '-- bpm';
         const tempEl = document.getElementById('bleCurrentTemp');
@@ -4091,6 +4156,19 @@ class RadarWebApp {
             console.warn('❌ IMU图表对象不存在，但有IMU数据');
         }
 
+        // 更新加速度计图表（ax/ay/az）
+        if (this.bleCharts.acc && this.bleBufferACC_X.length > 0) {
+            this.bleCharts.acc.data = {
+                labels: indices,
+                datasets: [
+                    { label: 'ax', data: this.bleBufferACC_X.slice(start), borderColor: 'rgb(255, 159, 64)', backgroundColor: 'rgba(255, 159, 64, 0.08)', tension: 0.1, pointRadius: 0 },
+                    { label: 'ay', data: this.bleBufferACC_Y.slice(start), borderColor: 'rgb(153, 102, 255)', backgroundColor: 'rgba(153, 102, 255, 0.08)', tension: 0.1, pointRadius: 0 },
+                    { label: 'az', data: this.bleBufferACC_Z.slice(start), borderColor: 'rgb(255, 205, 86)', backgroundColor: 'rgba(255, 205, 86, 0.08)', tension: 0.1, pointRadius: 0 }
+                ]
+            };
+            this.bleCharts.acc.update();
+        }
+
         // 更新温度图表
         let validTempData = []; // 声明在外部以便后续使用
         if (this.bleCharts.temperature && this.bleBufferTemperature.length > 0) {
@@ -4137,6 +4215,28 @@ class RadarWebApp {
                 if (avgTempEl) {
                     avgTempEl.textContent = `${currentTemp.toFixed(1)} °C`;
                 }
+            }
+        }
+
+        // 更新当前陀螺仪显示 (gx, gy, gz)
+        if (this.bleBufferIMU_X.length > 0) {
+            const gx = this.bleBufferIMU_X[this.bleBufferIMU_X.length - 1];
+            const gy = this.bleBufferIMU_Y[this.bleBufferIMU_Y.length - 1];
+            const gz = this.bleBufferIMU_Z[this.bleBufferIMU_Z.length - 1];
+            const gyrEl = document.getElementById('bleCurrentGyr');
+            if (gyrEl) {
+                gyrEl.textContent = `gx:${gx.toFixed(1)} gy:${gy.toFixed(1)} gz:${gz.toFixed(1)}`;
+            }
+        }
+
+        // 更新当前加速度计显示 (ax, ay, az)
+        if (this.bleBufferACC_X.length > 0) {
+            const ax = this.bleBufferACC_X[this.bleBufferACC_X.length - 1];
+            const ay = this.bleBufferACC_Y[this.bleBufferACC_Y.length - 1];
+            const az = this.bleBufferACC_Z[this.bleBufferACC_Z.length - 1];
+            const accEl = document.getElementById('bleCurrentAcc');
+            if (accEl) {
+                accEl.textContent = `ax:${ax.toFixed(3)} ay:${ay.toFixed(3)} az:${az.toFixed(3)}`;
             }
         }
     }
@@ -4227,21 +4327,9 @@ class RadarWebApp {
      * 强制重新初始化所有图表（用于调试蓝牙图表显示问题）
      */
     forceReinitializeCharts() {
-        console.log('🔄 强制重新初始化所有图表...');
-        console.log('当前图表状态:', {
-            iSignal: !!this.charts.iSignal,
-            qSignal: !!this.charts.qSignal,
-            bleISignal: !!this.bleCharts.iSignal,
-            bleQSignal: !!this.bleCharts.qSignal,
-            bleConstellation: !!this.bleCharts.constellation,
-            bleIMU: !!this.bleCharts.imu,
-            bleTemperature: !!this.bleCharts.temperature
-        });
-
         this.initializeCharts();
         this.initializeBluetoothCharts();
 
-        // 延迟刷新所有图表
         setTimeout(() => {
             const allCharts = [
                 ...Object.values(this.charts || {}),
@@ -4251,7 +4339,6 @@ class RadarWebApp {
                 if (chart && typeof chart.resize === 'function') chart.resize();
                 if (chart && typeof chart.update === 'function') chart.update();
             });
-            console.log('✅ 图表重新初始化完成');
         }, 100);
     }
 
@@ -4259,16 +4346,12 @@ class RadarWebApp {
      * 更新蓝牙生理参数（参考main.py的心率稳定算法）
      */
     updateBluetoothVitalSigns() {
-        // 增加窗口长度以提高稳定性（参考main.py使用500-1000点）
         const fs = (this.processor && Number.isFinite(this.processor.fs)) ? this.processor.fs : 50;
-        const windowSize = Math.min(this.bleBufferI.length, fs * 30); // 最近30秒（50Hz=>1500点）
+        const windowSize = Math.min(this.bleBufferI.length, fs * 30);
         const iData = new Float64Array(this.bleBufferI.slice(-windowSize));
         const qData = new Float64Array(this.bleBufferQ.slice(-windowSize));
-        
-        // 需要至少5秒数据才能计算
-        if (iData.length < fs * 5) {
-            return;
-        }
+
+        if (iData.length < fs * 5) return;
 
         try {
             // 运行时防御：确认方法已加载
@@ -4342,7 +4425,7 @@ class RadarWebApp {
             }
 
             // ===== 心率平滑处理（参考main.py第332-340行）=====
-            
+
             // 1. 更新循环历史记录（类似Python端的固定长度数组）
             this.heartRateHistory[this.historyIndex] = heartRate;
             this.respiratoryHistory[this.historyIndex] = respiratoryRate;
@@ -4355,45 +4438,42 @@ class RadarWebApp {
             const avgRespRate = Math.round(
                 this.respiratoryHistory.reduce((a, b) => a + b, 0) / this.historyMaxLength
             );
-            
+
             // 4. 心率稳定控制（参考main.py第353-360行的逻辑）
             let displayHeartRate = avgHeartRate;
             let displayRespRate = avgRespRate;
-            
+
             // 始终应用心率变化限制（数组已填满历史数据）
             const delta = avgHeartRate - this.lastStableHeartRate;
             if (Math.abs(delta) > this.heartRateDelta) {
-                // 限制变化：只允许每次改变heartRateDelta的幅度
                 displayHeartRate = this.lastStableHeartRate + Math.sign(delta) * this.heartRateDelta;
-                console.log(`心率限制: ${avgHeartRate} → ${displayHeartRate} (变化${delta}bpm超过阈值${this.heartRateDelta}bpm)`);
             }
-            
+
             // 5. 更新稳定值
             this.lastStableHeartRate = displayHeartRate;
             this.lastStableRespRate = displayRespRate;
-            
+
             // 6. 使用平滑后的值
-            const vital = { 
-                heartRate: displayHeartRate, 
-                respiratoryRate: displayRespRate 
+            const vital = {
+                heartRate: displayHeartRate,
+                respiratoryRate: displayRespRate
             };
-            
+
             // 更新当前心率和呼吸率（供静息监测模块使用）
             this.currentHeartRate = displayHeartRate;
             this.currentRespiratoryRate = displayRespRate;
-            
-            console.log(`生理参数: 原始HR=${heartRate}bpm, 平滑后HR=${displayHeartRate}bpm, RR=${displayRespRate}bpm (历史${this.heartRateHistory.length}次)`);
-            
+
             // 更新显示
             const hrElement = document.getElementById('bleCurrentHR');
             const respElement = document.getElementById('bleCurrentResp');
             const avgHrElement = document.getElementById('bleAvgHeartRate');
             const avgRespElement = document.getElementById('bleAvgRespRate');
-            
+
             if (hrElement) hrElement.textContent = `${vital.heartRate} bpm`;
             if (respElement) respElement.textContent = `${vital.respiratoryRate} bpm`;
             if (avgHrElement) avgHrElement.textContent = `${vital.heartRate} bpm`;
             if (avgRespElement) avgRespElement.textContent = `${vital.respiratoryRate} bpm`;
+
             // 同步更新蓝牙ECG区块显示数值
             const bleHrEl = document.getElementById('bleCurrentHeartRate');
             const bleRespEl = document.getElementById('bleCurrentRespRate');
@@ -4416,7 +4496,13 @@ class RadarWebApp {
             }
             
         } catch (e) {
-            console.error('更新生理参数错误:', e);
+            console.error('❌ 更新生理参数错误:', e);
+            console.error('错误堆栈:', e.stack);
+            console.error('当前状态:', {
+                bufferLength: this.bleBufferI.length,
+                processorExists: !!this.processor,
+                extractVitalSignsMainPy: typeof this.processor?.extractVitalSignsMainPy
+            });
             this.addBLELog(`❌ 处理错误: ${e.message}`);
         }
     }
@@ -5462,4 +5548,223 @@ if (typeof window !== 'undefined') {
     console.log('验证: startSleepMonitor =', typeof window.startSleepMonitor);
     console.log('验证: stopSleepMonitor =', typeof window.stopSleepMonitor);
     console.log('验证: resetSleepData =', typeof window.resetSleepData);
+}
+
+// ===== 姿态解算功能 =====
+
+/**
+ * 切换姿态解算功能
+ */
+function toggleAttitude() {
+    const app = window.app;
+    if (!app) return;
+
+    if (!app.attitudeEnabled) {
+        // 启用姿态解算
+        app.attitudeEnabled = true;
+
+        // 创建姿态解算器
+        if (!app.attitudeSolver) {
+            app.attitudeSolver = new AttitudeSolver();
+            app.attitudeSolver.setSampleRate(100); // 假设 100Hz 采样率
+        }
+
+        // 先显示姿态数据区域（让容器有尺寸），再创建 3D 可视化器
+        document.getElementById('attitudeDisplay').style.display = 'block';
+
+        // 延迟创建可视化器，等待浏览器完成布局
+        setTimeout(() => {
+            if (!app.attitudeVisualizer) {
+                app.attitudeVisualizer = new AttitudeVisualizer('attitude3DContainer');
+            } else {
+                // 已存在则重启动画并适配新尺寸
+                app.attitudeVisualizer.onWindowResize();
+                app.attitudeVisualizer.start();
+            }
+        }, 100);
+
+        // 更新按钮文本
+        document.getElementById('attitudeEnableBtn').textContent = '停止姿态解算';
+        document.getElementById('attitudeEnableBtn').classList.remove('btn-primary');
+        document.getElementById('attitudeEnableBtn').classList.add('btn-danger');
+
+        console.log('✅ 姿态解算已启用');
+    } else {
+        // 停止姿态解算
+        app.attitudeEnabled = false;
+
+        // 停止可视化
+        if (app.attitudeVisualizer) {
+            app.attitudeVisualizer.stop();
+        }
+
+        // 隐藏显示区域
+        document.getElementById('attitudeDisplay').style.display = 'none';
+
+        // 更新按钮文本
+        document.getElementById('attitudeEnableBtn').textContent = '启用姿态解算';
+        document.getElementById('attitudeEnableBtn').classList.remove('btn-danger');
+        document.getElementById('attitudeEnableBtn').classList.add('btn-primary');
+
+        console.log('⏸️ 姿态解算已停止');
+    }
+}
+
+/**
+ * 切换姿态解算算法
+ */
+function changeAttitudeAlgorithm() {
+    const app = window.app;
+    if (!app || !app.attitudeSolver) return;
+
+    const algorithm = document.getElementById('attitudeAlgorithm').value;
+    app.attitudeSolver.setAlgorithm(algorithm);
+
+    // 重置姿态
+    app.attitudeSolver.reset();
+
+    console.log(`🔄 姿态解算算法已切换为: ${algorithm}`);
+}
+
+/**
+ * 更新姿态显示
+ */
+function updateAttitudeDisplay() {
+    const app = window.app;
+    if (!app || !app.attitudeEnabled || !app.attitudeSolver) return;
+
+    // 获取欧拉角
+    const euler = app.attitudeSolver.getEulerAngles();
+    document.getElementById('attitudePitch').textContent = euler.pitch.toFixed(1) + '°';
+    document.getElementById('attitudeRoll').textContent = euler.roll.toFixed(1) + '°';
+    document.getElementById('attitudeYaw').textContent = euler.yaw.toFixed(1) + '°';
+
+    // 获取四元数
+    const quat = app.attitudeSolver.getQuaternion();
+    document.getElementById('attitudeQW').textContent = quat.w.toFixed(3);
+    document.getElementById('attitudeQX').textContent = quat.x.toFixed(3);
+    document.getElementById('attitudeQY').textContent = quat.y.toFixed(3);
+    document.getElementById('attitudeQZ').textContent = quat.z.toFixed(3);
+
+    // 获取角速度
+    const angVel = app.attitudeSolver.getAngularVelocity();
+    document.getElementById('attitudeGx').textContent = angVel.gx.toFixed(1);
+    document.getElementById('attitudeGy').textContent = angVel.gy.toFixed(1);
+    document.getElementById('attitudeGz').textContent = angVel.gz.toFixed(1);
+
+    // 更新 3D 可视化
+    if (app.attitudeVisualizer) {
+        app.attitudeVisualizer.updateQuaternion(quat.w, quat.x, quat.y, quat.z);
+    }
+}
+
+// 导出姿态解算函数到全局作用域
+if (typeof window !== 'undefined') {
+    window.toggleAttitude = toggleAttitude;
+    window.changeAttitudeAlgorithm = changeAttitudeAlgorithm;
+    window.updateAttitudeDisplay = updateAttitudeDisplay;
+
+    console.log('✅ 姿态解算函数已导出到全局作用域');
+}
+
+/**
+ * 调整姿态解算灵敏度
+ */
+function adjustAttitudeSensitivity() {
+    const app = window.app;
+    if (!app || !app.attitudeSolver) return;
+
+    const beta = parseFloat(document.getElementById('attitudeBeta').value);
+    document.getElementById('attitudeBetaValue').textContent = beta.toFixed(1);
+
+    app.attitudeSolver.beta = beta;
+    console.log(`🎚️ 姿态解算灵敏度已调整为: ${beta}`);
+}
+
+// 导出灵敏度调整函数
+if (typeof window !== 'undefined') {
+    window.adjustAttitudeSensitivity = adjustAttitudeSensitivity;
+}
+
+// ===== 蓝牙自动重连功能 =====
+
+/**
+ * 重连到保存的蓝牙设备
+ */
+async function bleReconnect() {
+    if (!window.BLE) {
+        app.showMessage('此浏览器不支持Web Bluetooth', 'error');
+        return;
+    }
+
+    const savedInfo = BLE.getSavedDeviceInfo();
+    if (!savedInfo) {
+        app.showMessage('没有保存的设备', 'warning');
+        return;
+    }
+
+    try {
+        app.showMessage(`正在重连到: ${savedInfo.name}...`, 'info');
+        await BLE.reconnectToSaved();
+        app.showMessage(`已重连到: ${savedInfo.name}`, 'success');
+    } catch (e) {
+        app.showMessage(`重连失败: ${e.message}`, 'error');
+        console.error('重连失败:', e);
+    }
+}
+
+/**
+ * 清除保存的蓝牙设备
+ */
+function bleClearSaved() {
+    if (!window.BLE) return;
+    
+    BLE.clearSavedDevice();
+    updateBLESavedDeviceUI();
+    app.showMessage('已清除保存的设备', 'success');
+}
+
+/**
+ * 更新保存设备的UI显示
+ */
+function updateBLESavedDeviceUI() {
+    const savedInfo = window.BLE ? BLE.getSavedDeviceInfo() : null;
+    const savedDeviceEl = document.getElementById('bleSavedDevice');
+    const reconnectBtn = document.getElementById('bleReconnectBtn');
+    const clearSavedBtn = document.getElementById('bleClearSavedBtn');
+
+    if (savedDeviceEl) {
+        if (savedInfo) {
+            const savedDate = new Date(savedInfo.savedAt);
+            savedDeviceEl.innerHTML = `
+                <strong>已保存设备:</strong> ${savedInfo.name}<br>
+                <small>保存时间: ${savedDate.toLocaleString()}</small>
+            `;
+            savedDeviceEl.style.display = 'block';
+        } else {
+            savedDeviceEl.style.display = 'none';
+        }
+    }
+
+    if (reconnectBtn) {
+        reconnectBtn.style.display = savedInfo ? 'inline-block' : 'none';
+    }
+
+    if (clearSavedBtn) {
+        clearSavedBtn.style.display = savedInfo ? 'inline-block' : 'none';
+    }
+}
+
+// 页面加载时更新UI
+document.addEventListener('DOMContentLoaded', () => {
+    updateBLESavedDeviceUI();
+});
+
+// 导出函数到全局作用域
+if (typeof window !== 'undefined') {
+    window.bleReconnect = bleReconnect;
+    window.bleClearSaved = bleClearSaved;
+    window.updateBLESavedDeviceUI = updateBLESavedDeviceUI;
+
+    console.log('✅ 蓝牙自动重连功能已加载');
 }
