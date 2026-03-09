@@ -196,6 +196,91 @@
                                         <span id="attitudeGz">0.0</span>
                                     </div>
                                 </div>
+
+                                <!-- 姿态数据标注与记录 -->
+                                <div class="attitude-data-group" style="border: 2px solid #FF9800; border-radius: 8px; padding: 12px; background: #2e1a0a; margin-bottom: 15px;">
+                                    <h4 style="color:#FF9800; margin-bottom: 15px;">📝 姿态数据标注与记录</h4>
+
+                                    <!-- 手动标注选择 -->
+                                    <div style="margin-bottom: 15px;">
+                                        <label style="display: block; color: #FFB74D; font-weight: bold; margin-bottom: 8px;">✏️ 选择当前真实姿态:</label>
+                                        <select id="manualPostureInput" style="width: 100%; padding: 10px; font-size: 1.1em; border-radius: 4px; background: #1a1a1a; color: #fff; border: 2px solid #FF9800;">
+                                            <option value="">-- 请选择当前真实状态 --</option>
+                                            <option value="初始佩戴静止" style="background: #2196F3; font-weight: bold;">⚙️ 初始佩戴静止（校准）</option>
+                                            <option value="" disabled>────────────────</option>
+                                            <option value="站立">🐾 站立</option>
+                                            <option value="左侧躺">😴 左侧躺</option>
+                                            <option value="右侧躺">😴 右侧躺</option>
+                                            <option value="趴卧">🐕 趴卧</option>
+                                            <option value="仰卧">🐾 仰卧</option>
+                                            <option value="低头进食">🌿 低头进食</option>
+                                            <option value="行走/活动">🚶 行走/活动</option>
+                                            <option value="奔跑">🏃 奔跑</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- 当前标注状态显示 -->
+                                    <div style="background: #1a1a1a; padding: 10px; border-radius: 4px; margin-bottom: 15px; border-left: 4px solid #FFB74D;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <span style="color: #999;">当前标注:</span>
+                                            <span id="manualPostureDisplay" style="color:#FFB74D; font-weight:bold; font-size: 1.2em;">未标注</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- 记录控制按钮 -->
+                                    <div style="display: flex; gap: 8px; margin-bottom: 15px;">
+                                        <button id="postureRecordStartBtn" onclick="togglePostureRecording()"
+                                                style="flex: 2; padding: 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1em; font-weight: bold;">
+                                            🔴 开始记录姿态
+                                        </button>
+                                        <button onclick="diagnosePostureRecording()"
+                                                style="flex: 1; padding: 12px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9em;">
+                                            🔍 诊断
+                                        </button>
+                                    </div>
+
+                                    <!-- 记录统计 -->
+                                    <div style="background: #1a1a1a; padding: 12px; border-radius: 4px; border-left: 4px solid #2196F3;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                            <span style="color: #64B5F6; font-weight: bold;">📊 已记录数据:</span>
+                                            <div style="display: flex; gap: 10px; align-items: center;">
+                                                <span id="postureRecordCount" style="color:#4CAF50; font-weight:bold; font-size: 1.3em;">0</span>
+                                                <span style="color: #999;">条</span>
+                                                <button id="exportPostureDataBtn" onclick="exportCurrentPostureData()"
+                                                        style="padding: 6px 12px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85em;">
+                                                    📥 导出
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <!-- 数据预览 -->
+                                        <div style="margin-top: 10px; padding: 10px; background: #000; border-radius: 4px; font-family: monospace; font-size: 0.85em; max-height: 180px; overflow-y: auto;" id="postureDataPreview">
+                                            <div style="color: #888;">等待记录数据...</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 动物姿态判断 -->
+                                <div class="attitude-data-group" style="border: 2px solid #4CAF50; border-radius: 8px; padding: 12px; background: #1a2e1a;">
+                                    <h4 style="color:#4CAF50;">🐾 系统自动判断</h4>
+                                    <div class="attitude-data-item" style="font-size:1.3em; font-weight:bold;">
+                                        <span>判断姿态:</span>
+                                        <span id="animalPostureLabel" style="color:#7fff7f;">--</span>
+                                    </div>
+                                    <div class="attitude-data-item">
+                                        <span>置信度:</span>
+                                        <span id="animalPostureConf">--</span>
+                                    </div>
+                                    <div class="attitude-data-item">
+                                        <span>加速度幅值:</span>
+                                        <span id="animalAccMag">-- g</span>
+                                    </div>
+                                    <div class="attitude-data-item">
+                                        <span>角速度幅值:</span>
+                                        <span id="animalGyrMag">-- °/s</span>
+                                    </div>
+                                </div>
+
                             </div>
                         </div>
                     </div>
@@ -1274,9 +1359,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <!-- 姿态解算模块 -->
-    <script src="attitude-solver.js?v=20260213-2"></script>
+    <script src="attitude-solver.js?v=20260309-optimized"></script>
 
-    <script src="app.js?v=20260302-5"></script>
+    <script src="app.js?v=20260309-calibration"></script>
 
     <!-- BLE调试代码 -->
     <script>

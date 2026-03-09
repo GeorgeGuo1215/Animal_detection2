@@ -253,6 +253,309 @@ class AttitudeSolver {
         this.roll = 0;
         this.yaw = 0;
         this.lastUpdateTime = null;
+        this._lastAcc = { ax: 0, ay: 0, az: 1 };
+        this._accHistory = [];
+        // 重置状态转换记忆
+        this._lastPosture = null;
+        this._lastPostureTime = 0;
+        this._highMotionStartTime = 0;
+    }
+
+    /**
+     * 判断动物姿态
+     * 在每次 update() 后调用，需传入原始加速度（g）
+     * @param {number} ax - 加速度 X (g)
+     * @param {number} ay - 加速度 Y (g)
+     * @param {number} az - 加速度 Z (g)
+     * @returns {{ posture, label, confidence, accMag, gyrMag, isMoving }}
+     */
+    classifyPosture(ax, ay, az) {
+        const pitchDeg = this.pitch * 180 / Math.PI;
+        const rollDeg  = this.roll  * 180 / Math.PI;
+
+        // 加速度幅值（g）
+        const accMag = Math.sqrt(ax * ax + ay * ay + az * az);
+
+        // 角速度幅值（deg/s）
+        const gxDeg = this.gx * 180 / Math.PI;
+        const gyDeg = this.gy * 180 / Math.PI;
+        const gzDeg = this.gz * 180 / Math.PI;
+        const gyrMag = Math.sqrt(gxDeg * gxDeg + gyDeg * gyDeg + gzDeg * gzDeg);
+
+        // 滑动窗口：保留最近 20 帧加速度幅值，用于判断持续运动
+        if (!this._accHistory) this._accHistory = [];
+        this._accHistory.push(accMag);
+        if (this._accHistory.length > 20) this._accHistory.shift();
+        const accVar = this._accVariance(this._accHistory);
+
+        // 基于真实数据的姿态模型（统计学方法）
+        const postureModels = [
+            {
+                name: '低头进食',
+                label: '🌿 低头进食',
+                pitch_mean: -16.80,
+                pitch_std: 5.94,
+                roll_mean: 100.65,
+                roll_std: 3.10,
+                gyrMag_mean: 16.48,
+                gyrMag_std: 5.84,
+                accMag_mean: 1.0752,
+                accMag_std: 0.1488
+            },
+            {
+                name: '站立',
+                label: '🐾 站立',
+                pitch_mean: 16.08,
+                pitch_std: 5.79,
+                roll_mean: 113.30,
+                roll_std: 2.16,
+                gyrMag_mean: 8.26,
+                gyrMag_std: 6.06,
+                accMag_mean: 1.0623,
+                accMag_std: 0.0563
+            },
+            {
+                name: '右侧躺',
+                label: '😴 右侧躺',
+                pitch_mean: 7.04,
+                pitch_std: 2.08,
+                roll_mean: -165.70,
+                roll_std: 3.35,
+                gyrMag_mean: 5.08,
+                gyrMag_std: 4.91,
+                accMag_mean: 1.0246,
+                accMag_std: 0.0114
+            },
+            {
+                name: '行走',
+                label: '🚶 行走',
+                pitch_mean: 13.83,
+                pitch_std: 9.24,
+                roll_mean: 107.64,
+                roll_std: 6.90,
+                gyrMag_mean: 20.83,
+                gyrMag_std: 7.17,
+                accMag_mean: 1.0702,
+                accMag_std: 0.1461
+            },
+            {
+                name: '奔跑',
+                label: '🏃 奔跑',
+                pitch_mean: -7.23,
+                pitch_std: 11.23,
+                roll_mean: 100.60,
+                roll_std: 6.01,
+                gyrMag_mean: 23.30,
+                gyrMag_std: 6.45,
+                accMag_mean: 1.1685,
+                accMag_std: 0.3288
+            },
+            {
+                name: '仰卧',
+                label: '🐾 仰卧',
+                pitch_mean: 47.11,
+                pitch_std: 10.28,
+                roll_mean: 131.64,
+                roll_std: 6.63,
+                gyrMag_mean: 4.98,
+                gyrMag_std: 4.67,
+                accMag_mean: 1.0256,
+                accMag_std: 0.0254
+            },
+            {
+                name: '趴卧',
+                label: '🐕 趴卧',
+                pitch_mean: 10.21,
+                pitch_std: 2.24,
+                roll_mean: 113.38,
+                roll_std: 1.20,
+                gyrMag_mean: 3.49,
+                gyrMag_std: 4.37,
+                accMag_mean: 1.0674,
+                accMag_std: 0.0154
+            },
+            {
+                name: '左侧躺',
+                label: '😴 左侧躺',
+                pitch_mean: 12.58,
+                pitch_std: 3.18,
+                roll_mean: 21.99,
+                roll_std: 2.27,
+                gyrMag_mean: 5.08,
+                gyrMag_std: 4.81,
+                accMag_mean: 0.9644,
+                accMag_std: 0.0120
+            },
+        ];
+
+        // 判断运动状态（使用更保守的阈值避免误判）
+        const runningModel = postureModels.find(m => m.name === '奔跑');
+        const walkingModel = postureModels.find(m => m.name === '行走');
+
+        // 奔跑：需要同时满足角速度和加速度的条件，或者角速度非常高
+        // 使用更严格的阈值：角速度 > 23°/s 且加速度 > 1.1g
+        let isRunning = (gyrMag > 23 && accMag > 1.1) ||
+                         gyrMag > (runningModel.gyrMag_mean + runningModel.gyrMag_std);
+
+        // 行走：角速度超过阈值，但不满足奔跑条件
+        // 使用更严格的阈值：角速度 > 20°/s 且加速度方差 > 0.02
+        // 同时要求持续时间，避免站立摇头被误判
+        let isWalking = !isRunning && (gyrMag > 20 && accVar > 0.02);
+
+        // 状态转换逻辑：防止从躺卧/站立状态突然跳到运动状态
+        // 记录上一次的姿态状态
+        if (!this._lastPosture) this._lastPosture = null;
+        if (!this._lastPostureTime) this._lastPostureTime = 0;
+        if (!this._highMotionStartTime) this._highMotionStartTime = 0;
+
+        const now = Date.now();
+
+        // 静态姿态列表（包括躺卧和站立）
+        const staticPostures = ['左侧躺', '右侧躺', '仰卧', '趴卧', '站立', '低头进食'];
+
+        // 如果上一次是静态姿态，需要持续高角速度才能转换为运动状态
+        if (this._lastPosture && staticPostures.includes(this._lastPosture)) {
+            if (isRunning || isWalking) {
+                // 检测到高运动，记录开始时间
+                if (this._highMotionStartTime === 0) {
+                    this._highMotionStartTime = now;
+                }
+
+                const highMotionDuration = now - this._highMotionStartTime;
+
+                // 需要持续高角速度至少1.5秒，且角速度足够高
+                // 这样可以过滤掉站立摇头、翻身等短暂的高角速度
+                if (highMotionDuration < 1500) {
+                    // 时间太短，保持静态姿态
+                    isRunning = false;
+                    isWalking = false;
+                } else if (gyrMag < 25) {
+                    // 角速度不够高，可能只是摇头或翻身
+                    isRunning = false;
+                    isWalking = false;
+                }
+            } else {
+                // 没有检测到高运动，重置计时器
+                this._highMotionStartTime = 0;
+            }
+        } else {
+            // 不是静态姿态，重置计时器
+            this._highMotionStartTime = 0;
+        }
+
+        let bestMatch = null;
+        let bestScore = Infinity;
+
+        if (isRunning) {
+            bestMatch = runningModel;
+        } else if (isWalking) {
+            bestMatch = walkingModel;
+        } else {
+            // 静态姿态：使用基于规则的分类（按优先级顺序）
+            const staticModels = postureModels.filter(m => m.name !== '行走' && m.name !== '奔跑');
+
+            // 规则优先级（从高到低）：
+            // 1. 右侧躺（roll 最独特，< -157°）
+            // 2. 左侧躺（roll 最独特，16-28°）
+            // 3. 仰卧（pitch 最独特，> 30°）
+            // 4. 低头进食（pitch < -10°）
+            // 5. 趴卧 vs 站立（pitch 区分，roll 在 108-119°）
+
+            // 规则1：右侧躺（roll < -157°）
+            if (rollDeg < -157) {
+                bestMatch = staticModels.find(m => m.name === '右侧躺');
+                bestScore = 0.2;
+            }
+            // 规则2：左侧躺（roll 在 16-28°）
+            else if (rollDeg > 16 && rollDeg < 29) {
+                bestMatch = staticModels.find(m => m.name === '左侧躺');
+                bestScore = 0.2;
+            }
+            // 规则3：仰卧（pitch > 30°）
+            else if (pitchDeg > 30) {
+                bestMatch = staticModels.find(m => m.name === '仰卧');
+                bestScore = 0.2;
+            }
+            // 规则4：低头进食（pitch < -10° 且 roll 在 87-112°）
+            else if (pitchDeg < -10 && rollDeg > 87 && rollDeg < 112) {
+                bestMatch = staticModels.find(m => m.name === '低头进食');
+                bestScore = 0.3;
+            }
+            // 规则5：趴卧 vs 站立（roll 在 108-119°）
+            // 使用最佳平衡阈值 13.5° 来区分趴卧和站立
+            // 趴卧92.3%, 站立75.2%, 总体95.0%, 平衡分数82.9
+            else if (rollDeg > 108 && rollDeg < 119) {
+                if (pitchDeg < 13.5) {
+                    bestMatch = staticModels.find(m => m.name === '趴卧');
+                    bestScore = 0.3;
+                } else {
+                    bestMatch = staticModels.find(m => m.name === '站立');
+                    bestScore = 0.3;
+                }
+            }
+            // 规则6：其他情况，使用加权距离匹配
+            else {
+                for (const model of staticModels) {
+                    const pitchDist = Math.abs(pitchDeg - model.pitch_mean) / (model.pitch_std + 0.1);
+                    const rollDist = Math.abs(rollDeg - model.roll_mean) / (model.roll_std + 0.1);
+
+                    // pitch 权重更高
+                    const weightedDist = pitchDist * 1.5 + rollDist * 1;
+
+                    if (weightedDist < bestScore) {
+                        bestScore = weightedDist;
+                        bestMatch = model;
+                    }
+                }
+            }
+        }
+
+        // 根据距离计算置信度
+        let confidence;
+        if (isRunning || isWalking) {
+            confidence = 0.80;
+        } else {
+            // 距离越小，置信度越高
+            // bestScore < 1: 非常接近 (95%)
+            // bestScore < 2: 接近 (85%)
+            // bestScore < 3: 较接近 (70%)
+            // bestScore >= 3: 不确定 (50%)
+            if (bestScore < 1) {
+                confidence = 0.95;
+            } else if (bestScore < 2) {
+                confidence = 0.85;
+            } else if (bestScore < 3) {
+                confidence = 0.70;
+            } else {
+                confidence = 0.50;
+            }
+        }
+
+        // 更新状态记忆
+        const currentPosture = bestMatch ? bestMatch.name : 'unknown';
+        if (currentPosture !== this._lastPosture) {
+            this._lastPosture = currentPosture;
+            this._lastPostureTime = Date.now();
+        }
+
+        return {
+            posture: bestMatch ? bestMatch.name : 'unknown',
+            label: bestMatch ? bestMatch.label : '❓ 未知',
+            confidence: confidence,
+            pitchDeg: pitchDeg.toFixed(1),
+            rollDeg:  rollDeg.toFixed(1),
+            accMag:   accMag.toFixed(3),
+            gyrMag:   gyrMag.toFixed(1),
+            isMoving: isRunning || isWalking,
+            isRunning: isRunning
+        };
+    }
+
+    /** 计算数组方差（内部辅助） */
+    _accVariance(arr) {
+        if (arr.length < 2) return 0;
+        const mean = arr.reduce((s, v) => s + v, 0) / arr.length;
+        return arr.reduce((s, v) => s + (v - mean) ** 2, 0) / arr.length;
     }
 }
 

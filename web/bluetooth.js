@@ -163,15 +163,26 @@
 		}
 
 		_handleIncomingText(text) {
+			console.log('🔵 BLE收到数据块:', text.substring(0, 100), `(长度: ${text.length})`);
 			this._rxBuffer += text;
 			let idx;
+			let lineCount = 0;
 			while ((idx = this._rxBuffer.indexOf('\n')) >= 0) {
 				let line = this._rxBuffer.slice(0, idx);
 				this._rxBuffer = this._rxBuffer.slice(idx + 1);
 				line = line.replace(/[\r\n]+/g, '').trim();
 				if (line && typeof this.onLine === 'function') {
-					try { this.onLine(line); } catch (_) {}
+					lineCount++;
+					if (lineCount <= 3) {
+						console.log(`🟢 BLE解析行 #${lineCount}:`, line.substring(0, 100));
+					}
+					try { this.onLine(line); } catch (e) {
+						console.error('❌ onLine回调错误:', e);
+					}
 				}
+			}
+			if (lineCount > 0) {
+				console.log(`✅ 本次处理了 ${lineCount} 行数据`);
 			}
 		}
 
@@ -206,13 +217,13 @@
 
 		_emitConnect() {
 			if (typeof this.onConnect === 'function') {
-				try { this.onConnect(this.device); } catch (_) {}
+				try { this.onConnect(this.device); } catch (e) { console.error('[BLE] onConnect callback error:', e); }
 			}
 		}
 
 		_emitDisconnect() {
 			if (typeof this.onDisconnect === 'function') {
-				try { this.onDisconnect(); } catch (_) {}
+				try { this.onDisconnect(); } catch (e) { console.error('[BLE] onDisconnect callback error:', e); }
 			}
 		}
 

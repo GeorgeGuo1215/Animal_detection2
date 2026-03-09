@@ -989,19 +989,35 @@ class RadarWebApp {
 
         // ===== 姿态解算：使用陀螺仪和加速度计数据 =====
         if (this.attitudeEnabled && this.attitudeSolver) {
+            // 检查是否有有效的 IMU 数据
+            const hasValidAcc = accX !== 0 || accY !== 0 || accZ !== 0;
+            const hasValidGyr = imuX !== 0 || imuY !== 0 || imuZ !== 0;
+
             // 调试：打印前几次的数据
             if (this.bleDataCount < 5) {
                 console.log(`📊 姿态数据 #${this.bleDataCount}:`, {
                     gyr: { x: imuX, y: imuY, z: imuZ },
-                    acc: { x: accX, y: accY, z: accZ }
+                    acc: { x: accX, y: accY, z: accZ },
+                    hasValidAcc: hasValidAcc,
+                    hasValidGyr: hasValidGyr
                 });
             }
 
-            // 更新姿态解算器
-            this.attitudeSolver.update(imuX, imuY, imuZ, accX, accY, accZ);
+            // 只有当有有效的加速度计数据时才更新姿态解算
+            if (hasValidAcc) {
+                // 更新姿态解算器
+                this.attitudeSolver.update(imuX, imuY, imuZ, accX, accY, accZ);
 
-            // 更新显示 (每次都更新，不节流)
-            updateAttitudeDisplay();
+                // 更新显示 (每次都更新，不节流)
+                updateAttitudeDisplay();
+            } else {
+                // 警告：没有有效的 IMU 数据
+                if (this.bleDataCount === 5) {
+                    console.warn('⚠️ 前5条数据中没有检测到有效的 Acc 数据！');
+                    console.warn('请确保蓝牙设备发送的数据包含 Acc: 字段');
+                    console.warn('期望格式: ADC:xxx xxx|Acc:x.xxx y.yyy z.zzz|Gyr:x.x y.y z.z|T:xx.x');
+                }
+            }
         }
 
         // 温度数据：只有当设备发送了温度数据时才更新，否则使用null表示无数据
@@ -3786,6 +3802,7 @@ class RadarWebApp {
             this.addBLELog(`🔴 开始录制数据 - ${timestamp}`);
             this.addBLELog(`💓 开始时心率: ${currentHR} bpm, 呼吸率: ${currentRR} bpm`);
             this.addBLELog('📝 实时保存到内存，结束时将下载处理后数据和原始数据文件');
+
             
         } else {
             // 结束录制并自动下载文件
@@ -3823,7 +3840,7 @@ class RadarWebApp {
             this.downloadFile(rawFileContent, rawFilename, 'text/plain');
             this.addBLELog(`📄 已保存原始数据: ${rawFilename} (${this.bleRecordingRawData.length} 行)`);
 
-            // 保存简化的录制统计（只包含最终结果，不包含详细窗口数据）
+            // 保存简化的录制统计（只包含最终结果,不包含详细窗口数据）
             const simplifiedStats = {
                 startTime: this.bleRecordingStartTime.toISOString(),
                 endTime: new Date().toISOString(),
@@ -3845,6 +3862,7 @@ class RadarWebApp {
             const dataPointCount = this.bleRecordingData.filter(line => !line.startsWith('#')).length;
             this.addBLELog(`💾 已保存处理后数据: ${filename} (${dataPointCount} 数据点 + 元数据)`);
             this.addBLELog(`📂 总共下载3个文件: 处理后数据、原始数据、统计信息`);
+
             
             // 清空录制缓存
             this.bleRecordingData = [];
@@ -5652,6 +5670,65 @@ function updateAttitudeDisplay() {
     document.getElementById('attitudeGy').textContent = angVel.gy.toFixed(1);
     document.getElementById('attitudeGz').textContent = angVel.gz.toFixed(1);
 
+    // 动物姿态判断（使用最新的加速度计数据）
+    const lastAx = app.bleBufferACC_X[app.bleBufferACC_X.length - 1] || 0;
+    const lastAy = app.bleBufferACC_Y[app.bleBufferACC_Y.length - 1] || 0;
+    const lastAz = app.bleBufferACC_Z[app.bleBufferACC_Z.length - 1] || 1;
+
+    // 检查是否有有效的加速度计数据
+    if (lastAx === 0 && lastAy === 0 && lastAz === 1) {
+        // 这是默认值，说明没有接收到真实的加速度计数据
+        if (!app._noAccDataWarningShown) {
+            console.warn('⚠️ updateAttitudeDisplay: 没有接收到有效的加速度计数据');
+            console.warn('bleBufferACC_X.length:', app.bleBufferACC_X ? app.bleBufferACC_X.length : 0);
+            console.warn('请确保蓝牙设备发送的数据包含 Acc: 字段');
+            app._noAccDataWarningShown = true;
+        }
+        return;
+    }
+
+    const posture = app.attitudeSolver.classifyPosture(lastAx, lastAy, lastAz);
+
+    const labelEl = document.getElementById('animalPostureLabel');
+    const confEl  = document.getElementById('animalPostureConf');
+    const accEl   = document.getElementById('animalAccMag');
+    const gyrEl   = document.getElementById('animalGyrMag');
+    if (labelEl) labelEl.textContent = posture.label;
+    if (confEl)  confEl.textContent  = (posture.confidence * 100).toFixed(0) + '%';
+    if (accEl)   accEl.textContent   = posture.accMag + ' g';
+    if (gyrEl)   gyrEl.textContent   = posture.gyrMag + ' °/s';
+
+    // 获取用户手动标注的状态
+    const manualPosture = app.manualPosture || '';
+
+    // 调试：每100次输出一次状态
+    if (!app._attitudeDisplayCount) app._attitudeDisplayCount = 0;
+    app._attitudeDisplayCount++;
+    if (app._attitudeDisplayCount % 100 === 1) {
+        console.log(`📊 [第${app._attitudeDisplayCount}次] 姿态显示状态:`, {
+            postureRecordingFlag: app.postureRecordingFlag,
+            manualPosture: app.manualPosture,
+            manualPostureType: typeof app.manualPosture,
+            manualPostureLength: app.manualPosture ? app.manualPosture.length : 0,
+            postureDataLogLength: app.postureDataLog ? app.postureDataLog.length : 0
+        });
+    }
+
+    // 如果正在记录姿态数据，保存带标注的数据
+    if (app.postureRecordingFlag === 1 && manualPosture) {
+        savePostureData(euler, quat, angVel, posture, lastAx, lastAy, lastAz, manualPosture);
+        updatePostureDataDisplay();
+    } else if (app.postureRecordingFlag === 1 && !manualPosture) {
+        // 调试：提示用户需要选择标注状态
+        if (!app._postureWarningShown) {
+            console.warn('⚠️ 正在记录姿态数据但未选择手动标注状态');
+            console.warn('当前 app.manualPosture =', app.manualPosture);
+            console.warn('当前 app.manualPosture 类型 =', typeof app.manualPosture);
+            console.warn('当前 app.postureRecordingFlag =', app.postureRecordingFlag);
+            app._postureWarningShown = true;
+        }
+    }
+
     // 更新 3D 可视化
     if (app.attitudeVisualizer) {
         app.attitudeVisualizer.updateQuaternion(quat.w, quat.x, quat.y, quat.z);
@@ -5666,6 +5743,422 @@ if (typeof window !== 'undefined') {
 
     console.log('✅ 姿态解算函数已导出到全局作用域');
 }
+
+/**
+ * 保存姿态数据（用于训练和验证）
+ */
+function savePostureData(euler, quat, angVel, posture, ax, ay, az, manualLabel) {
+    const app = window.app;
+    if (!app.postureDataLog) {
+        app.postureDataLog = [];
+        console.log('🐾 初始化姿态数据日志');
+    }
+
+    const timestamp = Date.now();
+    const dataPoint = {
+        // 时间信息
+        timestamp: timestamp,
+        time: new Date(timestamp).toISOString(),
+
+        // 标注信息
+        manualLabel: manualLabel,  // 用户手动标注的真实状态
+        systemLabel: posture.label.replace(/[🏃🚶🐾😴🐕🌿]/g, '').trim(),  // 系统自动判断
+        confidence: parseFloat((posture.confidence * 100).toFixed(1)),  // 置信度(%)
+
+        // 欧拉角（最直观的姿态表示）
+        pitch: parseFloat(euler.pitch.toFixed(2)),
+        roll: parseFloat(euler.roll.toFixed(2)),
+        yaw: parseFloat(euler.yaw.toFixed(2)),
+
+        // 四元数（用于姿态重建）
+        qw: parseFloat(quat.w.toFixed(4)),
+        qx: parseFloat(quat.x.toFixed(4)),
+        qy: parseFloat(quat.y.toFixed(4)),
+        qz: parseFloat(quat.z.toFixed(4)),
+
+        // 角速度（原始数据）
+        gx: parseFloat(angVel.gx.toFixed(2)),
+        gy: parseFloat(angVel.gy.toFixed(2)),
+        gz: parseFloat(angVel.gz.toFixed(2)),
+        gyrMag: parseFloat(posture.gyrMag),  // 角速度幅值（已经是字符串）
+
+        // 加速度（原始数据）
+        ax: parseFloat(ax.toFixed(4)),
+        ay: parseFloat(ay.toFixed(4)),
+        az: parseFloat(az.toFixed(4)),
+        accMag: parseFloat(posture.accMag)  // 加速度幅值（已经是字符串）
+    };
+
+    app.postureDataLog.push(dataPoint);
+
+    // 每10条记录输出一次日志
+    if (app.postureDataLog.length % 10 === 0) {
+        console.log(`🐾 已记录 ${app.postureDataLog.length} 条姿态数据`);
+    }
+
+    // 前3条记录输出详细信息用于调试
+    if (app.postureDataLog.length <= 3) {
+        console.log(`✅ 第 ${app.postureDataLog.length} 条数据已保存:`, {
+            manualLabel: manualLabel,
+            pitch: euler.pitch.toFixed(1),
+            roll: euler.roll.toFixed(1),
+            yaw: euler.yaw.toFixed(1)
+        });
+    }
+}
+
+/**
+ * 更新姿态数据显示
+ */
+function updatePostureDataDisplay() {
+    const app = window.app;
+    if (!app.postureDataLog || app.postureDataLog.length === 0) return;
+
+    const countEl = document.getElementById('postureRecordCount');
+    const previewEl = document.getElementById('postureDataPreview');
+
+    if (!countEl || !previewEl) return;
+
+    // 更新记录数量
+    countEl.textContent = app.postureDataLog.length;
+
+    // 显示最近5条记录
+    const recentData = app.postureDataLog.slice(-5).reverse();
+    let html = '';
+    for (const data of recentData) {
+        html += `<div style="margin-bottom: 8px; padding: 6px; background: #1a1a1a; border-left: 3px solid #2196F3; border-radius: 3px;">`;
+        html += `<div style="color: #64B5F6; font-weight: bold;">标注: ${data.manualLabel} | 判断: ${data.systemLabel}</div>`;
+        html += `<div style="color: #888; font-size: 0.9em; margin-top: 3px;">`;
+        html += `pitch=${data.pitch}° roll=${data.roll}° yaw=${data.yaw}° | `;
+        html += `acc=${data.accMag}g gyr=${data.gyrMag}°/s | `;
+        html += `conf=${data.confidence}%`;
+        html += `</div></div>`;
+    }
+    previewEl.innerHTML = html;
+}
+
+/**
+ * 导出当前姿态数据
+ */
+function exportCurrentPostureData() {
+    const app = window.app;
+    if (!app.postureDataLog || app.postureDataLog.length === 0) {
+        alert('没有可导出的姿态数据！请先选择手动标注状态并开始记录。');
+        return;
+    }
+
+    const timestamp = new Date().toISOString().slice(0, 16).replace('T', '-').replace(/:/g, '-');
+    const filename = `posture_data_${timestamp}.json`;
+
+    const exportData = {
+        exportTime: new Date().toISOString(),
+        totalRecords: app.postureDataLog.length,
+        note: '用于姿态判断算法矫正的训练数据',
+        data: app.postureDataLog
+    };
+
+    const json = JSON.stringify(exportData, null, 2);
+    app.downloadFile(json, filename, 'application/json');
+
+    console.log(`🐾 已导出姿态数据: ${filename} (${app.postureDataLog.length} 条记录)`);
+}
+
+/**
+ * 诊断姿态记录功能
+ */
+function diagnosePostureRecording() {
+    const app = window.app;
+    console.log('\n========== 🔍 姿态记录诊断 ==========');
+
+    // 1. 检查基本状态
+    console.log('\n1️⃣ 基本状态检查:');
+    console.log('  ✓ app 对象:', app ? '存在' : '❌ 不存在');
+    console.log('  ✓ attitudeEnabled:', app.attitudeEnabled);
+    console.log('  ✓ attitudeSolver:', app.attitudeSolver ? '存在' : '❌ 不存在');
+
+    // 2. 检查手动标注
+    console.log('\n2️⃣ 手动标注状态:');
+    console.log('  ✓ manualPosture 值:', `"${app.manualPosture}"`);
+    console.log('  ✓ manualPosture 类型:', typeof app.manualPosture);
+    console.log('  ✓ manualPosture 长度:', app.manualPosture ? app.manualPosture.length : 0);
+    console.log('  ✓ manualPosture 是否为空:', !app.manualPosture ? '❌ 是（这会导致无法保存数据！）' : '✅ 否');
+
+    // 3. 检查记录标志
+    console.log('\n3️⃣ 记录标志:');
+    console.log('  ✓ postureRecordingFlag:', app.postureRecordingFlag);
+    console.log('  ✓ postureRecordingFlag === 1:', app.postureRecordingFlag === 1 ? '✅ 是' : '❌ 否');
+
+    // 4. 检查数据日志
+    console.log('\n4️⃣ 数据日志:');
+    console.log('  ✓ postureDataLog 存在:', app.postureDataLog ? '✅ 是' : '❌ 否');
+    console.log('  ✓ postureDataLog 长度:', app.postureDataLog ? app.postureDataLog.length : 'N/A');
+
+    // 5. 检查保存条件
+    console.log('\n5️⃣ 保存条件检查:');
+    const manualPosture = app.manualPosture || '';
+    const condition1 = app.postureRecordingFlag === 1;
+    const condition2 = !!manualPosture;
+    const canSave = condition1 && condition2;
+
+    console.log('  ✓ 条件1 (postureRecordingFlag === 1):', condition1 ? '✅ 满足' : '❌ 不满足');
+    console.log('  ✓ 条件2 (manualPosture 不为空):', condition2 ? '✅ 满足' : '❌ 不满足');
+    console.log('  ✓ 最终结果 (可以保存数据):', canSave ? '✅ 是' : '❌ 否');
+
+    // 6. 检查蓝牙数据
+    console.log('\n6️⃣ 蓝牙数据检查:');
+    console.log('  ✓ bleConnected:', app.bleConnected ? '✅ 已连接' : '❌ 未连接');
+    if (app.bleBufferACC_X && app.bleBufferACC_X.length > 0) {
+        const lastAx = app.bleBufferACC_X[app.bleBufferACC_X.length - 1];
+        const lastAy = app.bleBufferACC_Y[app.bleBufferACC_Y.length - 1];
+        const lastAz = app.bleBufferACC_Z[app.bleBufferACC_Z.length - 1];
+        console.log('  ✓ 加速度计数据:', `X=${lastAx?.toFixed(3)}, Y=${lastAy?.toFixed(3)}, Z=${lastAz?.toFixed(3)}`);
+        console.log('  ✓ 数据有效性:', (lastAx !== 0 || lastAy !== 0 || lastAz !== 1) ? '✅ 有效' : '❌ 无效（默认值）');
+    } else {
+        console.log('  ✓ 加速度计数据: ❌ 无数据');
+    }
+
+    // 7. 给出诊断结论
+    console.log('\n========== 📋 诊断结论 ==========');
+    if (!canSave) {
+        console.log('❌ 无法保存数据！');
+        console.log('\n原因分析:');
+        if (!condition1) {
+            console.log('  • 记录标志未启用，请点击"开始记录姿态"按钮');
+        }
+        if (!condition2) {
+            console.log('  • 手动标注状态为空，请在下拉菜单中选择当前真实姿态');
+        }
+    } else {
+        console.log('✅ 所有条件满足，应该可以正常保存数据');
+        if (app.postureDataLog && app.postureDataLog.length === 0) {
+            console.log('\n⚠️ 但是数据日志为空，可能的原因:');
+            console.log('  • updateAttitudeDisplay() 函数未被调用');
+            console.log('  • 蓝牙数据未正常接收');
+            console.log('  • 加速度计数据无效');
+        }
+    }
+    console.log('=====================================\n');
+
+    // 弹出简化的诊断结果
+    let message = '诊断结果:\n\n';
+    message += `姿态解算: ${app.attitudeEnabled ? '✅ 已启用' : '❌ 未启用'}\n`;
+    message += `手动标注: ${app.manualPosture ? `✅ ${app.manualPosture}` : '❌ 未选择'}\n`;
+    message += `记录状态: ${app.postureRecordingFlag === 1 ? '✅ 记录中' : '❌ 未开始'}\n`;
+    message += `数据记录: ${app.postureDataLog ? app.postureDataLog.length : 0} 条\n`;
+    message += `\n可以保存: ${canSave ? '✅ 是' : '❌ 否'}\n`;
+
+    if (!canSave) {
+        message += '\n请检查:\n';
+        if (!condition1) message += '• 点击"开始记录姿态"\n';
+        if (!condition2) message += '• 选择手动标注状态\n';
+    }
+
+    alert(message);
+}
+
+// 导出到全局作用域
+if (typeof window !== 'undefined') {
+    window.exportCurrentPostureData = exportCurrentPostureData;
+    window.togglePostureRecording = togglePostureRecording;
+    window.diagnosePostureRecording = diagnosePostureRecording;
+}
+
+/**
+ * 初始化手动标注功能
+ */
+function initManualPostureLabeling() {
+    const app = window.app;
+    const selectEl = document.getElementById('manualPostureInput');
+    const displayEl = document.getElementById('manualPostureDisplay');
+
+    console.log('🔧 初始化手动标注功能', {
+        selectEl: selectEl ? '存在' : '不存在',
+        displayEl: displayEl ? '存在' : '不存在'
+    });
+
+    if (!selectEl || !displayEl) {
+        console.error('❌ 手动标注元素未找到！');
+        return;
+    }
+
+    // 初始化标注状态（只在未初始化时设置）
+    if (app.manualPosture === undefined) {
+        app.manualPosture = '';
+        console.log('✅ 初始化 app.manualPosture = ""');
+    }
+    if (!app.postureDataLog) {
+        app.postureDataLog = [];
+        console.log('✅ 初始化 app.postureDataLog = []');
+    }
+    if (app.postureRecordingFlag === undefined) {
+        app.postureRecordingFlag = 0; // 独立的姿态记录标志
+        console.log('✅ 初始化 app.postureRecordingFlag = 0');
+    }
+    if (!app.postureRecordingStartTime) {
+        app.postureRecordingStartTime = null;
+        console.log('✅ 初始化 app.postureRecordingStartTime = null');
+    }
+
+    // 监听下拉菜单变化
+    selectEl.addEventListener('change', function() {
+        const selected = this.value;
+        app.manualPosture = selected;
+
+        console.log(`✏️ 手动标注状态已更改:`, {
+            selected: selected,
+            selectedType: typeof selected,
+            selectedLength: selected ? selected.length : 0,
+            appManualPosture: app.manualPosture,
+            postureRecordingFlag: app.postureRecordingFlag
+        });
+
+        // 特殊处理：初始佩戴静止状态 - 触发姿态校准
+        if (selected === '初始佩戴静止') {
+            if (app.attitudeSolver) {
+                app.attitudeSolver.reset();
+                console.log('⚙️ 姿态解算器已重置，开始校准...');
+
+                // 显示校准提示
+                displayEl.textContent = '⚙️ 校准中...';
+                displayEl.style.color = '#2196F3';
+
+                // 3秒后完成校准
+                setTimeout(() => {
+                    displayEl.textContent = '✅ 校准完成';
+                    displayEl.style.color = '#4CAF50';
+                    console.log('✅ 姿态校准完成');
+
+                    // 提示用户可以选择真实姿态
+                    setTimeout(() => {
+                        alert('✅ 3D姿态平面校准完成！\n\n现在请选择动物的真实姿态状态。');
+                        selectEl.value = '';
+                        app.manualPosture = '';
+                        displayEl.textContent = '未标注';
+                        displayEl.style.color = '#999';
+                    }, 1000);
+                }, 3000);
+            } else {
+                console.error('❌ 姿态解算器未初始化');
+                alert('❌ 姿态解算器未启用，请先启用IMU姿态解算功能');
+            }
+            return;
+        }
+
+        if (selected) {
+            displayEl.textContent = selected;
+            displayEl.style.color = '#FFB74D';
+
+            // 如果正在记录，提示用户
+            if (app.postureRecordingFlag === 1) {
+                console.log(`✏️ 已切换标注状态为: ${selected}`);
+            }
+        } else {
+            displayEl.textContent = '未标注';
+            displayEl.style.color = '#999';
+        }
+    });
+
+    // 初始化显示区域
+    const countEl = document.getElementById('postureRecordCount');
+    if (countEl) countEl.textContent = '0';
+}
+
+/**
+ * 切换姿态数据记录
+ */
+function togglePostureRecording() {
+    const app = window.app;
+
+    // 检查是否启用了姿态解算
+    if (!app.attitudeEnabled || !app.attitudeSolver) {
+        alert('请先启用IMU姿态解算！');
+        return;
+    }
+
+    // 检查是否选择了手动标注
+    if (!app.manualPosture) {
+        alert('请先在下拉菜单中选择当前真实姿态！');
+        return;
+    }
+
+    // 切换记录状态
+    app.postureRecordingFlag = (1 + app.postureRecordingFlag) % 2;
+
+    const btn = document.getElementById('postureRecordStartBtn');
+
+    if (app.postureRecordingFlag === 1) {
+        // 开始记录
+        app.postureDataLog = [];
+        app.postureRecordingStartTime = new Date();
+        app._postureWarningShown = false;
+
+        // 清空显示
+        const countEl = document.getElementById('postureRecordCount');
+        const previewEl = document.getElementById('postureDataPreview');
+        if (countEl) countEl.textContent = '0';
+        if (previewEl) previewEl.innerHTML = '<div style="color: #888;">正在记录数据...</div>';
+
+        // 更新按钮
+        btn.textContent = '⏹️ 停止记录';
+        btn.style.background = '#f44336';
+
+        console.log(`🔴 开始记录姿态数据 - 标注: ${app.manualPosture}`);
+        console.log(`📊 初始化状态: postureDataLog.length = ${app.postureDataLog.length}`);
+        console.log(`📊 记录标志: postureRecordingFlag = ${app.postureRecordingFlag}`);
+        console.log(`📊 姿态解算启用: attitudeEnabled = ${app.attitudeEnabled}`);
+        console.log(`📊 姿态解算器存在: attitudeSolver = ${app.attitudeSolver ? '是' : '否'}`);
+
+
+    } else {
+        // 停止记录并导出
+        const duration = ((new Date() - app.postureRecordingStartTime) / 1000).toFixed(1);
+
+        console.log(`⏹️ 停止记录 - 检查数据状态:`);
+        console.log(`  postureDataLog 存在: ${app.postureDataLog ? '是' : '否'}`);
+        console.log(`  postureDataLog 长度: ${app.postureDataLog ? app.postureDataLog.length : 'N/A'}`);
+        console.log(`  记录时长: ${duration} 秒`);
+
+        if (app.postureDataLog && app.postureDataLog.length > 0) {
+            // 自动导出数据
+            const timestamp = app.postureRecordingStartTime.toISOString()
+                .slice(0, 16).replace('T', '-').replace(/:/g, '-');
+            const filename = `posture_data_${timestamp}.json`;
+
+            const exportData = {
+                recordingStartTime: app.postureRecordingStartTime.toISOString(),
+                recordingEndTime: new Date().toISOString(),
+                durationSeconds: parseFloat(duration),
+                totalRecords: app.postureDataLog.length,
+                note: '用于姿态判断算法矫正的训练数据',
+                data: app.postureDataLog
+            };
+
+            const json = JSON.stringify(exportData, null, 2);
+            app.downloadFile(json, filename, 'application/json');
+
+            console.log(`🟢 停止记录 - 时长: ${duration}秒, 记录: ${app.postureDataLog.length} 条`);
+            console.log(`📄 已导出: ${filename}`);
+        } else {
+            console.warn('⚠️ 没有记录到任何姿态数据');
+            console.warn('可能的原因:');
+            console.warn('  1. 未选择手动标注状态 (app.manualPosture =', app.manualPosture, ')');
+            console.warn('  2. 姿态解算未启用 (app.attitudeEnabled =', app.attitudeEnabled, ')');
+            console.warn('  3. 蓝牙数据未正常接收');
+            alert('没有记录到任何姿态数据！\n\n请确保：\n1. 已选择手动标注状态\n2. 姿态解算已启用\n3. 蓝牙设备正常连接并发送数据');
+        }
+
+        // 更新按钮
+        btn.textContent = '🔴 开始记录姿态';
+        btn.style.background = '#4CAF50';
+
+        app.postureRecordingStartTime = null;
+    }
+}
+
+// 在页面加载时初始化
+document.addEventListener('DOMContentLoaded', function() {
+    initManualPostureLabeling();
+});
 
 /**
  * 调整姿态解算灵敏度

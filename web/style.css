@@ -1534,3 +1534,62 @@ tr:hover {
     font-style: italic;
     color: #cbd5e1;
 }
+
+/* 姿态解算模块样式 */
+.attitude-section {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.attitude-data-panel {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    height: 400px;
+    overflow-y: auto;
+}
+
+.attitude-data-group {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.attitude-data-group:last-child {
+    border-bottom: none;
+}
+
+.attitude-data-group h4 {
+    color: #495057;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+}
+
+.attitude-data-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    font-family: 'Courier New', monospace;
+}
+
+.attitude-data-item span:first-child {
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.attitude-data-item span:last-child {
+    color: #212529;
+    font-weight: 600;
+    font-size: 16px;
+}
+
+#attitude3DContainer {
+    min-width: 400px;
+    min-height: 400px;
+}
+
+#attitude3DContainer canvas {
+    border-radius: 8px;
+    display: block;
+}
