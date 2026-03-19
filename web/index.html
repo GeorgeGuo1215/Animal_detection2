@@ -70,7 +70,7 @@
                             </div>
                             <div class="stat-item">
                                 <span class="stat-label">实际接收频率:</span>
-                                <span class="stat-value" id="bleActualFs">-- Hz</span>
+                                <span class="stat-value" id="bleActualFs" title="悬停查看状态">-- Hz</span>
                             </div>
                             <div class="stat-item">
                                 <span class="stat-label">丢包率(估算):</span>
@@ -79,6 +79,32 @@
                             <div class="stat-item">
                                 <span class="stat-label">间隔抖动:</span>
                                 <span class="stat-value" id="bleJitter">-- ms</span>
+                            </div>
+                            <div class="stat-item" style="grid-column: 1/-1; margin-top:6px;">
+                                <span class="stat-label" style="font-weight:600;">📡 设备采样周期设置：</span>
+                                <span style="font-size:0.82em;color:#aaa;">（心率检测需 ≥6Hz，推荐50Hz）</span>
+                                <div style="display:flex;gap:8px;margin-top:4px;align-items:center;flex-wrap:wrap;">
+                                    <button onclick="if(app)app.sendTcycleCommand(20)"
+                                        style="padding:4px 12px;background:#1a73e8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.88em;">
+                                        设置 50Hz（推荐）
+                                    </button>
+                                    <button onclick="if(app)app.sendTcycleCommand(100)"
+                                        style="padding:4px 12px;background:#34a853;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.88em;">
+                                        设置 10Hz
+                                    </button>
+                                    <button onclick="if(app)app.sendTcycleCommand(500)"
+                                        style="padding:4px 12px;background:#777;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.88em;">
+                                        设置 2Hz（默认）
+                                    </button>
+                                    <span style="font-size:0.82em;color:#aaa;">或自定义：</span>
+                                    <input id="tcycleCustomMs" type="number" min="10" max="10000" value="20"
+                                        style="width:70px;padding:3px 6px;border-radius:5px;border:1px solid #555;background:#1e1e1e;color:#eee;font-size:0.88em;">
+                                    <span style="font-size:0.82em;color:#aaa;">ms</span>
+                                    <button onclick="var ms=parseInt(document.getElementById('tcycleCustomMs').value);if(app&&ms)app.sendTcycleCommand(ms);"
+                                        style="padding:4px 12px;background:#e8710a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.88em;">
+                                        发送
+                                    </button>
+                                </div>
                             </div>
                             <div class="stat-item">
                                 <span class="stat-label">当前心率:</span>

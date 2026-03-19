@@ -89,10 +89,16 @@ class RadarWebApp {
 
         this._bleChartRaf = null;
         this._bleChartLastUpdateTs = 0;
-        this._bleChartMinIntervalMs = 100; // 10Hz 刷新图表足够流畅
+        this._bleChartMinIntervalMs = 150; // ~7Hz 刷新，平衡流畅度与性能
 
         this._bleVitalLogLastTs = 0; // 限制生理参数日志刷屏
         this._lastVitalUpdateTime = 0; // 上次生理参数更新时间（用于节流）
+
+        // 全局禁用 Chart.js 动画（避免实时曲线渲染卡顿）
+        if (typeof Chart !== 'undefined') {
+            Chart.defaults.animation = false;
+            Chart.defaults.transitions = {};
+        }
 
         // 实时保存相关 (参考main.py)
         this.bleRecordingFlag = 0;  // 0: 不记录, 1: 记录中
@@ -757,175 +763,143 @@ class RadarWebApp {
         let accX = 0, accY = 0, accZ = 0; // Acc原始值
         try {
             const trimmed = line.trim();
-            const floatRe = /[+-]?(?:\d+\.\d+|\d+|\.\d+)(?:[eE][+-]?\d+)?/g;
 
-            // 🔍 调试：打印前10行的完整信息
-            if (this.bleDataCount < 10) {
-                console.log(`\n========== 数据行 #${this.bleDataCount} ==========`);
-                console.log('原始行:', line);
-                console.log('Trim后:', trimmed);
-            }
-
-            // 兼容管道格式：ADC:...|Acc:...|Gyr:...|T:...
-            
-            // 提取 ADC 两值（I/Q通道）
-            const parsePairAfterLabel = (label) => {
-                const idx = trimmed.indexOf(label);
-                if (idx < 0) {
-                    if (this.bleDataCount < 10) {
-                        console.log(`  ❌ 未找到标签 "${label}"`);
-                    }
-                    return null;
-                }
-                
-                const seg = trimmed.slice(idx + label.length);
-                const firstField = seg.split('|')[0] || '';
-                
-                // 🔍 更强的数字提取：确保能匹配 "-3455 1176" 这样的格式
-                const nums = firstField.match(floatRe)?.map(v => parseFloat(v)) || [];
-                
-                // 🔍 调试：打印解析过程
-                if (this.bleDataCount < 10) {
-                    console.log(`  解析${label}:`);
-                    console.log(`    idx=${idx}`);
-                    console.log(`    seg前50字符="${seg.substring(0, 50)}"`);
-                    console.log(`    firstField="${firstField}"`);
-                    console.log(`    正则匹配结果:`, nums);
-                    console.log(`    nums.length=${nums.length}`);
-                    if (nums.length >= 2) {
-                        console.log(`    ✅ 提取成功: [0]=${nums[0]}, [1]=${nums[1]}`);
-                    } else {
-                        console.log(`    ❌ 提取失败: 数字不足2个`);
-                    }
-                }
-                
-                return nums.length >= 2 ? [nums[0], nums[1]] : null;
-            };
-            
-            // 提取三值（IMU/温度等）
-            const parseTripletAfterLabel = (label) => {
-                const idx = trimmed.indexOf(label);
-                if (idx < 0) return null;
-                const seg = trimmed.slice(idx + label.length);
-                const firstField = seg.split('|')[0] || '';
-                const nums = firstField.match(floatRe)?.map(v => parseFloat(v)) || [];
-                return nums.length >= 3 ? [nums[0], nums[1], nums[2]] : null;
-            };
-            
-            // 先尝试解析 ADC（I/Q通道）
-            const adc = parsePairAfterLabel('ADC:') || parsePairAfterLabel('adc:');
-            if (adc) {
-                // 保存原始ADC值
-                adcI = adc[0];
-                adcQ = adc[1];
-
-                // ADC 转换公式（与 main.py 第413行一致）：
-                // voltage = ((adc_value / 32767) + 1) * 3.3 / 2
-                // 这将 -32768~32767 的整数转换为 0~3.3V 的电压
-                iVal = ((adc[0] / 32767) + 1) * 3.3 / 2;
-                qVal = ((adc[1] / 32767) + 1) * 3.3 / 2;
-                ts = Date.now();
-                // 🔍 调试日志
-                if (this.bleDataCount < 10) {
-                    console.log(`  ✅ ADC解析成功!`);
-                    console.log(`  原始ADC: I=${adc[0]}, Q=${adc[1]}`);
-                    console.log(`  转换电压: I=${iVal.toFixed(4)}V, Q=${qVal.toFixed(4)}V`);
-                }
-            } else {
-                // 🔍 调试：如果ADC解析失败
-                if (this.bleDataCount < 10) {
-                    console.log(`  ❌ ADC解析失败! adc=null`);
-                }
-            }
-            
-            // 解析 IMU 数据（优先陀螺仪）
-            const gyr = parseTripletAfterLabel('Gyr:') || parseTripletAfterLabel('GYR:') || parseTripletAfterLabel('GYR_');
-            const acc = parseTripletAfterLabel('Acc:') || parseTripletAfterLabel('ACC:');
-
-            // 保存原始Acc值（无论是否用作IMU）
-            if (acc) {
-                accX = acc[0];
-                accY = acc[1];
-                accZ = acc[2];
-            }
-
-            if (gyr) [imuX, imuY, imuZ] = gyr;
-            else if (acc) [imuX, imuY, imuZ] = acc;
-
-            // 解析温度数据 T:23.0
-            const tempIdx = trimmed.indexOf('T:');
-            if (tempIdx >= 0) {
-                const tempSeg = trimmed.slice(tempIdx + 2);
-                const tempMatch = tempSeg.match(floatRe);
-                if (tempMatch && tempMatch.length > 0) {
-                    temperature = parseFloat(tempMatch[0]);
-                    if (this.bleDataCount < 10) {
-                        console.log(`  解析温度: T=${temperature}°C`);
-                    }
-                }
-            }
-
-            // 可选：解析序号（如果设备未来加了 seq 字段）
-            // 例如："...|SEQ:1234|..." 或 JSON {"seq":1234,...}
-            let seq = null;
-            const seqMatch = trimmed.match(/(?:\bSEQ\b|\bseq\b|\bidx\b|\bindex\b)\s*[:=]\s*(\d+)/);
-            if (seqMatch) seq = parseInt(seqMatch[1], 10);
-
-            // 如果还没有从 ADC 字段提取到数据，则尝试其他格式
-            if (!Number.isFinite(iVal) || !Number.isFinite(qVal)) {
-                if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-                    const obj = JSON.parse(trimmed);
-                    ts = obj.ts ?? Date.now();
-                    iVal = parseFloat(obj.i);
-                    qVal = parseFloat(obj.q);
-                    if (seq === null && obj.seq !== undefined) seq = parseInt(obj.seq, 10);
+            // ── 新协议 V1.02：$MAC,Time,Lon,Lat,Ax,Ay,Az,Gx,Gy,Gz,Roll,Pitch,Yaw,V1,V2,V3* ──
+            if (trimmed.startsWith('$') && !trimmed.startsWith('$AT')) {
+                // bluetooth.js strips '*' as delimiter; handle both $...*  and $... formats
+                const raw = trimmed.endsWith('*') ? trimmed.slice(1, -1) : trimmed.slice(1);
+                const parts   = raw.split(',');
+                if (parts.length >= 16) {
+                    // Acc(m/s²) → g；Gyr(rad/s) → deg/s
+                    accX = parseFloat(parts[4])  / 9.81;
+                    accY = parseFloat(parts[5])  / 9.81;
+                    accZ = parseFloat(parts[6])  / 9.81;
+                    imuX = parseFloat(parts[7])  * (180 / Math.PI);
+                    imuY = parseFloat(parts[8])  * (180 / Math.PI);
+                    imuZ = parseFloat(parts[9])  * (180 / Math.PI);
+                    // V2=Radar I, V3=Radar Q（已是电压，直接使用）
+                    iVal = parseFloat(parts[14]);
+                    qVal = parseFloat(parts[15]);
+                    ts   = Date.now();
+                    temperature = null;
+                    this.bleBufferIMU_X.push(Number.isFinite(imuX) ? imuX : 0);
+                    this.bleBufferIMU_Y.push(Number.isFinite(imuY) ? imuY : 0);
+                    this.bleBufferIMU_Z.push(Number.isFinite(imuZ) ? imuZ : 0);
+                    this.bleBufferACC_X.push(Number.isFinite(accX) ? accX : 0);
+                    this.bleBufferACC_Y.push(Number.isFinite(accY) ? accY : 0);
+                    this.bleBufferACC_Z.push(Number.isFinite(accZ) ? accZ : 0);
                 } else {
-                    const parts = trimmed.split(/\s+/);
-                    if (parts.length >= 3) {
-                        ts = parts[0];
-                        iVal = parseFloat(parts[1]);
-                        qVal = parseFloat(parts[2]);
+                    return;
+                }
+                this._updateBleLossStats(null);
+
+                if (this.bleRecordingFlag === 1) {
+                    const stamp = new Date().toISOString().replace('T', ' ').slice(0, 23);
+                    const mac   = parts[0] || '';
+                    const lon   = parts[2] || '';
+                    const lat   = parts[3] || '';
+                    const v1bat = parseFloat(parts[13]).toFixed(3);
+                    this.bleRecordingData.push(
+                        `${stamp}  ${mac}  ${lon}  ${lat}  ${accX.toFixed(4)}  ${accY.toFixed(4)}  ${accZ.toFixed(4)}  ${imuX.toFixed(3)}  ${imuY.toFixed(3)}  ${imuZ.toFixed(3)}  ${iVal.toFixed(4)}  ${qVal.toFixed(4)}  ${v1bat}`
+                    );
+                }
+
+            } else {
+                // ── 旧协议兼容：ADC:xxx xxx|Acc:x y z|Gyr:x y z|T:xx ──
+                const floatRe = /[+-]?(?:\d+\.\d+|\d+|\.\d+)(?:[eE][+-]?\d+)?/g;
+
+                const parsePairAfterLabel = (label) => {
+                    const idx = trimmed.indexOf(label);
+                    if (idx < 0) return null;
+                    const seg = trimmed.slice(idx + label.length);
+                    const firstField = seg.split('|')[0] || '';
+                    const nums = firstField.match(floatRe)?.map(v => parseFloat(v)) || [];
+                    return nums.length >= 2 ? [nums[0], nums[1]] : null;
+                };
+                const parseTripletAfterLabel = (label) => {
+                    const idx = trimmed.indexOf(label);
+                    if (idx < 0) return null;
+                    const seg = trimmed.slice(idx + label.length);
+                    const firstField = seg.split('|')[0] || '';
+                    const nums = firstField.match(floatRe)?.map(v => parseFloat(v)) || [];
+                    return nums.length >= 3 ? [nums[0], nums[1], nums[2]] : null;
+                };
+
+                const adc = parsePairAfterLabel('ADC:') || parsePairAfterLabel('adc:');
+                if (adc) {
+                    iVal = ((adc[0] / 32767) + 1) * 3.3 / 2;
+                    qVal = ((adc[1] / 32767) + 1) * 3.3 / 2;
+                    ts   = Date.now();
+                }
+
+                const gyr = parseTripletAfterLabel('Gyr:') || parseTripletAfterLabel('GYR:');
+                const acc = parseTripletAfterLabel('Acc:') || parseTripletAfterLabel('ACC:');
+                if (acc) { accX = acc[0]; accY = acc[1]; accZ = acc[2]; }
+                if (gyr) { [imuX, imuY, imuZ] = gyr; }
+                else if (acc) { [imuX, imuY, imuZ] = acc; }
+
+                const tempIdx = trimmed.indexOf('T:');
+                if (tempIdx >= 0) {
+                    const tempMatch = trimmed.slice(tempIdx + 2).match(floatRe);
+                    if (tempMatch) temperature = parseFloat(tempMatch[0]);
+                }
+
+                let seq = null;
+                const seqMatch = trimmed.match(/(?:\bSEQ\b|\bseq\b|\bidx\b|\bindex\b)\s*[:=]\s*(\d+)/);
+                if (seqMatch) seq = parseInt(seqMatch[1], 10);
+
+                if (!Number.isFinite(iVal) || !Number.isFinite(qVal)) {
+                    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+                        const obj = JSON.parse(trimmed);
+                        ts = obj.ts ?? Date.now();
+                        iVal = parseFloat(obj.i);
+                        qVal = parseFloat(obj.q);
+                        if (seq === null && obj.seq !== undefined) seq = parseInt(obj.seq, 10);
                     } else {
-                        // 提取该行中的所有浮点（支持 .xxx 形式）并保留索引
-                        const matches = [...trimmed.matchAll(floatRe)];
-                        if (matches.length >= 2) {
-                            let firstStr = matches[0][0];
-                            let secondStr = matches[1][0];
-                            const secondIdx = matches[1].index;
-                            // 修复形如 "1.6421.588" => 第一项去掉最后一位，第二项补上该位："1.642" 与 "1.588"
-                            if (secondStr.startsWith('.') && secondIdx > 0) {
-                                const prevChar = trimmed[secondIdx - 1];
-                                if (prevChar >= '0' && prevChar <= '9' && /\d$/.test(firstStr)) {
-                                    // 仅当第一项最后也是数字时进行重组
-                                    secondStr = prevChar + secondStr;
-                                    firstStr = firstStr.slice(0, -1);
-                                }
-                            }
-                            ts = Date.now();
-                            iVal = parseFloat(firstStr);
-                            qVal = parseFloat(secondStr);
-                        } else if (matches.length === 1) {
-                            // 单值：与上一次的单值配对
-                            const val = parseFloat(matches[0][0]);
-                            if (!Number.isFinite(val)) return;
-                            if (this.blePendingFloat === null) {
-                                this.blePendingFloat = val;
-                                return;
-                            } else {
-                                ts = Date.now();
+                        const parts2 = trimmed.split(/\s+/);
+                        if (parts2.length >= 3) {
+                            ts   = parts2[0];
+                            iVal = parseFloat(parts2[1]);
+                            qVal = parseFloat(parts2[2]);
+                        } else {
+                            const matches = [...trimmed.matchAll(floatRe)];
+                            if (matches.length >= 2) {
+                                ts   = Date.now();
+                                iVal = parseFloat(matches[0][0]);
+                                qVal = parseFloat(matches[1][0]);
+                            } else if (matches.length === 1) {
+                                const val = parseFloat(matches[0][0]);
+                                if (!Number.isFinite(val)) return;
+                                if (this.blePendingFloat === null) { this.blePendingFloat = val; return; }
+                                ts   = Date.now();
                                 iVal = this.blePendingFloat;
                                 qVal = val;
                                 this.blePendingFloat = null;
-                            }
-                        } else {
-                            return;
+                            } else { return; }
                         }
                     }
                 }
-            }
 
-            // 更新丢包/采样率统计（放在 try 内，确保能拿到 seq）
-            this._updateBleLossStats(seq);
+                this._updateBleLossStats(seq);
+
+                this.bleBufferIMU_X.push(Number.isFinite(imuX) ? imuX : 0);
+                this.bleBufferIMU_Y.push(Number.isFinite(imuY) ? imuY : 0);
+                this.bleBufferIMU_Z.push(Number.isFinite(imuZ) ? imuZ : 0);
+                this.bleBufferACC_X.push(Number.isFinite(accX) ? accX : 0);
+                this.bleBufferACC_Y.push(Number.isFinite(accY) ? accY : 0);
+                this.bleBufferACC_Z.push(Number.isFinite(accZ) ? accZ : 0);
+
+                if (this.bleRecordingFlag === 1) {
+                    const stamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
+                    const adcMatch = trimmed.match(/ADC:([-\d]+)\s+([-\d]+)/);
+                    let rAdcI = 0, rAdcQ = 0;
+                    if (adcMatch) { rAdcI = parseInt(adcMatch[1]); rAdcQ = parseInt(adcMatch[2]); }
+                    const lastTemp = this.bleBufferTemperature[this.bleBufferTemperature.length - 1];
+                    this.bleRecordingData.push(
+                        `${stamp}  ${rAdcI}  ${rAdcQ}  ${accX.toFixed(3)}  ${accY.toFixed(3)}  ${accZ.toFixed(3)}  ${iVal.toFixed(6)}  ${qVal.toFixed(6)}  ${imuX.toFixed(3)}  ${imuY.toFixed(3)}  ${imuZ.toFixed(3)}  ${lastTemp !== null && lastTemp !== undefined ? lastTemp.toFixed(2) : 'N/A'}`
+                    );
+                }
+            }
         } catch (err) { 
             // 🔍 调试：捕获异常
             if (this.bleDataCount < 10) {
@@ -967,15 +941,7 @@ class RadarWebApp {
             console.log(`========================================\n`);
         }
 
-        // IMU 三轴（gx/gy/gz），保持与 I/Q 同步长度
-        this.bleBufferIMU_X.push(Number.isFinite(imuX) ? imuX : 0);
-        this.bleBufferIMU_Y.push(Number.isFinite(imuY) ? imuY : 0);
-        this.bleBufferIMU_Z.push(Number.isFinite(imuZ) ? imuZ : 0);
 
-        // 加速度计三轴（ax/ay/az），保持与 I/Q 同步长度
-        this.bleBufferACC_X.push(Number.isFinite(accX) ? accX : 0);
-        this.bleBufferACC_Y.push(Number.isFinite(accY) ? accY : 0);
-        this.bleBufferACC_Z.push(Number.isFinite(accZ) ? accZ : 0);
 
         // ===== 活动量监测：将加速度数据传递给ActivityMonitor =====
         if (this.activityMonitorEnabled && this.activityMonitor && accX !== null && accY !== null && accZ !== null) {
@@ -1028,48 +994,7 @@ class RadarWebApp {
             this.bleBufferTemperature.push(null);
         }
         
-        // 实时保存完整的原始蓝牙数据
-        if (this.bleRecordingFlag === 1) {
-            const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
-            // 保存完整的蓝牙原始数据：时间戳、ADC、Acc、I、Q、IMU(x,y,z)、温度
-            // 格式：timestamp ADC_I ADC_Q Acc_X Acc_Y Acc_Z I_voltage Q_voltage IMU_x IMU_y IMU_z temperature
-            const imuX = this.bleBufferIMU_X[this.bleBufferIMU_X.length - 1] || 0;
-            const imuY = this.bleBufferIMU_Y[this.bleBufferIMU_Y.length - 1] || 0;
-            const imuZ = this.bleBufferIMU_Z[this.bleBufferIMU_Z.length - 1] || 0;
-            const temp = this.bleBufferTemperature[this.bleBufferTemperature.length - 1];
-
-            // 需要从原始字符串中提取ADC和Acc的值
-            // 这里我们需要在handleBLELine函数中保存这些值，或者重新解析
-            // 为了简单，我们可以从当前处理的变量中获取（如果可用的话）
-
-            // 临时解决方案：如果能从当前上下文中获取ADC和Acc值就保存，否则用默认值
-            let adcI = 0, adcQ = 0, accX = 0, accY = 0, accZ = 0;
-
-            // 尝试从原始字符串重新解析ADC和Acc（简化版本）
-            try {
-                const trimmed = line.trim();
-                const adcMatch = trimmed.match(/ADC:([-\d]+)\s+([-\d]+)/);
-                if (adcMatch) {
-                    adcI = parseInt(adcMatch[1]);
-                    adcQ = parseInt(adcMatch[2]);
-                }
-
-                const accMatch = trimmed.match(/Acc:([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)/);
-                if (accMatch) {
-                    accX = parseFloat(accMatch[1]);
-                    accY = parseFloat(accMatch[2]);
-                    accZ = parseFloat(accMatch[3]);
-                }
-            } catch (e) {
-                // 解析失败时使用默认值
-                console.warn('解析ADC/Acc失败，使用默认值');
-            }
-
-            const dataLine = `${timestamp}  ${adcI}  ${adcQ}  ${accX.toFixed(3)}  ${accY.toFixed(3)}  ${accZ.toFixed(3)}  ${iVal.toFixed(6)}  ${qVal.toFixed(6)}  ${imuX.toFixed(3)}  ${imuY.toFixed(3)}  ${imuZ.toFixed(3)}  ${temp !== null ? temp.toFixed(2) : 'N/A'}`;
-            this.bleRecordingData.push(dataLine);
-        }
-        
         // 更新数据计数
         this.bleDataCount++;
         document.getElementById('bleDataCount').textContent = this.bleDataCount;
@@ -1179,24 +1104,22 @@ class RadarWebApp {
      * - 默认假设：每调用一次 handleBLELine = 1 个采样点（你的设备目前看起来是这样）
      * - 若提供 seq：使用 seq 计算丢包更准确
      */
+    /**
+     * 更新 BLE 丢包/实际采样率/抖动，并在稳定后自动同步 processor.fs
+     * 新协议 V1.02 默认 Tcycle=500ms (2Hz)，心率检测需至少 6Hz。
+     * 收到 >=20 帧后自动测量实际频率并同步到 processor.fs。
+     */
     _updateBleLossStats(seq = null) {
-        const fs = (this.processor && Number.isFinite(this.processor.fs)) ? this.processor.fs : 100;
-        const expectedIntervalMs = 1000 / fs;
         const now = Date.now();
-
         const s = this.bleStats;
         if (!s.startRxTs) s.startRxTs = now;
 
-        // received 计数（每条 line 视为一个采样点）
         s.received += 1;
 
         if (Number.isFinite(seq)) {
             if (s.lastSeq !== null) {
                 const gap = seq - s.lastSeq - 1;
-                if (gap > 0) {
-                    s.missed += gap;
-                    s.seqBased = true;
-                }
+                if (gap > 0) { s.missed += gap; s.seqBased = true; }
             }
             s.lastSeq = seq;
         }
@@ -1204,39 +1127,101 @@ class RadarWebApp {
         if (s.lastRxTs > 0) {
             const gapMs = now - s.lastRxTs;
             s.lastGapMs = gapMs;
-
-            // EMA 估计间隔与抖动
             const alpha = 0.1;
-            s.gapEmaMs = s.gapEmaMs ? (alpha * gapMs + (1 - alpha) * s.gapEmaMs) : gapMs;
-            const jitter = Math.abs(gapMs - expectedIntervalMs);
+            s.gapEmaMs       = s.gapEmaMs       ? (alpha * gapMs  + (1 - alpha) * s.gapEmaMs)       : gapMs;
+            const jitter     = Math.abs(gapMs - s.gapEmaMs);
             s.gapJitterEmaMs = s.gapJitterEmaMs ? (alpha * jitter + (1 - alpha) * s.gapJitterEmaMs) : jitter;
         }
         s.lastRxTs = now;
 
-        // 期望点数：
-        // - 有 seq：expected = received + seqMissing（精确）
-        // - 无 seq：用累计时间计算 expected，避免“批量送达/主线程卡顿”导致的假丢包
+        // 自动检测并同步实际采样率（收到 >=20 帧后，每 5s 重新校准一次）
+        if (s.received >= 20 && s.gapEmaMs > 0) {
+            const measuredFs   = 1000 / s.gapEmaMs;
+            const configuredFs = (this.processor && Number.isFinite(this.processor.fs)) ? this.processor.fs : 50;
+
+            if (Math.abs(measuredFs - configuredFs) / Math.max(configuredFs, 1) > 0.15) {
+                const rounded = Math.max(1, Math.round(measuredFs));
+                if (this.processor) this.processor.fs = rounded;
+                if (this.activityMonitor) this.activityMonitor.fs = rounded;
+                if (this.sleepMonitor)    this.sleepMonitor.fs    = rounded;
+
+                if (!s._lastAutoFsLog || now - s._lastAutoFsLog > 5000) {
+                    s._lastAutoFsLog = now;
+                    this.addBLELog(`⚠️ 实测采样率 ${measuredFs.toFixed(1)} Hz，已自动修正 processor.fs → ${rounded} Hz`);
+                    if (rounded < 6) {
+                        this.addBLELog(`❗ ${rounded} Hz 低于心率检测最低需求（6 Hz）。建议点击「设置50Hz」或发送 $AT+Tcycle=20*`);
+                    }
+                }
+            }
+        }
+
+        const fs = (this.processor && Number.isFinite(this.processor.fs)) ? this.processor.fs : 50;
         const elapsedSec = Math.max(0.001, (now - s.startRxTs) / 1000);
         if (s.seqBased) {
             s.expected = s.received + s.missed;
         } else {
             s.expected = Math.round(elapsedSec * fs);
-            s.missed = Math.max(0, s.expected - s.received);
+            s.missed   = Math.max(0, s.expected - s.received);
         }
 
-        // UI 更新（降频：每约 0.5s 更新一次即可；这里用简单取模）
-        if (s.received % Math.max(1, Math.floor(fs / 2)) !== 0) return;
+        if (s.received % Math.max(1, Math.floor(Math.max(fs, 1) / 2)) !== 0) return;
 
         const actualFs = s.received / elapsedSec;
         const lossRate = s.expected > 0 ? (s.missed / s.expected) : 0;
 
-        const fsEl = document.getElementById('bleActualFs');
-        const lossEl = document.getElementById('blePacketLoss');
+        const fsEl     = document.getElementById('bleActualFs');
+        const lossEl   = document.getElementById('blePacketLoss');
         const jitterEl = document.getElementById('bleJitter');
-        if (fsEl) fsEl.textContent = `${actualFs.toFixed(1)} Hz`;
-        if (lossEl) lossEl.textContent = `${(lossRate * 100).toFixed(2)} %`;
+        if (fsEl) {
+            fsEl.textContent = `${actualFs.toFixed(1)} Hz`;
+            fsEl.style.color = actualFs < 6 ? '#ff4444' : actualFs < 20 ? '#ff9900' : '';
+            fsEl.title = actualFs < 6
+                ? `频率过低！需要至少 6 Hz 才能检测心率，请点击「设置50Hz」按钮`
+                : actualFs < 20
+                ? `频率偏低，建议设置为 50 Hz`
+                : `采样率正常`;
+        }
+        if (lossEl)   lossEl.textContent   = `${(lossRate * 100).toFixed(1)} %`;
         if (jitterEl) jitterEl.textContent = `${(s.gapJitterEmaMs || 0).toFixed(1)} ms`;
     }
+
+    /**
+     * 通过 FFF2 发送 AT 指令设置设备采样周期
+     * 协议：$AT+Tcycle=<ms>*\r\n
+     * 示例：sendTcycleCommand(20) → 50 Hz；sendTcycleCommand(500) → 2 Hz（设备默认）
+     */
+    async sendTcycleCommand(periodMs) {
+        if (!this.bleConnected) {
+            this.addBLELog('❌ 未连接蓝牙，无法发送指令'); return;
+        }
+        if (!Number.isFinite(periodMs) || periodMs < 10 || periodMs > 10000) {
+            this.addBLELog('❌ 无效周期值（范围 10–10000 ms）'); return;
+        }
+        try {
+            const cmd = `$AT+Tcycle=${periodMs}*
+`;
+            await window.BLE.send(cmd);
+            const newFs = Math.round(1000 / periodMs);
+            if (this.processor) this.processor.fs = newFs;
+            if (this.activityMonitor) this.activityMonitor.fs = newFs;
+            if (this.sleepMonitor)    this.sleepMonitor.fs    = newFs;
+            this.resetBleStats();
+            this.addBLELog(`📤 已发送: ${cmd.trim()} → ${(1000 / periodMs).toFixed(1)} Hz，统计已重置`);
+        } catch (err) {
+            this.addBLELog(`❌ 发送指令失败: ${err.message}`);
+        }
+    }
+
+    /** 重置 BLE 接收统计（切换采样频率后调用） */
+    resetBleStats() {
+        this.bleStats = {
+            startRxTs: 0, lastRxTs: 0,
+            received: 0, expected: 0, missed: 0,
+            lastGapMs: 0, gapEmaMs: 0, gapJitterEmaMs: 0,
+            lastSeq: null, seqBased: false
+        };
+    }
+
 
     // 这些函数已被蓝牙专用函数取代，保留作为兼容性
     updateLiveCharts() {
@@ -3877,6 +3862,19 @@ class RadarWebApp {
     /**
      * 更新蓝牙实时图表
      */
+    /** 高性能求最小值（避免 spread 导致栈溢出） */
+    _arrMin(arr, start) {
+        let m = Infinity;
+        for (let i = start; i < arr.length; i++) { if (arr[i] < m) m = arr[i]; }
+        return m;
+    }
+    /** 高性能求最大值 */
+    _arrMax(arr, start) {
+        let m = -Infinity;
+        for (let i = start; i < arr.length; i++) { if (arr[i] > m) m = arr[i]; }
+        return m;
+    }
+
     updateBluetoothLiveCharts() {
         // 检查所有必需的图表是否已初始化
         if (!this.bleCharts.iSignal || !this.bleCharts.qSignal || !this.bleCharts.constellation) {
@@ -3905,19 +3903,16 @@ class RadarWebApp {
         if (len < 10) return;
 
         // 自适应Y轴调节逻辑（提高实时性：增加检测频率）
-        if (this.adaptiveYAxisEnabled && this.bleDataCount % 2 === 0) { // 每2个数据点计算一次，提高响应速度
+        if (this.adaptiveYAxisEnabled && this.bleDataCount % 10 === 0) { // 每10个数据点计算一次，减少计算开销
             this.adaptiveSampleCount++;
 
             // 收集最近数据的范围
             const recentDataSize = Math.min(len, this.adaptiveStabilizeWindow);
-            const startIdx = len - recentDataSize;
-            const recentI = this.bleBufferI.slice(startIdx);
-            const recentQ = this.bleBufferQ.slice(startIdx);
-
-            const currentMinI = Math.min(...recentI);
-            const currentMaxI = Math.max(...recentI);
-            const currentMinQ = Math.min(...recentQ);
-            const currentMaxQ = Math.max(...recentQ);
+            const recentStart = len - recentDataSize;
+            const currentMinI = this._arrMin(this.bleBufferI, recentStart);
+            const currentMaxI = this._arrMax(this.bleBufferI, recentStart);
+            const currentMinQ = this._arrMin(this.bleBufferQ, recentStart);
+            const currentMaxQ = this._arrMax(this.bleBufferQ, recentStart);
 
             // 检测信号范围是否发生显著变化（需要重新自适应）
             let rangeChanged = false;
@@ -3943,23 +3938,20 @@ class RadarWebApp {
                     if (Math.abs(currentRangeI - stabilizedRangeI) / Math.max(stabilizedRangeI, 0.01) > rangeChangeThreshold ||
                         Math.abs(currentRangeQ - stabilizedRangeQ) / Math.max(stabilizedRangeQ, 0.01) > rangeChangeThreshold) {
                         rangeChanged = true;
-                        console.log(`🔄 [微小模式]信号范围变化: I(${stabilizedRangeI.toFixed(4)}→${currentRangeI.toFixed(4)}), Q(${stabilizedRangeQ.toFixed(4)}→${currentRangeQ.toFixed(4)})`);
-                    }
+                        }
 
                     if (Math.abs(currentMinI - this.adaptiveLastMinI) > offsetThresholdI ||
                         Math.abs(currentMaxI - this.adaptiveLastMaxI) > offsetThresholdI ||
                         Math.abs(currentMinQ - this.adaptiveLastMinQ) > offsetThresholdQ ||
                         Math.abs(currentMaxQ - this.adaptiveLastMaxQ) > offsetThresholdQ) {
                         rangeChanged = true;
-                        console.log(`🔄 [微小模式]信号偏移变化: I(${this.adaptiveLastMinI.toFixed(4)}-${this.adaptiveLastMaxI.toFixed(4)} → ${currentMinI.toFixed(4)}-${currentMaxI.toFixed(4)}), Q(${this.adaptiveLastMinQ.toFixed(4)}-${this.adaptiveLastMaxQ.toFixed(4)} → ${currentMinQ.toFixed(4)}-${currentMaxQ.toFixed(4)})`);
-                    }
+                        }
                 } else {
                     // 正常模式下的重置逻辑（保持原有敏感度）
                     const rangeChangeThreshold = 0.2;
                     if (Math.abs(currentRangeI - stabilizedRangeI) / Math.max(stabilizedRangeI, 0.01) > rangeChangeThreshold ||
                         Math.abs(currentRangeQ - stabilizedRangeQ) / Math.max(stabilizedRangeQ, 0.01) > rangeChangeThreshold) {
                         rangeChanged = true;
-                        console.log(`🔄 检测到信号范围变化: I(${stabilizedRangeI.toFixed(3)}→${currentRangeI.toFixed(3)}), Q(${stabilizedRangeQ.toFixed(3)}→${currentRangeQ.toFixed(3)})`);
                     }
 
                     const offsetThresholdI = Math.max(stabilizedRangeI * 0.15, 0.05);
@@ -3969,7 +3961,6 @@ class RadarWebApp {
                         Math.abs(currentMinQ - this.adaptiveLastMinQ) > offsetThresholdQ ||
                         Math.abs(currentMaxQ - this.adaptiveLastMaxQ) > offsetThresholdQ) {
                         rangeChanged = true;
-                        console.log(`🔄 检测到信号偏移变化: I(${this.adaptiveLastMinI.toFixed(3)}-${this.adaptiveLastMaxI.toFixed(3)} → ${currentMinI.toFixed(3)}-${currentMaxI.toFixed(3)}), Q(${this.adaptiveLastMinQ.toFixed(3)}-${this.adaptiveLastMaxQ.toFixed(3)} → ${currentMinQ.toFixed(3)}-${currentMaxQ.toFixed(3)})`);
                     }
                 }
 
@@ -3982,7 +3973,6 @@ class RadarWebApp {
                 if (currentMinI < currentChartMinI || currentMaxI > currentChartMaxI ||
                     currentMinQ < currentChartMinQ || currentMaxQ > currentChartMaxQ) {
                     rangeChanged = true;
-                    console.log('🔄 检测到信号超出当前显示范围，立即重新自适应');
                 }
             }
 
@@ -4009,8 +3999,7 @@ class RadarWebApp {
                         this.bleCharts.iSignal.options.scales.y.max = currentMaxI + 0.1;
                         this.bleCharts.qSignal.options.scales.y.min = Math.max(0, currentMinQ - 0.1);
                         this.bleCharts.qSignal.options.scales.y.max = currentMaxQ + 0.1;
-                        console.log('🔄 微小模式重置：保持相对较小的范围');
-                    } else {
+                        } else {
                         // 正常重置到稍宽的初始范围
                         this.bleCharts.iSignal.options.scales.y.min = 1.0;
                         this.bleCharts.iSignal.options.scales.y.max = 3.0;
@@ -4035,7 +4024,6 @@ class RadarWebApp {
                     const rangeQ = this.adaptiveLastMaxQ - this.adaptiveLastMinQ;
 
                     // 详细调试信息
-                    console.log(`🔍 自适应调试: 样本数=${this.adaptiveSampleCount}, I范围=${rangeI.toFixed(4)}V (${this.adaptiveLastMinI.toFixed(3)}-${this.adaptiveLastMaxI.toFixed(3)}), Q范围=${rangeQ.toFixed(4)}V (${this.adaptiveLastMinQ.toFixed(3)}-${this.adaptiveLastMaxQ.toFixed(3)})`);
 
                     // 简化波动性评估：使用数据范围的简单比例来代替复杂标准差计算
                     const dataRangeI = this.adaptiveLastMaxI - this.adaptiveLastMinI;
@@ -4060,10 +4048,7 @@ class RadarWebApp {
                         newMinQ = Math.max(0, centerQ - 0.05);
                         newMaxQ = centerQ + 0.05;
 
-                        console.log(`🔬 微小波动检测触发! I范围=${rangeI.toFixed(4)}V, Q范围=${rangeQ.toFixed(4)}V，启用0.1单位Y轴控制`);
-                        console.log(`📍 信号中心: I=${centerI.toFixed(4)}V, Q=${centerQ.toFixed(4)}V`);
-                        console.log(`🎨 Y轴设置: I=[${newMinI.toFixed(4)}, ${newMaxI.toFixed(4)}], Q=[${newMinQ.toFixed(4)}, ${newMaxQ.toFixed(4)}]`);
-                    } else {
+                                } else {
                         // 自适应完成后，设置适度紧凑的范围来更清楚显示波峰
                         // 使用标准差的3倍作为余量，但最大不超过数据范围的20%，最小0.01V
                         const detailPaddingI = Math.max(0.01, Math.min(stdI * 3, rangeI * 0.20));
@@ -4075,116 +4060,108 @@ class RadarWebApp {
                         newMinQ = Math.max(0, this.adaptiveLastMinQ - detailPaddingQ);
                         newMaxQ = this.adaptiveLastMaxQ + detailPaddingQ;
 
-                        console.log(`🔄 标准自适应: I余量=${detailPaddingI.toFixed(3)}V, Q余量=${detailPaddingQ.toFixed(3)}V`);
-                    }
+                        }
 
                     // 更新I通道Y轴
                     if (this.bleCharts.iSignal) {
                         this.bleCharts.iSignal.options.scales.y.min = newMinI;
                         this.bleCharts.iSignal.options.scales.y.max = newMaxI;
-                        console.log(`📊 自适应Y轴: I通道范围调整为 ${newMinI.toFixed(3)}-${newMaxI.toFixed(3)}V (标准差:${stdI.toFixed(4)}V)`);
                     }
 
                     // 更新Q通道Y轴
                     if (this.bleCharts.qSignal) {
                         this.bleCharts.qSignal.options.scales.y.min = newMinQ;
                         this.bleCharts.qSignal.options.scales.y.max = newMaxQ;
-                        console.log(`📊 自适应Y轴: Q通道范围调整为 ${newMinQ.toFixed(3)}-${newMaxQ.toFixed(3)}V (标准差:${stdQ.toFixed(4)}V)`);
                     }
 
                     this.adaptiveStabilized = true;
-                    console.log('✅ Y轴自适应调节完成，开始显示细节');
                 }
             }
         }
 
         // 🔍 调试：降低日志频率以提高性能
-        if (this.bleDataCount <= 100 && this.bleDataCount % 100 === 0) { // 从50改为100
-            console.log(`📊 Buffer统计 (总点数=${len}): I=${Math.min(...this.bleBufferI).toFixed(3)}-${Math.max(...this.bleBufferI).toFixed(3)}V`);
-        }
 
         const sampleSize = Math.min(1000, len);
         const start = len - sampleSize;
-        const indices = Array.from({length: sampleSize}, (_, i) => i);
 
-        // 🔍 调试：验证传给图表的数据
-        const iDataForChart = this.bleBufferI.slice(start);
-        const qDataForChart = this.bleBufferQ.slice(start);
-
-        // 减少调试日志以提高性能
-        if (this.bleDataCount === 10) {
-            console.log(`🎨 图表初始化完成 - 数据长度:${iDataForChart.length}`);
+        // 缓存 labels 数组，避免每帧 Array.from 分配
+        if (!this._chartLabels || this._chartLabels.length !== sampleSize) {
+            this._chartLabels = Array.from({length: sampleSize}, (_, i) => i);
         }
+        const indices = this._chartLabels;
 
-        // 更新 I 通道
+        // I 通道（确保 dataset 已存在再做 mutation）
         if (this.bleCharts.iSignal) {
-            this.bleCharts.iSignal.data = {
-                labels: indices,
-                datasets: [
-                    { label: 'I通道', data: iDataForChart, borderColor: 'rgb(75, 192, 192)', backgroundColor: 'rgba(75, 192, 192, 0.2)', tension: 0.1, pointRadius: 0 }
-                ]
-            };
+            const iDataSlice = this.bleBufferI.slice(start);
+            const iDS = this.bleCharts.iSignal.data;
+            iDS.labels = indices;
+            if (iDS.datasets.length === 0) {
+                iDS.datasets.push({ label: 'I通道', data: iDataSlice, borderColor: 'rgb(75, 192, 192)', backgroundColor: 'rgba(75, 192, 192, 0.2)', tension: 0.1, pointRadius: 0 });
+            } else {
+                iDS.datasets[0].data = iDataSlice;
+            }
             this.bleCharts.iSignal.update('none');
         }
 
-        // 更新 Q 通道
+        // Q 通道
         if (this.bleCharts.qSignal) {
-            this.bleCharts.qSignal.data = {
-                labels: indices,
-                datasets: [
-                    { label: 'Q通道', data: qDataForChart, borderColor: 'rgb(255, 99, 132)', backgroundColor: 'rgba(255, 99, 132, 0.2)', tension: 0.1, pointRadius: 0 }
-                ]
-            };
+            const qDataSlice = this.bleBufferQ.slice(start);
+            const qDS = this.bleCharts.qSignal.data;
+            qDS.labels = indices;
+            if (qDS.datasets.length === 0) {
+                qDS.datasets.push({ label: 'Q通道', data: qDataSlice, borderColor: 'rgb(255, 99, 132)', backgroundColor: 'rgba(255, 99, 132, 0.2)', tension: 0.1, pointRadius: 0 });
+            } else {
+                qDS.datasets[0].data = qDataSlice;
+            }
             this.bleCharts.qSignal.update('none');
         }
 
-        const constellationSampleSize = Math.min(500, len);
+        const constellationSampleSize = Math.min(300, len);
         const step = Math.max(1, Math.floor(len / constellationSampleSize));
-        const data = [];
-        for (let i = start; i < len; i += step) data.push({ x: this.bleBufferI[i], y: this.bleBufferQ[i] });
-        // 更新星座图
+        const constData = [];
+        for (let i = start; i < len; i += step) constData.push({ x: this.bleBufferI[i], y: this.bleBufferQ[i] });
         if (this.bleCharts.constellation) {
-            this.bleCharts.constellation.data = { datasets: [ { label: 'I/Q数据点', data, backgroundColor: 'rgba(54, 162, 235, 0.6)', pointRadius: 2 } ] };
-            this.bleCharts.constellation.update();
-            if (this.bleDataCount === 10) {
-                console.log('✅ 星座图已更新');
+            const cDS = this.bleCharts.constellation.data;
+            if (cDS.datasets.length === 0) {
+                cDS.datasets.push({ label: 'I/Q数据点', data: constData, backgroundColor: 'rgba(54, 162, 235, 0.6)', pointRadius: 2 });
+            } else {
+                cDS.datasets[0].data = constData;
             }
-        } else {
-            console.warn('❌ 星座图对象不存在');
+            this.bleCharts.constellation.update('none');
         }
 
-        // 更新 IMU 图表（gx/gy/gz）
         if (this.bleCharts.imu && this.bleBufferIMU_X.length > 0) {
-            if (this.bleDataCount === 10) {
-                console.log(`🎯 IMU更新条件满足: 图表存在=${!!this.bleCharts.imu}, IMU_X长度=${this.bleBufferIMU_X.length}`);
+            const imuDS = this.bleCharts.imu.data;
+            imuDS.labels = indices;
+            if (imuDS.datasets.length < 3) {
+                imuDS.datasets = [
+                    { label: 'Gx (deg/s)', data: this.bleBufferIMU_X.slice(start), borderColor: 'rgb(255, 99, 132)', backgroundColor: 'rgba(255, 99, 132, 0.08)', tension: 0.1, pointRadius: 0 },
+                    { label: 'Gy (deg/s)', data: this.bleBufferIMU_Y.slice(start), borderColor: 'rgb(54, 162, 235)', backgroundColor: 'rgba(54, 162, 235, 0.08)', tension: 0.1, pointRadius: 0 },
+                    { label: 'Gz (deg/s)', data: this.bleBufferIMU_Z.slice(start), borderColor: 'rgb(75, 192, 192)', backgroundColor: 'rgba(75, 192, 192, 0.08)', tension: 0.1, pointRadius: 0 }
+                ];
+            } else {
+                imuDS.datasets[0].data = this.bleBufferIMU_X.slice(start);
+                imuDS.datasets[1].data = this.bleBufferIMU_Y.slice(start);
+                imuDS.datasets[2].data = this.bleBufferIMU_Z.slice(start);
             }
-            this.bleCharts.imu.data = {
-                labels: indices,
-                datasets: [
-                    { label: 'gx', data: this.bleBufferIMU_X.slice(start), borderColor: 'rgb(255, 99, 132)', backgroundColor: 'rgba(255, 99, 132, 0.08)', tension: 0.1, pointRadius: 0 },
-                    { label: 'gy', data: this.bleBufferIMU_Y.slice(start), borderColor: 'rgb(54, 162, 235)', backgroundColor: 'rgba(54, 162, 235, 0.08)', tension: 0.1, pointRadius: 0 },
-                    { label: 'gz', data: this.bleBufferIMU_Z.slice(start), borderColor: 'rgb(75, 192, 192)', backgroundColor: 'rgba(75, 192, 192, 0.08)', tension: 0.1, pointRadius: 0 }
-                ]
-            };
-            this.bleCharts.imu.update();
-            if (this.bleDataCount === 10) {
-                console.log('✅ IMU图表已更新');
-            }
-        } else if (this.bleBufferIMU_X.length > 0) {
-            console.warn('❌ IMU图表对象不存在，但有IMU数据');
+            this.bleCharts.imu.update('none');
         }
 
-        // 更新加速度计图表（ax/ay/az）
         if (this.bleCharts.acc && this.bleBufferACC_X.length > 0) {
-            this.bleCharts.acc.data = {
-                labels: indices,
-                datasets: [
-                    { label: 'ax', data: this.bleBufferACC_X.slice(start), borderColor: 'rgb(255, 159, 64)', backgroundColor: 'rgba(255, 159, 64, 0.08)', tension: 0.1, pointRadius: 0 },
-                    { label: 'ay', data: this.bleBufferACC_Y.slice(start), borderColor: 'rgb(153, 102, 255)', backgroundColor: 'rgba(153, 102, 255, 0.08)', tension: 0.1, pointRadius: 0 },
-                    { label: 'az', data: this.bleBufferACC_Z.slice(start), borderColor: 'rgb(255, 205, 86)', backgroundColor: 'rgba(255, 205, 86, 0.08)', tension: 0.1, pointRadius: 0 }
-                ]
-            };
-            this.bleCharts.acc.update();
+            const accDS = this.bleCharts.acc.data;
+            accDS.labels = indices;
+            if (accDS.datasets.length < 3) {
+                accDS.datasets = [
+                    { label: 'Ax (g)', data: this.bleBufferACC_X.slice(start), borderColor: 'rgb(255, 159, 64)', backgroundColor: 'rgba(255, 159, 64, 0.08)', tension: 0.1, pointRadius: 0 },
+                    { label: 'Ay (g)', data: this.bleBufferACC_Y.slice(start), borderColor: 'rgb(153, 102, 255)', backgroundColor: 'rgba(153, 102, 255, 0.08)', tension: 0.1, pointRadius: 0 },
+                    { label: 'Az (g)', data: this.bleBufferACC_Z.slice(start), borderColor: 'rgb(255, 205, 86)', backgroundColor: 'rgba(255, 205, 86, 0.08)', tension: 0.1, pointRadius: 0 }
+                ];
+            } else {
+                accDS.datasets[0].data = this.bleBufferACC_X.slice(start);
+                accDS.datasets[1].data = this.bleBufferACC_Y.slice(start);
+                accDS.datasets[2].data = this.bleBufferACC_Z.slice(start);
+            }
+            this.bleCharts.acc.update('none');
         }
 
         // 更新温度图表
@@ -4213,12 +4190,7 @@ class RadarWebApp {
                     }
                 ]
             };
-            this.bleCharts.temperature.update();
-            if (this.bleDataCount === 10) {
-                console.log(`✅ 温度图表已更新 - 有效温度点: ${validTemps.length}/${tempDataRaw.length}`);
-            }
-        } else if (this.bleBufferTemperature.length > 0) {
-            console.warn('❌ 温度图表对象不存在，但有温度数据');
+            this.bleCharts.temperature.update('none');
         }
 
         // 更新当前温度显示
@@ -4959,13 +4931,20 @@ function startSimulationTest() {
         const adcI = Math.round((voltageI * 2 / 3.3 - 1) * 32767);
         const adcQ = Math.round((voltageQ * 2 / 3.3 - 1) * 32767);
         
-        // 模拟蓝牙数据接收（接近实际设备格式：包含 Gyr 三轴和温度）
-        const gx = 10 * Math.sin(2 * Math.PI * 0.5 * t);
-        const gy = 5 * Math.cos(2 * Math.PI * 0.2 * t);
-        const gz = 2 * Math.sin(2 * Math.PI * 1.0 * t);
-        // 模拟温度缓慢变化（34-36°C之间波动）
-        const temp = 35 + Math.sin(2 * Math.PI * 0.01 * t) + 0.1 * (Math.random() - 0.5);
-        const simulatedLine = `ADC:${adcI} ${adcQ}|Gyr:${gx.toFixed(2)} ${gy.toFixed(2)} ${gz.toFixed(2)}|T:${temp.toFixed(1)}`;
+        // 模拟新协议 V1.02：$MAC,Time,Lon,Lat,Ax,Ay,Az,Gx,Gy,Gz,Roll,Pitch,Yaw,V1,V2,V3*
+        // 加速度单位 m/s²（解析时除以9.81），陀螺仪 rad/s（解析时乘以180/π）
+        const ax_ms2 = voltageI * 0.1;  // 模拟加速度（m/s²）
+        const ay_ms2 = voltageQ * 0.05;
+        const az_ms2 = 9.81 + 0.1 * (Math.random() - 0.5);  // 静止时约 9.81
+        const gx_rads = 0.1 * Math.sin(2 * Math.PI * 0.5 * t);  // 陀螺仪（rad/s）
+        const gy_rads = 0.05 * Math.cos(2 * Math.PI * 0.2 * t);
+        const gz_rads = 0.02 * Math.sin(2 * Math.PI * 1.0 * t);
+        const roll = 5 * Math.sin(2 * Math.PI * 0.1 * t);
+        const pitch = 3 * Math.cos(2 * Math.PI * 0.08 * t);
+        const yaw = -45 + 10 * Math.sin(2 * Math.PI * 0.02 * t);
+        const v2 = voltageI;   // Radar I = V2
+        const v3 = voltageQ;   // Radar Q = V3
+        const simulatedLine = `$SIMTEST,260001120000000,E114.2010058,N22.3787343,${ax_ms2.toFixed(2)},${ay_ms2.toFixed(2)},${az_ms2.toFixed(2)},${gx_rads.toFixed(4)},${gy_rads.toFixed(4)},${gz_rads.toFixed(4)},${roll.toFixed(2)},${pitch.toFixed(2)},${yaw.toFixed(2)},3.300,${v2.toFixed(3)},${v3.toFixed(3)}*`;
         app.handleBLELine(simulatedLine);
         
         dataCount++;

@@ -1,12 +1,18 @@
 /**
- * 简易 Web Bluetooth 管理器（面向透传/串口类协议，如 NUS）
- * 功能：
- * - 请求设备并连接
- * - 自动发现可通知的特征并订阅
- * - 将接收到的字节数据按 UTF-8 文本累积为按行字符串回调
+ * Web Bluetooth 管理器
+ * 协议优先级：FFF0（V1.02新协议）→ NUS → 通用自动发现
+ *
+ * 新协议帧格式（BLE_Telemetry_Data_Frame V1.02）：
+ *   $MAC,Time,Lon,Lat,Ax,Ay,Az,Gx,Gy,Gz,Roll,Pitch,Yaw,V1,V2,V3*[\r\n]
+ * 服务：FFF0  通知特征：FFF1（设备→手机）  写入特征：FFF2（手机→设备）
  */
 
 (function () {
+	// 新协议 FFF0/FFF1/FFF2 完整 128-bit UUID
+	const UUID_FFF0 = '0000fff0-0000-1000-8000-00805f9b34fb';
+	const UUID_FFF1 = '0000fff1-0000-1000-8000-00805f9b34fb'; // Notify: 设备→手机
+	const UUID_FFF2 = '0000fff2-0000-1000-8000-00805f9b34fb'; // Write:  手机→设备
+
 	class BluetoothManager {
 		constructor() {
 			this.device = null;
@@ -30,37 +36,39 @@
 			}
 
 			try {
-				// 允许连接所有蓝牙设备，只包含最基本的服务避免UUID格式错误
 				this.device = await navigator.bluetooth.requestDevice({
 					acceptAllDevices: true,
 					optionalServices: [
-						// Nordic UART Service (NUS) - 常见透传协议
+						// ★ 新协议 FFF0 服务（V1.02，最高优先级）
+						UUID_FFF0,
+						// Nordic UART Service (NUS)
 						'6e400001-b5a3-f393-e0a9-e50e24dcca9e',
-						// 标准GATT服务 (使用数字格式更安全)
-						0x180D, // Heart Rate Service
-						0x180F, // Battery Service 
+						// 标准 GATT 服务
+						0x180D, // Heart Rate
+						0x180F, // Battery
 						0x1800, // Generic Access
 						0x1801, // Generic Attribute
 						0x180A, // Device Information
-						// 常见自定义服务 (小写UUID)
-						0xFFE0, // 常用透传服务
-						0xFFF0, // 常用透传服务
-						'0000ffe0-0000-1000-8000-00805f9b34fb',
-						'0000fff0-0000-1000-8000-00805f9b34fb'
+						// 其他常见透传服务
+						0xFFE0,
+						'0000ffe0-0000-1000-8000-00805f9b34fb'
 					]
 				});
 
 				this.device.addEventListener('gattserverdisconnected', this._handleDisconnect.bind(this));
 				this.server = await this.device.gatt.connect();
 
-				// 优先尝试 NUS，失败则使用通用发现
+				// 协议尝试顺序：FFF0 → NUS → 通用自动发现
 				try {
-					const nus = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
-					await this._setupNUS(nus);
-					this._emitServiceDiscovered('✓ 使用 Nordic UART Service (NUS) 协议');
-				} catch (_) {
-					// 兜底：自动发现所有可用的通知特征
-					await this._setupAllNotifiableCharacteristics();
+					await this._setupFFF();
+					this._emitServiceDiscovered('✓ 使用 FFF0 服务协议（V1.02，FFF1 通知 / FFF2 写入）');
+				} catch (_fffErr) {
+					try {
+						await this._setupNUS('6e400001-b5a3-f393-e0a9-e50e24dcca9e');
+						this._emitServiceDiscovered('✓ 使用 Nordic UART Service (NUS) 协议');
+					} catch (_nusErr) {
+						await this._setupAllNotifiableCharacteristics();
+					}
 				}
 
 				this._emitConnect();
@@ -70,14 +78,22 @@
 			}
 		}
 
+		/**
+		 * 新协议：绑定 FFF0 服务的 FFF1（通知）和 FFF2（写入）特征
+		 */
+		async _setupFFF() {
+			const service = await this.server.getPrimaryService(UUID_FFF0);
+			this.notifyCharacteristic = await service.getCharacteristic(UUID_FFF1);
+			this.writeCharacteristic  = await service.getCharacteristic(UUID_FFF2);
+			await this._startNotifications(this.notifyCharacteristic);
+		}
+
 		async _setupNUS(serviceUuid) {
 			const service = await this.server.getPrimaryService(serviceUuid);
-			// NUS TX (notify from device -> client)
-			const txUuid = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
-			// NUS RX (write from client -> device)
-			const rxUuid = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+			const txUuid = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'; // notify
+			const rxUuid = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'; // write
 			this.notifyCharacteristic = await service.getCharacteristic(txUuid);
-			this.writeCharacteristic = await service.getCharacteristic(rxUuid);
+			this.writeCharacteristic  = await service.getCharacteristic(rxUuid);
 			await this._startNotifications(this.notifyCharacteristic);
 		}
 
@@ -165,24 +181,44 @@
 		_handleIncomingText(text) {
 			console.log('🔵 BLE收到数据块:', text.substring(0, 100), `(长度: ${text.length})`);
 			this._rxBuffer += text;
-			let idx;
 			let lineCount = 0;
-			while ((idx = this._rxBuffer.indexOf('\n')) >= 0) {
-				let line = this._rxBuffer.slice(0, idx);
-				this._rxBuffer = this._rxBuffer.slice(idx + 1);
-				line = line.replace(/[\r\n]+/g, '').trim();
-				if (line && typeof this.onLine === 'function') {
-					lineCount++;
-					if (lineCount <= 3) {
-						console.log(`🟢 BLE解析行 #${lineCount}:`, line.substring(0, 100));
-					}
-					try { this.onLine(line); } catch (e) {
-						console.error('❌ onLine回调错误:', e);
+
+			// 支持两种帧结束符：
+			//   新协议 V1.02: '$...*' 以 '*' 结尾（可选后跟 \r\n）
+			//   旧协议 / NUS:  以 '\n' 结尾
+			let found = true;
+			while (found) {
+				found = false;
+				const nlIdx   = this._rxBuffer.indexOf('\n');
+				const starIdx = this._rxBuffer.indexOf('*');
+
+				// 选取最先出现的那个分隔符
+				let delimIdx = -1;
+				if (nlIdx >= 0 && (starIdx < 0 || nlIdx < starIdx)) {
+					delimIdx = nlIdx;
+				} else if (starIdx >= 0) {
+					delimIdx = starIdx;
+				}
+
+				if (delimIdx >= 0) {
+					found = true;
+					let line = this._rxBuffer.slice(0, delimIdx);
+					this._rxBuffer = this._rxBuffer.slice(delimIdx + 1);
+					line = line.replace(/[\r\n]+/g, '').trim();
+					if (line && typeof this.onLine === 'function') {
+						lineCount++;
+						if (lineCount <= 3) {
+							console.log(`🟢 BLE解析帧 #${lineCount}:`, line.substring(0, 120));
+						}
+						try { this.onLine(line); } catch (e) {
+							console.error('❌ onLine回调错误:', e);
+						}
 					}
 				}
 			}
+
 			if (lineCount > 0) {
-				console.log(`✅ 本次处理了 ${lineCount} 行数据`);
+				console.log(`✅ 本次处理了 ${lineCount} 帧数据`);
 			}
 		}
 
