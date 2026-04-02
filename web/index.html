@@ -65,20 +65,41 @@
                         <h4>📡 实时数据流:</h4>
                         <div class="realtime-stats">
                             <div class="stat-item">
-                                <span class="stat-label">接收数据点:</span>
-                                <span class="stat-value" id="bleDataCount">0</span>
+                                <span class="stat-label">目标频率:</span>
+                                <span class="stat-value" id="bleTargetFs" style="color:#1a73e8;font-weight:600;">50 Hz</span>
                             </div>
                             <div class="stat-item">
                                 <span class="stat-label">实际接收频率:</span>
                                 <span class="stat-value" id="bleActualFs" title="悬停查看状态">-- Hz</span>
                             </div>
                             <div class="stat-item">
-                                <span class="stat-label">丢包率(估算):</span>
+                                <span class="stat-label">配置状态:</span>
+                                <span class="stat-value" id="bleConfigStatus" style="color:#aaa;">等待连接...</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">接收数据点:</span>
+                                <span class="stat-value" id="bleDataCount">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">丢帧统计:</span>
+                                <span class="stat-value" id="bleMissedFrames">0 / 0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">丢包率:</span>
                                 <span class="stat-value" id="blePacketLoss">-- %</span>
                             </div>
                             <div class="stat-item">
                                 <span class="stat-label">间隔抖动:</span>
                                 <span class="stat-value" id="bleJitter">-- ms</span>
+                            </div>
+                            <div class="stat-item" style="grid-column: 1/-1;">
+                                <span class="stat-label">频率达标率:</span>
+                                <div style="display:flex;align-items:center;gap:8px;flex:1;">
+                                    <div style="flex:1;height:14px;background:#333;border-radius:7px;overflow:hidden;">
+                                        <div id="bleFreqBar" style="height:100%;width:0%;background:#34a853;border-radius:7px;transition:width 0.3s;"></div>
+                                    </div>
+                                    <span id="bleFreqBarText" class="stat-value" style="min-width:50px;">0%</span>
+                                </div>
                             </div>
                             <div class="stat-item" style="grid-column: 1/-1; margin-top:6px;">
                                 <span class="stat-label" style="font-weight:600;">📡 设备采样周期设置：</span>
@@ -671,6 +692,97 @@
                             等待开始监测...
                         </div>
                     </div>
+                </div>
+            </section>
+
+            <!-- 宠物情绪监测模块 -->
+            <section class="upload-section" id="petEmotionSection">
+                <h2>🐾 宠物情绪监测 (HR · RR · ENMO · HRV)</h2>
+                <p class="section-desc">
+                    基于心率(HR)、呼吸率(RR)、活动量(ENMO)和心率变异性(HRV-RMSSD)的实时趋势图，
+                    为宠物情绪识别提供基础数据支持。HRV 采用 RMSSD 近似算法，由 HR 时序推算。
+                </p>
+
+                <!-- 控制栏 -->
+                <div class="file-actions" style="align-items:center; flex-wrap:wrap; gap:8px;">
+                    <label style="font-weight:600;">物种:</label>
+                    <select id="petEmotionSpecies"
+                        style="padding:6px 12px; border-radius:6px; border:1px solid #ccc; font-size:14px;"
+                        onchange="if(app && app.petEmotionMonitor) app.petEmotionMonitor.setSpecies(this.value)">
+                        <option value="dog">🐕 狗</option>
+                        <option value="cat">🐈 猫</option>
+                    </select>
+
+                    <button class="btn btn-success" id="petEmotionStartBtn" onclick="startPetEmotionMonitor()">
+                        ▶ 开始监测
+                    </button>
+                    <button class="btn btn-danger" id="petEmotionStopBtn" onclick="stopPetEmotionMonitor()" style="display:none;">
+                        ⏹ 停止
+                    </button>
+                    <button class="btn btn-secondary" onclick="if(app && app.petEmotionMonitor) app.petEmotionMonitor.reset()">
+                        🔄 重置
+                    </button>
+
+                    <span id="petEmotionStatus" style="margin-left:8px; color:#7f8c8d; font-size:13px;">未启动</span>
+                </div>
+
+                <!-- 当前数值展示 -->
+                <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:16px 0;">
+                    <div style="background:#fdf2f2; border-radius:10px; padding:14px; text-align:center; border:1px solid #f5c6c6;">
+                        <div style="font-size:12px; color:#888; margin-bottom:4px;">心率 HR</div>
+                        <div id="emotionCurrentHR" style="font-size:22px; font-weight:700; color:#e74c3c;">-- bpm</div>
+                    </div>
+                    <div style="background:#f0f7ff; border-radius:10px; padding:14px; text-align:center; border:1px solid #b3d4f5;">
+                        <div style="font-size:12px; color:#888; margin-bottom:4px;">呼吸率 RR</div>
+                        <div id="emotionCurrentRR" style="font-size:22px; font-weight:700; color:#3498db;">-- 次/分</div>
+                    </div>
+                    <div style="background:#f0faf2; border-radius:10px; padding:14px; text-align:center; border:1px solid #b2dfc0;">
+                        <div style="font-size:12px; color:#888; margin-bottom:4px;">活动量 ENMO</div>
+                        <div id="emotionCurrentENMO" style="font-size:22px; font-weight:700; color:#27ae60;">-- g</div>
+                    </div>
+                    <div style="background:#f8f2fd; border-radius:10px; padding:14px; text-align:center; border:1px solid #d5b8f5;">
+                        <div style="font-size:12px; color:#888; margin-bottom:4px;">心率变异性 HRV</div>
+                        <div id="emotionCurrentHRV" style="font-size:22px; font-weight:700; color:#9b59b6;">-- ms</div>
+                    </div>
+                </div>
+
+                <!-- 四图网格 -->
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                    <div style="background:#fff; border-radius:10px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,0.07);">
+                        <div style="font-size:13px; font-weight:600; color:#e74c3c; margin-bottom:8px;">❤️ 心率趋势 Heart Rate</div>
+                        <div style="height:200px; position:relative;">
+                            <canvas id="emotionHRChart"></canvas>
+                        </div>
+                    </div>
+                    <div style="background:#fff; border-radius:10px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,0.07);">
+                        <div style="font-size:13px; font-weight:600; color:#3498db; margin-bottom:8px;">🌬️ 呼吸率趋势 Respiratory Rate</div>
+                        <div style="height:200px; position:relative;">
+                            <canvas id="emotionRRChart"></canvas>
+                        </div>
+                    </div>
+                    <div style="background:#fff; border-radius:10px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,0.07);">
+                        <div style="font-size:13px; font-weight:600; color:#27ae60; margin-bottom:8px;">🏃 活动量趋势 ENMO</div>
+                        <div style="height:200px; position:relative;">
+                            <canvas id="emotionENMOChart"></canvas>
+                        </div>
+                    </div>
+                    <div style="background:#fff; border-radius:10px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,0.07);">
+                        <div style="font-size:13px; font-weight:600; color:#9b59b6; margin-bottom:8px;">💜 心率变异性趋势 HRV-RMSSD</div>
+                        <div style="height:200px; position:relative;">
+                            <canvas id="emotionHRVChart"></canvas>
+                        </div>
+                        <div style="font-size:11px; color:#aaa; margin-top:4px;">
+                            HRV 低(&lt;20ms) = 应激/疼痛 &nbsp;|&nbsp; HRV 高(&gt;50ms) = 放松
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 说明卡 -->
+                <div style="margin-top:16px; padding:12px 16px; background:#fffbe6; border-radius:8px; border:1px solid #ffe58f; font-size:12px; color:#7a6300;">
+                    <strong>📌 使用说明：</strong>
+                    先连接蓝牙设备并确保数据正常接收，然后点击"开始监测"。
+                    建议同时启动活动监测(ENMO)以获取完整四路信号。
+                    HRV-RMSSD 需至少 5 秒数据才开始显示。
                 </div>
             </section>
 
@@ -1377,6 +1489,7 @@
     <script src="resting-monitor.js?v=20260302-2"></script>
     <script src="activity-monitor.js?v=20260302-2"></script>
     <script src="sleep-monitor.js?v=20260302-2"></script>
+    <script src="pet-emotion-monitor.js?v=20260328-1"></script>
     <!-- Markdown 渲染（marked）+ 安全净化（DOMPurify） -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>

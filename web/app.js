@@ -72,14 +72,17 @@ class RadarWebApp {
             received: 0,
             expected: 0,
             missed: 0,
-            // 抖动统计（到达间隔）
             lastGapMs: 0,
             gapEmaMs: 0,
             gapJitterEmaMs: 0,
-            // seq（可选）
             lastSeq: null,
             seqBased: false
         };
+
+        this.bleTargetFs = 50;
+        this.bleConfigStatus = 'pending'; // pending | configuring | configured | failed
+        this._lastGpsTs = null;
+        this._gpsGapMissed = 0;
 
         // ===== 性能优化：日志/图表节流 =====
         this._bleLogLines = [];
@@ -369,33 +372,25 @@ class RadarWebApp {
     initializeBLE() {
         if (!window.BLE) return;
         BLE.onConnect = (device) => {
-            console.log('[DEBUG] onConnect fired, setting bleConnected=true');
             this.bleConnected = true;
             this.addBLELog(`✓ 已连接: ${device.name || '未知设备'} (${device.id})`);
             this.addBLELog(`📡 正在扫描可用服务和特征...`);
 
-            // 更新保存设备的UI
             if (typeof updateBLESavedDeviceUI === 'function') {
                 updateBLESavedDeviceUI();
             }
 
-            // 显示实时数据区域
             const rtData = document.getElementById('bleRealTimeData');
             if (rtData) rtData.style.display = 'block';
 
-            // 开始计时
             this.bleConnectStartTime = Date.now();
             this.startBluetoothTimer();
-
-            // 重置数据
             this.resetBluetoothData();
 
-            console.log('[DEBUG] about to call updateBLEButtons, bleConnected=', this.bleConnected);
             try {
                 this.updateBLEButtons();
-                console.log('[DEBUG] updateBLEButtons completed OK');
             } catch(e) {
-                console.error('[DEBUG] updateBLEButtons error:', e);
+                console.error('updateBLEButtons error:', e);
             }
 
             // 连接后自动展开蓝牙图表（避免用户觉得“没有gx/gy/gz可视图”）
@@ -404,12 +399,10 @@ class RadarWebApp {
                 chartsSection.style.display = 'block';
             }
 
-            // 确保图表已初始化
             if (!this.bleCharts.iSignal || !this.bleCharts.qSignal) {
                 this.initializeBluetoothCharts();
             }
 
-            // 触发一次 resize/update，解决 display:none 时 Chart.js 尺寸为0的问题
             setTimeout(() => {
                 try {
                     Object.values(this.bleCharts || {}).forEach(ch => {
@@ -421,13 +414,9 @@ class RadarWebApp {
                 }
             }, 100);
 
-        // 自动初始化并启动蓝牙ECG播放
-        this.initializeBLEECG();
+            this.initializeBLEECG();
+            setTimeout(() => { this.forceReinitializeCharts(); }, 200);
 
-        // 调试：强制检查并重新初始化图表（如果需要）
-        setTimeout(() => {
-            this.forceReinitializeCharts();
-        }, 200);
             const playBtn = document.getElementById('blePlayBtn');
             const pauseBtn = document.getElementById('blePauseBtn');
             if (this._bleECG) {
@@ -436,6 +425,21 @@ class RadarWebApp {
                 if (playBtn && pauseBtn) { playBtn.style.display = 'none'; pauseBtn.style.display = 'inline-block'; }
                 if (!this._bleECG.raf) this._bleECG.draw();
             }
+
+            this.bleConfigStatus = 'configuring';
+            this._updateConfigStatusUI();
+            setTimeout(async () => {
+                try {
+                    await this.sendTcycleCommand(20);
+                    this.bleConfigStatus = 'configured';
+                    this.bleTargetFs = 50;
+                    this._updateConfigStatusUI();
+                } catch (e) {
+                    this.bleConfigStatus = 'failed';
+                    this._updateConfigStatusUI();
+                    this.addBLELog('自动配置50Hz失败: ' + e.message);
+                }
+            }, 800);
         };
         BLE.onDisconnect = () => {
             this.bleConnected = false;
@@ -465,29 +469,13 @@ class RadarWebApp {
     }
 
     updateBLEButtons() {
-        console.log('[DEBUG] updateBLEButtons called, bleConnected=', this.bleConnected);
         const c = document.getElementById('bleConnectBtn');
         const stopBtn = document.getElementById('bleStopRecordBtn');
         if (!c) return;
-
-        // 只控制连接按钮：已连接时隐藏
         c.style.display = this.bleConnected ? 'none' : 'inline-block';
-
-        // 录制停止按钮根据录制状态控制
         if (stopBtn) {
             stopBtn.style.display = this.bleRecordingFlag === 1 ? 'inline-block' : 'none';
         }
-
-        // 其他按钮保持默认可见，不受蓝牙连接状态控制：
-        // - 断开按钮 (bleDisconnectBtn)
-        // - 开始记录按钮 (bleStartRecordBtn)
-        // - 显示蓝牙图表按钮 (bleShowChartsBtn)
-        // - 连接诊断按钮 (bleDiagBtn)
-        // - AI诊断按钮 (bleAzureBtn)
-        // - 上报按钮 (bleStartUploadBtn/bleStopUploadBtn)
-        // - 静息/活动/睡眠监测按钮
-        // 用户点击时各功能会检查蓝牙连接状态并提示
-        console.log('[DEBUG] Keeping most buttons visible regardless of BLE connection state');
     }
 
     _setBleUploadStatus(text) {
@@ -770,14 +758,13 @@ class RadarWebApp {
                 const raw = trimmed.endsWith('*') ? trimmed.slice(1, -1) : trimmed.slice(1);
                 const parts   = raw.split(',');
                 if (parts.length >= 16) {
-                    // Acc(m/s²) → g；Gyr(rad/s) → deg/s
-                    accX = parseFloat(parts[4])  / 9.81;
-                    accY = parseFloat(parts[5])  / 9.81;
-                    accZ = parseFloat(parts[6])  / 9.81;
-                    imuX = parseFloat(parts[7])  * (180 / Math.PI);
-                    imuY = parseFloat(parts[8])  * (180 / Math.PI);
-                    imuZ = parseFloat(parts[9])  * (180 / Math.PI);
-                    // V2=Radar I, V3=Radar Q（已是电压，直接使用）
+                    // Acc 已是 g，Gyr 已是 deg/s，直接使用
+                    accX = parseFloat(parts[4]);
+                    accY = parseFloat(parts[5]);
+                    accZ = parseFloat(parts[6]);
+                    imuX = parseFloat(parts[7]);
+                    imuY = parseFloat(parts[8]);
+                    imuZ = parseFloat(parts[9]);
                     iVal = parseFloat(parts[14]);
                     qVal = parseFloat(parts[15]);
                     ts   = Date.now();
@@ -788,6 +775,18 @@ class RadarWebApp {
                     this.bleBufferACC_X.push(Number.isFinite(accX) ? accX : 0);
                     this.bleBufferACC_Y.push(Number.isFinite(accY) ? accY : 0);
                     this.bleBufferACC_Z.push(Number.isFinite(accZ) ? accZ : 0);
+
+                    // GPS 时间戳连续性检测丢帧
+                    const gpsTs = parseFloat(parts[1]);
+                    if (Number.isFinite(gpsTs) && this._lastGpsTs !== null) {
+                        const gpsDeltaMs = gpsTs - this._lastGpsTs;
+                        const expectedGapMs = this.bleTargetFs > 0 ? (1000 / this.bleTargetFs) : 20;
+                        if (gpsDeltaMs > expectedGapMs * 1.8 && gpsDeltaMs < expectedGapMs * 100) {
+                            const missed = Math.round(gpsDeltaMs / expectedGapMs) - 1;
+                            if (missed > 0) this._gpsGapMissed += missed;
+                        }
+                    }
+                    if (Number.isFinite(gpsTs)) this._lastGpsTs = gpsTs;
                 } else {
                     return;
                 }
@@ -1176,13 +1175,44 @@ class RadarWebApp {
             fsEl.textContent = `${actualFs.toFixed(1)} Hz`;
             fsEl.style.color = actualFs < 6 ? '#ff4444' : actualFs < 20 ? '#ff9900' : '';
             fsEl.title = actualFs < 6
-                ? `频率过低！需要至少 6 Hz 才能检测心率，请点击「设置50Hz」按钮`
+                ? `频率过低！需要至少 6 Hz 才能检测心率`
                 : actualFs < 20
                 ? `频率偏低，建议设置为 50 Hz`
                 : `采样率正常`;
         }
         if (lossEl)   lossEl.textContent   = `${(lossRate * 100).toFixed(1)} %`;
         if (jitterEl) jitterEl.textContent = `${(s.gapJitterEmaMs || 0).toFixed(1)} ms`;
+
+        const targetEl  = document.getElementById('bleTargetFs');
+        const missedEl  = document.getElementById('bleMissedFrames');
+        const barEl     = document.getElementById('bleFreqBar');
+        const barTextEl = document.getElementById('bleFreqBarText');
+        if (targetEl) targetEl.textContent = `${this.bleTargetFs} Hz`;
+        if (missedEl) {
+            const gpsMissed = this._gpsGapMissed || 0;
+            const totalMissed = Math.max(s.missed, gpsMissed);
+            missedEl.textContent = `${totalMissed} / ${s.received + totalMissed}`;
+        }
+        if (barEl && barTextEl) {
+            const pct = this.bleTargetFs > 0 ? Math.min(100, (actualFs / this.bleTargetFs) * 100) : 0;
+            barEl.style.width = `${pct}%`;
+            barEl.style.background = pct >= 90 ? '#34a853' : pct >= 60 ? '#ff9900' : '#ff4444';
+            barTextEl.textContent = `${pct.toFixed(1)}%`;
+        }
+    }
+
+    _updateConfigStatusUI() {
+        const el = document.getElementById('bleConfigStatus');
+        if (!el) return;
+        const map = {
+            pending:     ['等待连接...', '#aaa'],
+            configuring: ['正在配置 50Hz...', '#ff9900'],
+            configured:  ['已配置 50Hz', '#34a853'],
+            failed:      ['配置失败', '#ff4444']
+        };
+        const [text, color] = map[this.bleConfigStatus] || ['--', '#aaa'];
+        el.textContent = text;
+        el.style.color = color;
     }
 
     /**
@@ -1205,14 +1235,18 @@ class RadarWebApp {
             if (this.processor) this.processor.fs = newFs;
             if (this.activityMonitor) this.activityMonitor.fs = newFs;
             if (this.sleepMonitor)    this.sleepMonitor.fs    = newFs;
+            this.bleTargetFs = newFs;
+            this.bleConfigStatus = 'configured';
             this.resetBleStats();
-            this.addBLELog(`📤 已发送: ${cmd.trim()} → ${(1000 / periodMs).toFixed(1)} Hz，统计已重置`);
+            this._updateConfigStatusUI();
+            this.addBLELog(`📤 已发送: ${cmd.trim()} → ${newFs} Hz，统计已重置`);
         } catch (err) {
+            this.bleConfigStatus = 'failed';
+            this._updateConfigStatusUI();
             this.addBLELog(`❌ 发送指令失败: ${err.message}`);
         }
     }
 
-    /** 重置 BLE 接收统计（切换采样频率后调用） */
     resetBleStats() {
         this.bleStats = {
             startRxTs: 0, lastRxTs: 0,
@@ -1220,6 +1254,8 @@ class RadarWebApp {
             lastGapMs: 0, gapEmaMs: 0, gapJitterEmaMs: 0,
             lastSeq: null, seqBased: false
         };
+        this._lastGpsTs = null;
+        this._gpsGapMissed = 0;
     }
 
 
@@ -3710,13 +3746,18 @@ class RadarWebApp {
             seqBased: false
         };
 
-        // 清空统计显示
         const fsEl = document.getElementById('bleActualFs');
         const lossEl = document.getElementById('blePacketLoss');
         const jitterEl = document.getElementById('bleJitter');
         if (fsEl) fsEl.textContent = '-- Hz';
         if (lossEl) lossEl.textContent = '-- %';
         if (jitterEl) jitterEl.textContent = '-- ms';
+        const missedEl = document.getElementById('bleMissedFrames');
+        const barEl = document.getElementById('bleFreqBar');
+        const barTextEl = document.getElementById('bleFreqBarText');
+        if (missedEl) missedEl.textContent = '0 / 0';
+        if (barEl) barEl.style.width = '0%';
+        if (barTextEl) barTextEl.textContent = '0%';
         
         // 清空显示
         document.getElementById('bleDataCount').textContent = '0';
@@ -4453,6 +4494,16 @@ class RadarWebApp {
             this.currentHeartRate = displayHeartRate;
             this.currentRespiratoryRate = displayRespRate;
 
+            // ===== 宠物情绪监测：喂入 HR、RR、ENMO =====
+            if (this.petEmotionMonitorEnabled && this.petEmotionMonitor) {
+                // 取活动监测最新一秒的 ENMO（若未启动活动监测则传 0）
+                const lastActivity = this.activityMonitor && this.activityMonitor.activityHistory.length > 0
+                    ? this.activityMonitor.activityHistory[this.activityMonitor.activityHistory.length - 1]
+                    : null;
+                const enmoVal = lastActivity ? lastActivity.enmo : 0;
+                this.petEmotionMonitor.addVital(displayHeartRate, displayRespRate, enmoVal, Date.now());
+            }
+
             // 更新显示
             const hrElement = document.getElementById('bleCurrentHR');
             const respElement = document.getElementById('bleCurrentResp');
@@ -4931,20 +4982,20 @@ function startSimulationTest() {
         const adcI = Math.round((voltageI * 2 / 3.3 - 1) * 32767);
         const adcQ = Math.round((voltageQ * 2 / 3.3 - 1) * 32767);
         
-        // 模拟新协议 V1.02：$MAC,Time,Lon,Lat,Ax,Ay,Az,Gx,Gy,Gz,Roll,Pitch,Yaw,V1,V2,V3*
-        // 加速度单位 m/s²（解析时除以9.81），陀螺仪 rad/s（解析时乘以180/π）
-        const ax_ms2 = voltageI * 0.1;  // 模拟加速度（m/s²）
-        const ay_ms2 = voltageQ * 0.05;
-        const az_ms2 = 9.81 + 0.1 * (Math.random() - 0.5);  // 静止时约 9.81
-        const gx_rads = 0.1 * Math.sin(2 * Math.PI * 0.5 * t);  // 陀螺仪（rad/s）
-        const gy_rads = 0.05 * Math.cos(2 * Math.PI * 0.2 * t);
-        const gz_rads = 0.02 * Math.sin(2 * Math.PI * 1.0 * t);
+        // 模拟 V1.02：加速度(g)、陀螺仪(deg/s)，与固件实际输出一致
+        const ax_g = voltageI * 0.01;
+        const ay_g = voltageQ * 0.005;
+        const az_g = 1.0 + 0.01 * (Math.random() - 0.5);
+        const gx_dps = 5.0 * Math.sin(2 * Math.PI * 0.5 * t);
+        const gy_dps = 2.5 * Math.cos(2 * Math.PI * 0.2 * t);
+        const gz_dps = 1.0 * Math.sin(2 * Math.PI * 1.0 * t);
         const roll = 5 * Math.sin(2 * Math.PI * 0.1 * t);
         const pitch = 3 * Math.cos(2 * Math.PI * 0.08 * t);
         const yaw = -45 + 10 * Math.sin(2 * Math.PI * 0.02 * t);
-        const v2 = voltageI;   // Radar I = V2
-        const v3 = voltageQ;   // Radar Q = V3
-        const simulatedLine = `$SIMTEST,260001120000000,E114.2010058,N22.3787343,${ax_ms2.toFixed(2)},${ay_ms2.toFixed(2)},${az_ms2.toFixed(2)},${gx_rads.toFixed(4)},${gy_rads.toFixed(4)},${gz_rads.toFixed(4)},${roll.toFixed(2)},${pitch.toFixed(2)},${yaw.toFixed(2)},3.300,${v2.toFixed(3)},${v3.toFixed(3)}*`;
+        const gpsTimeBase = 260001120000000 + dataCount * 20;
+        const v2 = voltageI;
+        const v3 = voltageQ;
+        const simulatedLine = `$SIMTEST,${gpsTimeBase},E114.2010058,N22.3787343,${ax_g.toFixed(5)},${ay_g.toFixed(5)},${az_g.toFixed(5)},${gx_dps.toFixed(5)},${gy_dps.toFixed(5)},${gz_dps.toFixed(5)},${roll.toFixed(2)},${pitch.toFixed(2)},${yaw.toFixed(2)},3.300,${v2.toFixed(3)},${v3.toFixed(3)}*`;
         app.handleBLELine(simulatedLine);
         
         dataCount++;
@@ -5531,9 +5582,50 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// ===== 宠物情绪监测控制函数 =====
+
+/**
+ * 开始宠物情绪监测（HR / RR / ENMO / HRV 实时图）
+ */
+function startPetEmotionMonitor() {
+    if (!app) { alert('应用未初始化，请先连接蓝牙'); return; }
+
+    // 懒初始化
+    if (!app.petEmotionMonitor) {
+        if (typeof PetEmotionMonitor === 'undefined') {
+            alert('PetEmotionMonitor 模块未加载，请检查 pet-emotion-monitor.js');
+            return;
+        }
+        app.petEmotionMonitor = new PetEmotionMonitor();
+    }
+
+    // 同步物种选择
+    const speciesEl = document.getElementById('petEmotionSpecies');
+    if (speciesEl) app.petEmotionMonitor.species = speciesEl.value;
+
+    // 延迟初始化图表（确保 DOM 已渲染）
+    setTimeout(() => {
+        app.petEmotionMonitor.start();
+        app.petEmotionMonitorEnabled = true;
+        console.log('🐾 宠物情绪监测已启动');
+    }, 100);
+}
+
+/**
+ * 停止宠物情绪监测
+ */
+function stopPetEmotionMonitor() {
+    if (!app) return;
+    if (app.petEmotionMonitor) app.petEmotionMonitor.stop();
+    app.petEmotionMonitorEnabled = false;
+    console.log('🐾 宠物情绪监测已停止');
+}
+
 // 导出睡眠监测相关函数到全局作用域
 // 确保这些函数可以被HTML的onclick属性调用
 if (typeof window !== 'undefined') {
+    window.startPetEmotionMonitor = startPetEmotionMonitor;
+    window.stopPetEmotionMonitor  = stopPetEmotionMonitor;
     window.startSleepMonitor = startSleepMonitor;
     window.stopSleepMonitor = stopSleepMonitor;
     window.resetSleepData = resetSleepData;

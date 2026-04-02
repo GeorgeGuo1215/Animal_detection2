@@ -21,6 +21,7 @@
 			this.writeCharacteristic = null;
 			this.decoder = new TextDecoder('utf-8');
 			this._rxBuffer = '';
+			this.debug = false; // 热路径日志开关，生产环境关闭
 			// 事件回调
 			this.onConnect = null;
 			this.onDisconnect = null;
@@ -179,20 +180,16 @@
 		}
 
 		_handleIncomingText(text) {
-			console.log('🔵 BLE收到数据块:', text.substring(0, 100), `(长度: ${text.length})`);
+			if (this.debug) console.log('BLE收到数据块:', text.substring(0, 100), `(长度: ${text.length})`);
 			this._rxBuffer += text;
 			let lineCount = 0;
 
-			// 支持两种帧结束符：
-			//   新协议 V1.02: '$...*' 以 '*' 结尾（可选后跟 \r\n）
-			//   旧协议 / NUS:  以 '\n' 结尾
 			let found = true;
 			while (found) {
 				found = false;
 				const nlIdx   = this._rxBuffer.indexOf('\n');
 				const starIdx = this._rxBuffer.indexOf('*');
 
-				// 选取最先出现的那个分隔符
 				let delimIdx = -1;
 				if (nlIdx >= 0 && (starIdx < 0 || nlIdx < starIdx)) {
 					delimIdx = nlIdx;
@@ -207,18 +204,18 @@
 					line = line.replace(/[\r\n]+/g, '').trim();
 					if (line && typeof this.onLine === 'function') {
 						lineCount++;
-						if (lineCount <= 3) {
-							console.log(`🟢 BLE解析帧 #${lineCount}:`, line.substring(0, 120));
+						if (this.debug && lineCount <= 3) {
+							console.log(`BLE解析帧 #${lineCount}:`, line.substring(0, 120));
 						}
 						try { this.onLine(line); } catch (e) {
-							console.error('❌ onLine回调错误:', e);
+							console.error('onLine回调错误:', e);
 						}
 					}
 				}
 			}
 
-			if (lineCount > 0) {
-				console.log(`✅ 本次处理了 ${lineCount} 帧数据`);
+			if (this.debug && lineCount > 0) {
+				console.log(`本次处理了 ${lineCount} 帧数据`);
 			}
 		}
 
