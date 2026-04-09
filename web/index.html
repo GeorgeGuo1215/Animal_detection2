@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="style.css?v=20260302-2">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="fft.js?v=20260302-2"></script>
-    <script src="bluetooth.js?v=20260302-3"></script>
+    <script src="bluetooth.js?v=20260408-fix5"></script>
 </head>
 <body>
     <div class="container">
@@ -75,6 +75,7 @@
                             <div class="stat-item">
                                 <span class="stat-label">配置状态:</span>
                                 <span class="stat-value" id="bleConfigStatus" style="color:#aaa;">等待连接...</span>
+                                <button id="bleReconfigBtn" onclick="window.app && window.app._autoConfigTcycleWithRetry(3)" style="margin-left:8px;padding:2px 10px;font-size:12px;cursor:pointer;border:1px solid #1a73e8;background:#e8f0fe;color:#1a73e8;border-radius:4px;display:none;">重新配置 50Hz</button>
                             </div>
                             <div class="stat-item">
                                 <span class="stat-label">接收数据点:</span>
@@ -88,10 +89,6 @@
                                 <span class="stat-label">丢包率:</span>
                                 <span class="stat-value" id="blePacketLoss">-- %</span>
                             </div>
-                            <div class="stat-item">
-                                <span class="stat-label">间隔抖动:</span>
-                                <span class="stat-value" id="bleJitter">-- ms</span>
-                            </div>
                             <div class="stat-item" style="grid-column: 1/-1;">
                                 <span class="stat-label">频率达标率:</span>
                                 <div style="display:flex;align-items:center;gap:8px;flex:1;">
@@ -104,27 +101,39 @@
                             <div class="stat-item" style="grid-column: 1/-1; margin-top:6px;">
                                 <span class="stat-label" style="font-weight:600;">📡 设备采样周期设置：</span>
                                 <span style="font-size:0.82em;color:#aaa;">（心率检测需 ≥6Hz，推荐50Hz）</span>
-                                <div style="display:flex;gap:8px;margin-top:4px;align-items:center;flex-wrap:wrap;">
+                                <div style="display:flex;gap:6px;margin-top:4px;align-items:center;flex-wrap:wrap;">
                                     <button onclick="if(app)app.sendTcycleCommand(20)"
-                                        style="padding:4px 12px;background:#1a73e8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.88em;">
-                                        设置 50Hz（推荐）
+                                        style="padding:4px 10px;background:#1a73e8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85em;">
+                                        50Hz
+                                    </button>
+                                    <button onclick="if(app)app.sendTcycleCommand(50)"
+                                        style="padding:4px 10px;background:#4285f4;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85em;">
+                                        20Hz
                                     </button>
                                     <button onclick="if(app)app.sendTcycleCommand(100)"
-                                        style="padding:4px 12px;background:#34a853;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.88em;">
-                                        设置 10Hz
+                                        style="padding:4px 10px;background:#34a853;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85em;">
+                                        10Hz
+                                    </button>
+                                    <button onclick="if(app)app.sendTcycleCommand(200)"
+                                        style="padding:4px 10px;background:#fbbc04;color:#333;border:none;border-radius:6px;cursor:pointer;font-size:0.85em;">
+                                        5Hz
                                     </button>
                                     <button onclick="if(app)app.sendTcycleCommand(500)"
-                                        style="padding:4px 12px;background:#777;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.88em;">
-                                        设置 2Hz（默认）
+                                        style="padding:4px 10px;background:#777;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85em;">
+                                        2Hz
                                     </button>
-                                    <span style="font-size:0.82em;color:#aaa;">或自定义：</span>
-                                    <input id="tcycleCustomMs" type="number" min="10" max="10000" value="20"
-                                        style="width:70px;padding:3px 6px;border-radius:5px;border:1px solid #555;background:#1e1e1e;color:#eee;font-size:0.88em;">
-                                    <span style="font-size:0.82em;color:#aaa;">ms</span>
+                                    <span style="font-size:0.8em;color:#666;">|</span>
+                                    <input id="tcycleCustomMs" type="number" min="10" max="10000" value="20" placeholder="ms"
+                                        style="width:60px;padding:3px 6px;border-radius:5px;border:1px solid #555;background:#1e1e1e;color:#eee;font-size:0.85em;">
+                                    <span style="font-size:0.8em;color:#aaa;">ms</span>
                                     <button onclick="var ms=parseInt(document.getElementById('tcycleCustomMs').value);if(app&&ms)app.sendTcycleCommand(ms);"
-                                        style="padding:4px 12px;background:#e8710a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.88em;">
+                                        style="padding:4px 10px;background:#e8710a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85em;">
                                         发送
                                     </button>
+                                </div>
+                                <div style="margin-top:4px;font-size:0.78em;color:#888;">
+                                    指令格式：$AT+Tcycle=&lt;ms&gt;*\r\n（范围 10-10000ms）
+                                    · Web Bluetooth 不支持 MTU 协商，使用系统默认值
                                 </div>
                             </div>
                             <div class="stat-item">
@@ -1265,59 +1274,6 @@
                 </div>
             </section>
 
-            <!-- 宠物健康对话区域 -->
-            <section class="upload-section health-chat-section" id="healthChatSection">
-                <div class="health-chat-header">
-                    <div class="health-chat-title">
-                        <h2>💬 宠物健康智能对话</h2>
-                        <p class="health-chat-subtitle">
-                            与 AI 助手对话，获取宠物健康相关的专业建议和解答
-                        </p>
-                    </div>
-
-                    <div class="health-chat-toolbar">
-                        <div class="health-chat-endpoint" title="连接状态">
-                            <span class="status-dot disconnected" id="chatAgentStatusDot"></span>
-                            <span class="status-text" id="chatAgentStatusText">未连接</span>
-                            <span class="endpoint-mono" id="chatAgentEndpointText" style="display:none;"></span>
-                        </div>
-
-                        <div class="health-chat-actions">
-                            <button class="btn btn-primary" onclick="initializeHealthChat()" id="initChatBtn">🔄 重新连接</button>
-                            <button class="btn btn-secondary" onclick="clearChatHistory()" id="clearChatBtn">🗑️ 清空对话</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 对话界面（固定使用内置Agent地址，无需手动输入） -->
-                <div class="chat-container" id="chatContainer">
-                    <div class="chat-messages" id="chatMessages">
-                        <div class="welcome-message">
-                            <div class="message-avatar">🤖</div>
-                            <div class="message-content">
-                                <div class="message-text">
-                                    您好！我是宠物健康助手，可以帮您解答关于宠物健康、护理、训练等方面的问题。
-                                    请告诉我您的宠物信息和想要咨询的问题。
-                                </div>
-                                <div class="message-time">系统消息</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="chat-input-area">
-                        <div class="chat-input-container">
-                            <textarea id="chatInput" placeholder="输入您的问题...（Enter发送，Shift+Enter换行）" rows="2"></textarea>
-                            <button class="btn btn-voice" onclick="toggleVoiceRecognition()" id="voiceBtn" title="语音输入">
-                                <span id="voiceIcon">🎤</span>
-                            </button>
-                            <button class="btn btn-success" onclick="sendChatMessage()" id="sendChatBtn" disabled>发送</button>
-                        </div>
-                        <div class="chat-tips">
-                            💡 提示：您可以询问宠物的饮食、运动、行为、疾病预防等问题 | 点击麦克风图标使用语音输入
-                        </div>
-                    </div>
-                </div>
-            </section>
 
         </div>
 
@@ -1490,9 +1446,6 @@
     <script src="activity-monitor.js?v=20260302-2"></script>
     <script src="sleep-monitor.js?v=20260302-2"></script>
     <script src="pet-emotion-monitor.js?v=20260328-1"></script>
-    <!-- Markdown 渲染（marked）+ 安全净化（DOMPurify） -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
 
     <!-- Three.js 用于 3D 姿态可视化 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -1500,7 +1453,7 @@
     <!-- 姿态解算模块 -->
     <script src="attitude-solver.js?v=20260309-optimized"></script>
 
-    <script src="app.js?v=20260309-calibration"></script>
+    <script src="app.js?v=20260408-fix5"></script>
 
     <!-- BLE调试代码 -->
     <script>

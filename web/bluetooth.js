@@ -22,6 +22,17 @@
 			this.decoder = new TextDecoder('utf-8');
 			this._rxBuffer = '';
 			this.debug = false; // 热路径日志开关，生产环境关闭
+			// BLE 通知层诊断统计
+			this._notifyStats = {
+				count: 0,          // 通知总数
+				bytesTotal: 0,     // 字节总数
+				lastTs: 0,         // 上次通知时间戳(ms)
+				windowStart: 0,    // 当前统计窗口起点
+				windowCount: 0,    // 当前窗口通知数
+				windowFrames: 0,   // 当前窗口完整帧数
+				intervals: [],     // 最近通知间隔(ms)
+			};
+			this._notifyDiagTimer = null;
 			// 事件回调
 			this.onConnect = null;
 			this.onDisconnect = null;
@@ -59,19 +70,13 @@
 				this.device.addEventListener('gattserverdisconnected', this._handleDisconnect.bind(this));
 				this.server = await this.device.gatt.connect();
 
-				// 协议尝试顺序：FFF0 → NUS → 通用自动发现
-				try {
-					await this._setupFFF();
-					this._emitServiceDiscovered('✓ 使用 FFF0 服务协议（V1.02，FFF1 通知 / FFF2 写入）');
-				} catch (_fffErr) {
-					try {
-						await this._setupNUS('6e400001-b5a3-f393-e0a9-e50e24dcca9e');
-						this._emitServiceDiscovered('✓ 使用 Nordic UART Service (NUS) 协议');
-					} catch (_nusErr) {
-						await this._setupAllNotifiableCharacteristics();
-					}
-				}
+				// ★ 等待 BLE 协议栈就绪（对齐小程序 300ms + 余量）
+				await new Promise(r => setTimeout(r, 500));
 
+				// ★ 服务发现（带 1 次重试）
+				await this._discoverAndSetup(1);
+
+				this._saveDevice();
 				this._emitConnect();
 			} catch (err) {
 				this._emitError(err);
@@ -80,7 +85,58 @@
 		}
 
 		/**
-		 * 新协议：绑定 FFF0 服务的 FFF1（通知）和 FFF2（写入）特征
+		 * 服务发现主流程（对齐小程序：先获取所有服务，再匹配 FFF0）
+		 * retries: 剩余重试次数
+		 */
+		async _discoverAndSetup(retries = 1) {
+			if (!this.server) throw new Error('GATT server 已断开');
+
+			const services = await this.server.getPrimaryServices();
+			this._emitServiceDiscovered(`🔍 发现 ${services.length} 个服务`);
+
+			// 1. 在已发现的服务中查找 FFF0
+			const fff0 = services.find(s => s.uuid.toLowerCase().includes('fff0'));
+			if (fff0) {
+				try {
+					this.notifyCharacteristic = await fff0.getCharacteristic(UUID_FFF1);
+					this.writeCharacteristic  = await fff0.getCharacteristic(UUID_FFF2);
+					await this._startNotifications(this.notifyCharacteristic);
+					this._emitServiceDiscovered('✓ 使用 FFF0 服务协议（V1.02，FFF1 通知 / FFF2 写入）');
+					return;
+				} catch (e) {
+					this._emitServiceDiscovered(`⚠️ FFF0 特征绑定失败: ${e.message}`);
+				}
+			}
+
+			// 2. 查找 NUS
+			const nus = services.find(s => s.uuid.toLowerCase().includes('6e400001'));
+			if (nus) {
+				try {
+					const txUuid = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+					const rxUuid = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+					this.notifyCharacteristic = await nus.getCharacteristic(txUuid);
+					this.writeCharacteristic  = await nus.getCharacteristic(rxUuid);
+					await this._startNotifications(this.notifyCharacteristic);
+					this._emitServiceDiscovered('✓ 使用 Nordic UART Service (NUS) 协议');
+					return;
+				} catch (e) {
+					this._emitServiceDiscovered(`⚠️ NUS 特征绑定失败: ${e.message}`);
+				}
+			}
+
+			// 3. 都没找到 → 重试
+			if (retries > 0 && this.server) {
+				this._emitServiceDiscovered(`未找到 FFF0/NUS，${1}秒后重试服务发现...`);
+				await new Promise(r => setTimeout(r, 1000));
+				if (this.server) return this._discoverAndSetup(retries - 1);
+			}
+
+			// 4. 最终降级：扫描所有可通知特征
+			await this._setupAllNotifiableCharacteristics();
+		}
+
+		/**
+		 * 新协议：绑定 FFF0 服务的 FFF1（通知）和 FFF2（写入）特征（保留作为备用）
 		 */
 		async _setupFFF() {
 			const service = await this.server.getPrimaryService(UUID_FFF0);
@@ -99,6 +155,7 @@
 		}
 
 		async _setupAllNotifiableCharacteristics() {
+			if (!this.server) throw new Error('GATT server 已断开');
 			const services = await this.server.getPrimaryServices();
 			let notifiableCount = 0;
 			let writableCount = 0;
@@ -169,9 +226,36 @@
 				await ch.startNotifications();
 				ch.addEventListener('characteristicvaluechanged', (event) => {
 					const value = event.target.value; // DataView
+					const now = performance.now();
+					const byteLen = value.byteLength;
+					const s = this._notifyStats;
+					s.count++;
+					s.bytesTotal += byteLen;
+					if (s.lastTs > 0) {
+						s.intervals.push(now - s.lastTs);
+						if (s.intervals.length > 100) s.intervals.shift();
+					}
+					s.lastTs = now;
+					s.windowCount++;
+
 					const chunk = this.decoder.decode(value);
 					this._handleIncomingText(chunk);
 				});
+				// 每 2 秒输出一次 BLE 通知层诊断
+				this._notifyDiagTimer = setInterval(() => {
+					const s = this._notifyStats;
+					if (s.windowCount === 0) return;
+					const intervals = s.intervals.slice(-50);
+					const avgMs = intervals.length > 0 ? intervals.reduce((a, b) => a + b, 0) / intervals.length : 0;
+					const notifyHz = avgMs > 0 ? (1000 / avgMs) : 0;
+					console.log(
+						`[BLE诊断] 通知: ${s.count}次, 本窗口: ${s.windowCount}次/${s.windowFrames}帧, ` +
+						`平均间隔: ${avgMs.toFixed(1)}ms, 通知频率: ${notifyHz.toFixed(1)}Hz, ` +
+						`平均payload: ${s.windowCount > 0 ? ((s.bytesTotal / s.count) | 0) : 0}B`
+					);
+					s.windowCount = 0;
+					s.windowFrames = 0;
+				}, 2000);
 				console.log(`已启动特征 ${ch.uuid} 的通知`);
 			} catch (error) {
 				console.warn(`无法启动特征 ${ch.uuid} 的通知:`, error.message);
@@ -214,8 +298,8 @@
 				}
 			}
 
-			if (this.debug && lineCount > 0) {
-				console.log(`本次处理了 ${lineCount} 帧数据`);
+			if (lineCount > 0) {
+				this._notifyStats.windowFrames += lineCount;
 			}
 		}
 
@@ -227,6 +311,7 @@
 
 		async disconnect() {
 			try {
+				if (this._notifyDiagTimer) { clearInterval(this._notifyDiagTimer); this._notifyDiagTimer = null; }
 				if (this.notifyCharacteristic) {
 					try { await this.notifyCharacteristic.stopNotifications(); } catch (_) {}
 					this.notifyCharacteristic = null;
@@ -241,7 +326,62 @@
 			}
 		}
 
+		// ── 设备持久化：保存/读取/清除上次连接的设备信息 ──
+
+		_saveDevice() {
+			if (!this.device) return;
+			try {
+				localStorage.setItem('ble_saved_device', JSON.stringify({
+					id: this.device.id,
+					name: this.device.name || '未知设备',
+					savedAt: Date.now()
+				}));
+			} catch (_) {}
+		}
+
+		getSavedDeviceInfo() {
+			try {
+				const raw = localStorage.getItem('ble_saved_device');
+				return raw ? JSON.parse(raw) : null;
+			} catch (_) { return null; }
+		}
+
+		clearSavedDevice() {
+			localStorage.removeItem('ble_saved_device');
+		}
+
+		async reconnectToSaved() {
+			const saved = this.getSavedDeviceInfo();
+			if (!saved) throw new Error('没有保存的设备');
+
+			if (!navigator.bluetooth || !navigator.bluetooth.getDevices) {
+				throw new Error('当前浏览器不支持 getDevices()，请手动重新连接');
+			}
+
+			const devices = await navigator.bluetooth.getDevices();
+			const target = devices.find(d => d.id === saved.id);
+			if (!target) throw new Error('未找到已保存的设备，请手动重新连接');
+
+			this.device = target;
+			this.device.addEventListener('gattserverdisconnected', this._handleDisconnect.bind(this));
+			this.server = await this.device.gatt.connect();
+
+			try {
+				await this._setupFFF();
+			} catch (_) {
+				try {
+					await this._setupNUS('6e400001-b5a3-f393-e0a9-e50e24dcca9e');
+				} catch (__) {
+					await this._setupAllNotifiableCharacteristics();
+				}
+			}
+
+			this._saveDevice();
+			this._emitConnect();
+		}
+
 		_handleDisconnect() {
+			if (this._notifyDiagTimer) { clearInterval(this._notifyDiagTimer); this._notifyDiagTimer = null; }
 			this.server = null;
 			this.notifyCharacteristic = null;
 			this.writeCharacteristic = null;

@@ -133,21 +133,12 @@ class RadarWebApp {
         this.attitudeVisualizer = null;
         this.attitudeEnabled = false;
 
-        // ===== 语音识别模块 =====
-        this.voiceRecognition = null;
-        this.voiceRecognitionActive = false;
-
-        // ===== Agent Endpoint 初始化 =====
-        this.initAgentEndpoint();
-
         this.initializeEventListeners();
         this.initBleUploadConfig();
         this.initializeCharts();
         this.initializeBluetoothCharts();
         this.initializeBLEECG();
         this.initializeFileECG();
-        this.setupHealthChatUI();
-        this.initializeHealthChat();
 
         // 初始化BLE事件
         this.initializeBLE();
@@ -162,108 +153,6 @@ class RadarWebApp {
     /**
      * 初始化 Agent Endpoint（构造函数调用）
      */
-    initAgentEndpoint() {
-        const defaultEndpoint = 'https://pethealthai.cn';
-        const stored = localStorage.getItem('agentEndpoint');
-        
-        // 如果 localStorage 没有值，设置默认值
-        if (!stored) {
-            localStorage.setItem('agentEndpoint', defaultEndpoint);
-        }
-        
-        // 同步到输入框（如果存在）
-        const inputEl = document.getElementById('agentEndpoint');
-        if (inputEl) {
-            inputEl.value = localStorage.getItem('agentEndpoint') || defaultEndpoint;
-        }
-    }
-
-    /**
-     * 健康对话：获取 Agent API 地址
-     */
-    getHealthChatAgentOrigin() {
-        const inputEl = document.getElementById('agentEndpoint');
-        const inputVal = inputEl && inputEl.value ? inputEl.value.trim() : '';
-        const storedVal = (localStorage.getItem('agentEndpoint') || '').trim();
-        const defaultVal = 'https://pethealthai.cn';
-        
-        let v = inputVal || storedVal || defaultVal;
-        
-        // 确保是 https
-        if (!/^https?:\/\//i.test(v)) {
-            v = `https://${v}`;
-        } else if (/^http:\/\//i.test(v)) {
-            v = v.replace(/^http:\/\//i, 'https://');
-        }
-        
-        // 同步到 localStorage（如果用户在输入框里改了）
-        if (inputVal && inputVal !== storedVal) {
-            localStorage.setItem('agentEndpoint', v);
-        }
-        
-        return v.replace(/\/+$/, '');
-    }
-
-    setHealthChatStatus(state, detailText = '') {
-        const dot = document.getElementById('chatAgentStatusDot');
-        const text = document.getElementById('chatAgentStatusText');
-        const endpointText = document.getElementById('chatAgentEndpointText');
-        if (endpointText) {
-            endpointText.textContent = '';
-            endpointText.style.display = 'none';
-        }
-
-        if (dot) {
-            dot.classList.remove('connected', 'connecting', 'disconnected');
-            dot.classList.add(state);
-        }
-        if (text) {
-            const base =
-                state === 'connected' ? '已连接' :
-                state === 'connecting' ? '连接中' :
-                '未连接';
-            text.textContent = detailText ? `${base}（${detailText}）` : base;
-        }
-    }
-
-    async fetchWithTimeout(url, options = {}, timeoutMs = 300000) {
-        const controller = new AbortController();
-        const t = setTimeout(() => controller.abort(), timeoutMs);
-        try {
-            return await fetch(url, { ...options, signal: controller.signal });
-        } finally {
-            clearTimeout(t);
-        }
-    }
-
-    /**
-     * 初始化健康对话 UI（绑定键盘事件、填充endpoint显示等）
-     */
-    setupHealthChatUI() {
-        // 绑定 Enter 发送
-        const chatInputEl = document.getElementById('chatInput');
-        if (chatInputEl) {
-            chatInputEl.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    const sendBtn = document.getElementById('sendChatBtn');
-                    if (sendBtn && !sendBtn.disabled) {
-                        this.sendChatMessage();
-                    }
-                }
-            });
-        }
-
-        // 默认展示对话框（按钮只是“重新连接”）
-        const chatContainer = document.getElementById('chatContainer');
-        if (chatContainer) chatContainer.style.display = 'flex';
-
-        // 初始状态
-        this.setHealthChatStatus('disconnected');
-        const sendBtn = document.getElementById('sendChatBtn');
-        if (sendBtn) sendBtn.disabled = true;
-    }
-
     /**
      * 测试FFT功能
      */
@@ -376,8 +265,12 @@ class RadarWebApp {
             this.addBLELog(`✓ 已连接: ${device.name || '未知设备'} (${device.id})`);
             this.addBLELog(`📡 正在扫描可用服务和特征...`);
 
-            if (typeof updateBLESavedDeviceUI === 'function') {
-                updateBLESavedDeviceUI();
+            try {
+                if (typeof updateBLESavedDeviceUI === 'function') {
+                    updateBLESavedDeviceUI();
+                }
+            } catch (e) {
+                console.warn('updateBLESavedDeviceUI 异常(已忽略):', e.message);
             }
 
             const rtData = document.getElementById('bleRealTimeData');
@@ -399,9 +292,11 @@ class RadarWebApp {
                 chartsSection.style.display = 'block';
             }
 
-            if (!this.bleCharts.iSignal || !this.bleCharts.qSignal) {
-                this.initializeBluetoothCharts();
-            }
+            try {
+                if (!this.bleCharts.iSignal || !this.bleCharts.qSignal) {
+                    this.initializeBluetoothCharts();
+                }
+            } catch (e) { console.warn('BLE图表初始化异常:', e.message); }
 
             setTimeout(() => {
                 try {
@@ -410,11 +305,11 @@ class RadarWebApp {
                         if (ch && typeof ch.update === 'function') ch.update('none');
                     });
                 } catch (error) {
-                    console.error('图表刷新失败:', error);
+                    console.warn('图表刷新异常:', error.message);
                 }
             }, 100);
 
-            this.initializeBLEECG();
+            try { this.initializeBLEECG(); } catch (e) { console.warn('BLE ECG初始化异常:', e.message); }
             setTimeout(() => { this.forceReinitializeCharts(); }, 200);
 
             const playBtn = document.getElementById('blePlayBtn');
@@ -428,18 +323,7 @@ class RadarWebApp {
 
             this.bleConfigStatus = 'configuring';
             this._updateConfigStatusUI();
-            setTimeout(async () => {
-                try {
-                    await this.sendTcycleCommand(20);
-                    this.bleConfigStatus = 'configured';
-                    this.bleTargetFs = 50;
-                    this._updateConfigStatusUI();
-                } catch (e) {
-                    this.bleConfigStatus = 'failed';
-                    this._updateConfigStatusUI();
-                    this.addBLELog('自动配置50Hz失败: ' + e.message);
-                }
-            }, 800);
+            this._autoConfigTcycleWithRetry();
         };
         BLE.onDisconnect = () => {
             this.bleConnected = false;
@@ -1133,25 +1017,12 @@ class RadarWebApp {
         }
         s.lastRxTs = now;
 
-        // 自动检测并同步实际采样率（收到 >=20 帧后，每 5s 重新校准一次）
-        if (s.received >= 20 && s.gapEmaMs > 0) {
-            const measuredFs   = 1000 / s.gapEmaMs;
-            const configuredFs = (this.processor && Number.isFinite(this.processor.fs)) ? this.processor.fs : 50;
-
-            if (Math.abs(measuredFs - configuredFs) / Math.max(configuredFs, 1) > 0.15) {
-                const rounded = Math.max(1, Math.round(measuredFs));
-                if (this.processor) this.processor.fs = rounded;
-                if (this.activityMonitor) this.activityMonitor.fs = rounded;
-                if (this.sleepMonitor)    this.sleepMonitor.fs    = rounded;
-
-                if (!s._lastAutoFsLog || now - s._lastAutoFsLog > 5000) {
-                    s._lastAutoFsLog = now;
-                    this.addBLELog(`⚠️ 实测采样率 ${measuredFs.toFixed(1)} Hz，已自动修正 processor.fs → ${rounded} Hz`);
-                    if (rounded < 6) {
-                        this.addBLELog(`❗ ${rounded} Hz 低于心率检测最低需求（6 Hz）。建议点击「设置50Hz」或发送 $AT+Tcycle=20*`);
-                    }
-                }
-            }
+        // processor.fs 直接使用 bleTargetFs（由 sendTcycleCommand 设置），不再用 EMA 自动修正
+        if (s.received === 20) {
+            const targetFs = this.bleTargetFs || 50;
+            if (this.processor) this.processor.fs = targetFs;
+            if (this.activityMonitor) this.activityMonitor.fs = targetFs;
+            if (this.sleepMonitor)    this.sleepMonitor.fs    = targetFs;
         }
 
         const fs = (this.processor && Number.isFinite(this.processor.fs)) ? this.processor.fs : 50;
@@ -1213,6 +1084,68 @@ class RadarWebApp {
         const [text, color] = map[this.bleConfigStatus] || ['--', '#aaa'];
         el.textContent = text;
         el.style.color = color;
+
+        // 配置失败或已配置时显示手动重配按钮
+        const btn = document.getElementById('bleReconfigBtn');
+        if (btn) {
+            btn.style.display = (this.bleConfigStatus === 'failed' || this.bleConfigStatus === 'configured') ? 'inline-block' : 'none';
+        }
+    }
+
+    /**
+     * 自动配置 Tcycle 为 20ms (50Hz)，带重试机制。
+     * 发送后监测实际数据到达间隔，如果仍为 ~2Hz 则重试，最多 3 次。
+     */
+    async _autoConfigTcycleWithRetry(maxRetries = 3) {
+        const delayMs = 1500; // 等待 BLE 服务发现完成
+        const checkIntervalMs = 2500; // 每次发送后等待 2.5 秒检测效果
+
+        await new Promise(r => setTimeout(r, delayMs));
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            if (!this.bleConnected) {
+                this.addBLELog('配置中断：蓝牙已断开');
+                this.bleConfigStatus = 'failed';
+                this._updateConfigStatusUI();
+                return;
+            }
+
+            // 检查写入特征是否就绪
+            if (!window.BLE || !window.BLE.writeCharacteristic) {
+                this.addBLELog(`第 ${attempt}/${maxRetries} 次尝试：写入特征未就绪，等待中...`);
+                await new Promise(r => setTimeout(r, 1000));
+                continue;
+            }
+
+            try {
+                this.addBLELog(`第 ${attempt}/${maxRetries} 次尝试配置 50Hz...`);
+                await this.sendTcycleCommand(20);
+
+                // 等待一段时间后检测实际采样率
+                const countBefore = this.bleStats.received;
+                const tsBefore = Date.now();
+                await new Promise(r => setTimeout(r, checkIntervalMs));
+                const countAfter = this.bleStats.received;
+                const elapsed = (Date.now() - tsBefore) / 1000;
+                const actualFs = elapsed > 0 ? (countAfter - countBefore) / elapsed : 0;
+
+                if (actualFs >= 10) {
+                    // 采样率明显提升，配置成功
+                    this.bleConfigStatus = 'configured';
+                    this._updateConfigStatusUI();
+                    this.addBLELog(`配置成功！实际采样率 ~${actualFs.toFixed(1)} Hz`);
+                    return;
+                }
+
+                this.addBLELog(`实际采样率仅 ~${actualFs.toFixed(1)} Hz，将重试...`);
+            } catch (e) {
+                this.addBLELog(`第 ${attempt} 次配置异常: ${e.message}`);
+            }
+        }
+
+        this.bleConfigStatus = 'failed';
+        this._updateConfigStatusUI();
+        this.addBLELog('自动配置 50Hz 失败（已用尽重试次数），请点击"重新配置 50Hz"手动重试');
     }
 
     /**
@@ -1797,676 +1730,6 @@ class RadarWebApp {
     }
 
     /**
-     * 初始化宠物健康对话
-     */
-    initializeHealthChat() {
-        const origin = this.getHealthChatAgentOrigin();
-        this.setHealthChatStatus('connecting');
-
-        // 健康检查
-        this.fetchWithTimeout(`${origin}/health`, { method: 'GET' }, 6000)
-            .then(async (r) => {
-                if (!r.ok) throw new Error(`HTTP ${r.status}`);
-                await r.json().catch(() => null);
-
-                this.setHealthChatStatus('connected');
-                const sendBtn = document.getElementById('sendChatBtn');
-                if (sendBtn) sendBtn.disabled = false;
-
-                // 加载历史对话
-                this.loadChatHistory();
-
-                this.showMessage('✅ 宠物健康对话已就绪', 'success');
-            })
-            .catch((e) => {
-                const sendBtn = document.getElementById('sendChatBtn');
-                if (sendBtn) sendBtn.disabled = true;
-
-                this.setHealthChatStatus('disconnected');
-                this.showMessage(`连接Agent失败：${e.message}`, 'warning');
-            });
-    }
-
-    /**
-     * 获取 API Key（从 localStorage 或默认值）
-     */
-    getAgentApiKey() {
-        return localStorage.getItem('agentApiKey') || 'sk-pethealthai-default-key-2026';
-    }
-
-    /**
-     * 设置 API Key
-     */
-    setAgentApiKey(key) {
-        localStorage.setItem('agentApiKey', key);
-    }
-
-    /**
-     * 获取 Agent 模式
-     * @returns {'agent-plan-solve' | 'agent-multi-turn'}
-     */
-    getAgentModel() {
-        return localStorage.getItem('agentModel') || 'agent-multi-turn';
-    }
-
-    /**
-     * 设置 Agent 模式
-     * @param {'agent-plan-solve' | 'agent-multi-turn'} model
-     */
-    setAgentModel(model) {
-        const valid = ['agent-plan-solve', 'agent-multi-turn'];
-        if (valid.includes(model)) {
-            localStorage.setItem('agentModel', model);
-            console.log(`Agent 模式已切换为: ${model}`);
-        } else {
-            console.warn(`无效的 Agent 模式: ${model}，可选值: ${valid.join(', ')}`);
-        }
-    }
-
-    /**
-     * 发送对话消息（流式输出版本）
-     */
-    async sendChatMessage() {
-        const inputEl = document.getElementById('chatInput');
-        const message = inputEl.value.trim();
-        if (!message) {
-            this.showMessage('请输入问题内容', 'warning');
-            return;
-        }
-
-        const agentEndpoint = this.getHealthChatAgentOrigin();
-        const apiKey = this.getAgentApiKey();
-        const sendBtn = document.getElementById('sendChatBtn');
-
-        // 添加用户消息到界面
-        this.addChatMessage('user', message);
-        inputEl.value = '';
-        sendBtn.disabled = true;
-        sendBtn.textContent = '发送中...';
-
-        // 添加AI消息容器（包含状态区和回答区）
-        const thinkingMessageId = this.addChatMessageWithStatus('assistant', '', true);
-
-        try {
-            // 构建上下文信息
-            const contextInfo = this.buildChatContext();
-            const historyContext = this.buildChatHistoryContext(12);
-
-            // 构建 OpenAI 兼容的 messages 格式
-            const messages = [
-                { role: 'system', content: contextInfo },
-            ];
-            
-            // 添加历史对话
-            const chatHistory = JSON.parse(localStorage.getItem('petHealthChatHistory') || '[]');
-            const recent = chatHistory.slice(Math.max(0, chatHistory.length - 12));
-            for (const msg of recent) {
-                if (msg && (msg.role === 'user' || msg.role === 'assistant') && msg.content) {
-                    messages.push({ role: msg.role, content: msg.content });
-                }
-            }
-            
-            // 添加当前用户消息
-            messages.push({ role: 'user', content: message });
-
-            // 获取用户选择的 Agent 模式（默认多轮）
-            const agentModel = localStorage.getItem('agentModel') || 'agent-multi-turn';
-
-            // 调用 OpenAI 兼容的流式 API
-            const response = await fetch(`${agentEndpoint}/v1/chat/completions`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`,
-                },
-                body: JSON.stringify({
-                    model: agentModel,
-                    messages: messages,
-                    stream: true,
-                    temperature: 0.7,
-                    max_tokens: 1500,
-                    tools: [{ function: { name: 'rag.search' } }],
-                })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.error?.message || `API请求失败: ${response.status}`);
-            }
-
-            // 处理 SSE 流式响应
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let fullContent = '';  // 最终回答内容（不含状态信息）
-            let statusLogs = [];   // 状态日志
-            let buffer = '';
-            let isGenerating = false;  // 是否已进入生成阶段
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
-
-                for (const line of lines) {
-                    if (!line.startsWith('data: ')) continue;
-                    const data = line.slice(6);
-                    if (data === '[DONE]') continue;
-
-                    try {
-                        const chunk = JSON.parse(data);
-                        const delta = chunk.choices?.[0]?.delta;
-                        const content = delta?.content;
-                        const agentStatus = chunk.agent_status;
-                        const agentDetail = chunk.agent_detail;
-
-                        // 处理状态更新
-                        if (agentStatus) {
-                            if (agentStatus === 'generating' || agentStatus === 'streaming') {
-                                isGenerating = true;
-                            }
-                            
-                            // 记录状态日志（用于状态区显示）
-                            if (agentStatus !== 'streaming') {
-                                const statusInfo = this._formatAgentStatus(agentStatus, agentDetail);
-                                if (statusInfo) {
-                                    statusLogs.push(statusInfo);
-                                    this._updateChatStatusArea(thinkingMessageId, statusLogs);
-                                }
-                            }
-                        }
-
-                        // 处理内容
-                        if (content) {
-                            if (isGenerating) {
-                                // 生成阶段：累积最终回答
-                                fullContent += content;
-                                this._updateChatAnswerArea(thinkingMessageId, fullContent);
-                            }
-                            // 非生成阶段的 content 是状态信息，已通过 statusLogs 处理，不累积
-                        }
-                    } catch (e) {
-                        // 忽略解析错误
-                    }
-                }
-            }
-
-            // 生成完成后，折叠状态区
-            this._collapseChatStatusArea(thinkingMessageId);
-
-            // 保存对话历史（只保存最终回答，不含状态信息）
-            this.saveChatMessage('user', message);
-            this.saveChatMessage('assistant', fullContent || '暂无回复');
-
-        } catch (error) {
-            console.error('对话失败:', error);
-            this.updateChatMessage(thinkingMessageId, `❌ 抱歉，回复失败: ${error.message}`);
-        } finally {
-            sendBtn.disabled = false;
-            sendBtn.textContent = '发送';
-        }
-    }
-
-    /**
-     * 构建对话上下文信息
-     */
-    buildChatContext() {
-        const jsonResults = this.processedResults.filter(r => r.dataType === 'json');
-        let context = '您是专业的宠物健康助手，可以解答关于宠物健康、护理、训练等方面的问题。';
-
-        if (jsonResults.length > 0) {
-            const result = jsonResults[0];
-            const animal = result.animal;
-
-            context += `\n\n当前宠物信息:
-- 宠物类型: ${animal.species === 'dog' ? '狗狗' : '猫咪'}
-- 姓名: ${animal.name || '未命名'}
-- 品种: ${animal.breed || '未知'}
-- 年龄: ${animal.age_months ? Math.floor(animal.age_months / 12) + '岁' + (animal.age_months % 12) + '个月' : '未知'}
-- 体重: ${animal.weight_kg || '未知'}kg
-- 性别: ${animal.sex === 'male' ? '公' : animal.sex === 'female' ? '母' : '未知'}
-
-最近的生理指标:
-- 平均心率: ${result.heartRate} bpm
-- 平均呼吸频率: ${result.respiratoryRate} bpm
-- 体温: ${result.temperature}°C
-
-请基于这些信息提供专业的建议。`;
-        }
-
-        return context;
-    }
-
-    /**
-     * 构建历史对话上下文（给 agent 用）
-     * 只取最近 N 条，避免 prompt 过长。
-     */
-    buildChatHistoryContext(maxMessages = 12) {
-        try {
-            const chatHistory = JSON.parse(localStorage.getItem('petHealthChatHistory') || '[]');
-            if (!Array.isArray(chatHistory) || chatHistory.length === 0) return '';
-
-            const recent = chatHistory.slice(Math.max(0, chatHistory.length - maxMessages));
-            const lines = recent
-                .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-                .map(m => `${m.role === 'user' ? '用户' : '助手'}: ${m.content.trim()}`)
-                .filter(s => s.length > 0);
-
-            if (lines.length === 0) return '';
-            return `\n\n历史对话（最近${lines.length}条）:\n${lines.join('\n')}`;
-        } catch (e) {
-            return '';
-        }
-    }
-
-    /**
-     * 添加聊天消息到界面
-     */
-    addChatMessage(role, content, isThinking = false) {
-        const messagesEl = document.getElementById('chatMessages');
-        const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-        const messageHtml = `
-            <div class="chat-message ${role}-message ${isThinking ? 'thinking' : ''}" id="${messageId}">
-                <div class="message-avatar">${role === 'user' ? '👤' : '🤖'}</div>
-                <div class="message-content">
-                    <div class="message-text">${this.formatChatMessage(content)}</div>
-                    <div class="message-time">${new Date().toLocaleTimeString('zh-CN')}</div>
-                </div>
-            </div>
-        `;
-
-        messagesEl.insertAdjacentHTML('beforeend', messageHtml);
-
-        // 滚动到底部
-        messagesEl.scrollTop = messagesEl.scrollHeight;
-
-        return messageId;
-    }
-
-    /**
-     * 添加带状态区的聊天消息（用于 Agent 流式输出）
-     */
-    addChatMessageWithStatus(role, content, isThinking = false) {
-        const messagesEl = document.getElementById('chatMessages');
-        const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-        const messageHtml = `
-            <div class="chat-message ${role}-message ${isThinking ? 'thinking' : ''}" id="${messageId}">
-                <div class="message-avatar">${role === 'user' ? '👤' : '🤖'}</div>
-                <div class="message-content">
-                    <div class="message-status-area" id="${messageId}_status">
-                        <div class="status-header" onclick="window.app && window.app._toggleStatusArea('${messageId}')">
-                            <span class="status-icon">⚙️</span>
-                            <span class="status-title">Agent 思考过程</span>
-                            <span class="status-toggle">▼</span>
-                        </div>
-                        <div class="status-content">
-                            <div class="status-loading">🤔 正在思考...</div>
-                        </div>
-                    </div>
-                    <div class="message-text" id="${messageId}_answer"></div>
-                    <div class="message-time">${new Date().toLocaleTimeString('zh-CN')}</div>
-                </div>
-            </div>
-        `;
-
-        messagesEl.insertAdjacentHTML('beforeend', messageHtml);
-        messagesEl.scrollTop = messagesEl.scrollHeight;
-
-        return messageId;
-    }
-
-    /**
-     * 格式化 Agent 状态信息
-     */
-    _formatAgentStatus(status, detail) {
-        const statusIcons = {
-            'thinking': '🤔',
-            'planning': '📋',
-            'plan_complete': '✅',
-            'tool_calling': '🔍',
-            'tool_complete': '✅',
-            'decided_final': '💡',
-            'generating': '💭',
-        };
-
-        const icon = statusIcons[status] || '⚙️';
-        let text = '';
-
-        switch (status) {
-            case 'thinking':
-                text = `思考中... (第${detail?.round || 1}轮)`;
-                break;
-            case 'planning':
-                text = '正在制定计划...';
-                break;
-            case 'plan_complete':
-                text = '计划制定完成';
-                break;
-            case 'tool_calling':
-                const toolName = detail?.tool_name || 'rag.search';
-                const round = detail?.round || 1;
-                text = `第${round}轮工具调用: ${toolName}`;
-                break;
-            case 'tool_complete':
-                const hits = detail?.hits_count || 0;
-                text = `找到 ${hits} 条相关信息`;
-                break;
-            case 'decided_final':
-                const reason = detail?.reason || '';
-                text = `决定生成回答${reason ? ` (${reason.substring(0, 50)}...)` : ''}`;
-                break;
-            case 'generating':
-                text = '正在生成回答...';
-                break;
-            default:
-                text = status;
-        }
-
-        return { icon, text, status };
-    }
-
-    /**
-     * 更新状态区
-     */
-    _updateChatStatusArea(messageId, statusLogs) {
-        const statusEl = document.getElementById(`${messageId}_status`);
-        if (!statusEl) return;
-
-        const contentEl = statusEl.querySelector('.status-content');
-        if (!contentEl) return;
-
-        const html = statusLogs.map(log => `
-            <div class="status-item status-${log.status}">
-                <span class="status-item-icon">${log.icon}</span>
-                <span class="status-item-text">${log.text}</span>
-            </div>
-        `).join('');
-
-        contentEl.innerHTML = html || '<div class="status-loading">🤔 正在思考...</div>';
-
-        // 滚动到底部
-        const messagesEl = document.getElementById('chatMessages');
-        if (messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight;
-    }
-
-    /**
-     * 更新回答区（流式 Markdown 渲染）
-     */
-    _updateChatAnswerArea(messageId, content) {
-        const answerEl = document.getElementById(`${messageId}_answer`);
-        if (!answerEl) return;
-
-        // 流式渲染 Markdown
-        answerEl.innerHTML = this.formatChatMessage(content);
-
-        // 移除 thinking 状态
-        const messageEl = document.getElementById(messageId);
-        if (messageEl) messageEl.classList.remove('thinking');
-
-        // 滚动到底部
-        const messagesEl = document.getElementById('chatMessages');
-        if (messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight;
-    }
-
-    /**
-     * 折叠状态区
-     */
-    _collapseChatStatusArea(messageId) {
-        const statusEl = document.getElementById(`${messageId}_status`);
-        if (!statusEl) return;
-
-        statusEl.classList.add('collapsed');
-        const toggleEl = statusEl.querySelector('.status-toggle');
-        if (toggleEl) toggleEl.textContent = '▶';
-    }
-
-    /**
-     * 切换状态区展开/折叠
-     */
-    _toggleStatusArea(messageId) {
-        const statusEl = document.getElementById(`${messageId}_status`);
-        if (!statusEl) return;
-
-        const isCollapsed = statusEl.classList.toggle('collapsed');
-        const toggleEl = statusEl.querySelector('.status-toggle');
-        if (toggleEl) toggleEl.textContent = isCollapsed ? '▶' : '▼';
-    }
-
-    /**
-     * 更新聊天消息
-     */
-    updateChatMessage(messageId, newContent) {
-        const messageEl = document.getElementById(messageId);
-        if (messageEl) {
-            const textEl = messageEl.querySelector('.message-text');
-            if (textEl) {
-                textEl.innerHTML = this.formatChatMessage(newContent);
-                messageEl.classList.remove('thinking');
-            }
-        }
-    }
-
-    /**
-     * 格式化聊天消息
-     */
-    formatChatMessage(text) {
-        if (!text) return '';
-
-        // 优先用 Markdown 渲染（marked）并进行 XSS 安全净化（DOMPurify）
-        // 说明：Agent 返回的 answer 通常包含列表/加粗/引用/代码块等，直接渲染能显著提升观感。
-        try {
-            const hasMarked = typeof window.marked !== 'undefined' && window.marked && typeof window.marked.parse === 'function';
-            const hasPurify = typeof window.DOMPurify !== 'undefined' && window.DOMPurify && typeof window.DOMPurify.sanitize === 'function';
-
-            if (hasMarked) {
-                // marked 默认不做净化，所以必须配合 DOMPurify
-                const rawHtml = window.marked.parse(String(text), {
-                    gfm: true,
-                    breaks: true,
-                });
-                if (hasPurify) {
-                    return window.DOMPurify.sanitize(rawHtml, {
-                        // 允许常见 Markdown 标签
-                        ALLOWED_TAGS: [
-                            'p', 'br', 'strong', 'em', 'del',
-                            'ul', 'ol', 'li',
-                            'blockquote',
-                            'pre', 'code',
-                            'hr',
-                            'a',
-                            'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-                            'table', 'thead', 'tbody', 'tr', 'th', 'td',
-                        ],
-                        ALLOWED_ATTR: ['href', 'title', 'target', 'rel'],
-                    });
-                }
-                // 没有 DOMPurify 时退化：转义为纯文本，避免 XSS
-                const escaped = String(text)
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
-                    .replace(/"/g, '&quot;')
-                    .replace(/'/g, '&#39;');
-                return escaped.replace(/\n/g, '<br/>');
-            }
-        } catch (e) {
-            // ignore and fallback
-        }
-
-        // 兜底：纯文本 + 换行
-        const escaped = String(text)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-        return escaped.replace(/\n/g, '<br/>');
-    }
-
-    /**
-     * 保存聊天消息到本地存储
-     */
-    saveChatMessage(role, content) {
-        const chatHistory = JSON.parse(localStorage.getItem('petHealthChatHistory') || '[]');
-        chatHistory.push({
-            role: role,
-            content: content,
-            timestamp: new Date().toISOString()
-        });
-
-        // 只保留最近50条消息
-        if (chatHistory.length > 50) {
-            chatHistory.splice(0, chatHistory.length - 50);
-        }
-
-        localStorage.setItem('petHealthChatHistory', JSON.stringify(chatHistory));
-    }
-
-    /**
-     * 加载聊天历史
-     */
-    loadChatHistory() {
-        const chatHistory = JSON.parse(localStorage.getItem('petHealthChatHistory') || '[]');
-        const messagesEl = document.getElementById('chatMessages');
-
-        // 清空现有消息（保留欢迎消息）
-        const welcomeMessage = messagesEl.querySelector('.welcome-message');
-        messagesEl.innerHTML = '';
-        if (welcomeMessage) {
-            messagesEl.appendChild(welcomeMessage);
-        }
-
-        // 添加历史消息
-        chatHistory.forEach(msg => {
-            this.addChatMessage(msg.role, msg.content);
-        });
-    }
-
-    /**
-     * 清空聊天历史
-     */
-    clearChatHistory() {
-        localStorage.removeItem('petHealthChatHistory');
-        this.loadChatHistory();
-        this.showMessage('对话历史已清空', 'info');
-    }
-
-    /**
-     * 初始化语音识别
-     */
-    initVoiceRecognition() {
-        // 检查浏览器是否支持语音识别
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-        if (!SpeechRecognition) {
-            console.warn('当前浏览器不支持语音识别功能');
-            return null;
-        }
-
-        const recognition = new SpeechRecognition();
-        recognition.lang = 'zh-CN'; // 设置为中文
-        recognition.continuous = false; // 单次识别
-        recognition.interimResults = true; // 显示临时结果
-
-        // 识别结果处理
-        recognition.onresult = (event) => {
-            let transcript = '';
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-                transcript += event.results[i][0].transcript;
-            }
-
-            // 更新输入框内容
-            const inputEl = document.getElementById('chatInput');
-            if (inputEl) {
-                inputEl.value = transcript;
-            }
-        };
-
-        // 识别开始
-        recognition.onstart = () => {
-            console.log('语音识别已启动');
-            const voiceBtn = document.getElementById('voiceBtn');
-            const voiceIcon = document.getElementById('voiceIcon');
-            if (voiceBtn) voiceBtn.classList.add('recording');
-            if (voiceIcon) voiceIcon.textContent = '🔴';
-            this.showMessage('正在录音...', 'info');
-        };
-
-        // 识别结束
-        recognition.onend = () => {
-            console.log('语音识别已结束');
-            const voiceBtn = document.getElementById('voiceBtn');
-            const voiceIcon = document.getElementById('voiceIcon');
-            if (voiceBtn) voiceBtn.classList.remove('recording');
-            if (voiceIcon) voiceIcon.textContent = '🎤';
-            this.voiceRecognitionActive = false;
-        };
-
-        // 识别错误处理
-        recognition.onerror = (event) => {
-            console.error('语音识别错误:', event.error);
-            const voiceBtn = document.getElementById('voiceBtn');
-            const voiceIcon = document.getElementById('voiceIcon');
-            if (voiceBtn) voiceBtn.classList.remove('recording');
-            if (voiceIcon) voiceIcon.textContent = '🎤';
-            this.voiceRecognitionActive = false;
-
-            let errorMsg = '语音识别失败';
-            switch(event.error) {
-                case 'no-speech':
-                    errorMsg = '未检测到语音，请重试';
-                    break;
-                case 'audio-capture':
-                    errorMsg = '无法访问麦克风';
-                    break;
-                case 'not-allowed':
-                    errorMsg = '麦克风权限被拒绝';
-                    break;
-                case 'network':
-                    errorMsg = '网络错误，请检查网络连接';
-                    break;
-            }
-            this.showMessage(errorMsg, 'error');
-        };
-
-        return recognition;
-    }
-
-    /**
-     * 切换语音识别状态
-     */
-    toggleVoiceRecognition() {
-        // 初始化语音识别对象（如果还没有）
-        if (!this.voiceRecognition) {
-            this.voiceRecognition = this.initVoiceRecognition();
-            if (!this.voiceRecognition) {
-                this.showMessage('您的浏览器不支持语音识别功能，请使用Chrome、Edge或Safari浏览器', 'error');
-                return;
-            }
-        }
-
-        // 切换录音状态
-        if (this.voiceRecognitionActive) {
-            // 停止录音
-            this.voiceRecognition.stop();
-            this.voiceRecognitionActive = false;
-        } else {
-            // 开始录音
-            try {
-                this.voiceRecognition.start();
-                this.voiceRecognitionActive = true;
-            } catch (error) {
-                console.error('启动语音识别失败:', error);
-                this.showMessage('启动语音识别失败，请重试', 'error');
-            }
-        }
-    }
-
-    /**
      * 更新统计信息
      */
     updateStatistics(results) {
@@ -2817,6 +2080,16 @@ class RadarWebApp {
             return;
         }
         this._chartsEnabled = true;
+
+        // 销毁已有图表，防止 "Canvas is already in use" 错误
+        Object.keys(this.charts).forEach(key => {
+            try {
+                if (this.charts[key] && typeof this.charts[key].destroy === 'function') {
+                    this.charts[key].destroy();
+                }
+            } catch (e) { /* ignore */ }
+        });
+        this.charts = {};
 
         const chartOptions = {
             responsive: true,
@@ -4358,18 +3631,20 @@ class RadarWebApp {
      * 强制重新初始化所有图表（用于调试蓝牙图表显示问题）
      */
     forceReinitializeCharts() {
-        this.initializeCharts();
-        this.initializeBluetoothCharts();
+        try { this.initializeCharts(); } catch (e) { console.warn('initializeCharts 异常:', e.message); }
+        try { this.initializeBluetoothCharts(); } catch (e) { console.warn('initializeBluetoothCharts 异常:', e.message); }
 
         setTimeout(() => {
-            const allCharts = [
-                ...Object.values(this.charts || {}),
-                ...Object.values(this.bleCharts || {})
-            ];
-            allCharts.forEach(chart => {
-                if (chart && typeof chart.resize === 'function') chart.resize();
-                if (chart && typeof chart.update === 'function') chart.update();
-            });
+            try {
+                const allCharts = [
+                    ...Object.values(this.charts || {}),
+                    ...Object.values(this.bleCharts || {})
+                ];
+                allCharts.forEach(chart => {
+                    if (chart && typeof chart.resize === 'function') chart.resize();
+                    if (chart && typeof chart.update === 'function') chart.update();
+                });
+            } catch (e) { console.warn('图表resize/update异常:', e.message); }
         }, 100);
     }
 
@@ -5068,27 +4343,6 @@ function performHealthAnalysis() {
 function exportHealthReport() {
     const a = _requireApp();
     if (a) a.exportHealthReport();
-}
-
-// 宠物健康对话相关全局函数
-function initializeHealthChat() {
-    const a = _requireApp();
-    if (a) a.initializeHealthChat();
-}
-
-function sendChatMessage() {
-    const a = _requireApp();
-    if (a) a.sendChatMessage();
-}
-
-function clearChatHistory() {
-    const a = _requireApp();
-    if (a) a.clearChatHistory();
-}
-
-function toggleVoiceRecognition() {
-    const a = _requireApp();
-    if (a) a.toggleVoiceRecognition();
 }
 
 // ===== 活动量与步数监测模块控制函数 =====
