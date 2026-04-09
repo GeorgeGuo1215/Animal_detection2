@@ -1,44 +1,34 @@
 name: Deploy to GitHub Pages
 
 on:
-  # 当推送到 main 分支时触发
   push:
     branches: [ main ]
-  # 允许手动触发
   workflow_dispatch:
 
-# 设置 GITHUB_TOKEN 的权限
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# 只允许一个并发部署
 concurrency:
   group: "pages"
   cancel-in-progress: false
 
 jobs:
-  # 构建任务
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-        with:
-          enablement: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
       
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
-          # 上传 web 目录
           path: './web'
 
-  # 部署任务
   deploy:
     environment:
       name: github-pages
