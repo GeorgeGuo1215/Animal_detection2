@@ -19,6 +19,11 @@
 			this.server = null;
 			this.notifyCharacteristic = null;
 			this.writeCharacteristic = null;
+			this._disconnectEmitted = false;
+			this.currentProtocol = '未连接';
+			this.activeServiceUuid = null;
+			this.notifyCharacteristicUuid = null;
+			this.writeCharacteristicUuid = null;
 			this.decoder = new TextDecoder('utf-8');
 			this._rxBuffer = '';
 			this.debug = false; // 热路径日志开关，生产环境关闭
@@ -69,6 +74,9 @@
 
 				this.device.addEventListener('gattserverdisconnected', this._handleDisconnect.bind(this));
 				this.server = await this.device.gatt.connect();
+				this._disconnectEmitted = false;
+				this._resetActiveProfile('正在发现服务');
+				this._emitServiceDiscovered('🔄 协议选择顺序：FFF0 → NUS → 通用自动发现');
 
 				// ★ 等待 BLE 协议栈就绪（对齐小程序 300ms + 余量）
 				await new Promise(r => setTimeout(r, 500));
@@ -97,31 +105,48 @@
 			// 1. 在已发现的服务中查找 FFF0
 			const fff0 = services.find(s => s.uuid.toLowerCase().includes('fff0'));
 			if (fff0) {
+				this._emitServiceDiscovered('🎯 已发现 FFF0 服务，尝试绑定 FFF1/FFF2...');
 				try {
 					this.notifyCharacteristic = await fff0.getCharacteristic(UUID_FFF1);
 					this.writeCharacteristic  = await fff0.getCharacteristic(UUID_FFF2);
+					this._setActiveProfile('FFF0', {
+						serviceUuid: fff0.uuid,
+						notifyUuid: UUID_FFF1,
+						writeUuid: UUID_FFF2,
+					});
 					await this._startNotifications(this.notifyCharacteristic);
 					this._emitServiceDiscovered('✓ 使用 FFF0 服务协议（V1.02，FFF1 通知 / FFF2 写入）');
 					return;
 				} catch (e) {
 					this._emitServiceDiscovered(`⚠️ FFF0 特征绑定失败: ${e.message}`);
+					this._emitServiceDiscovered('↪️ 将继续尝试 NUS 协议...');
 				}
+			} else {
+				this._emitServiceDiscovered('ℹ️ 未发现 FFF0 服务，继续尝试 NUS...');
 			}
 
 			// 2. 查找 NUS
 			const nus = services.find(s => s.uuid.toLowerCase().includes('6e400001'));
 			if (nus) {
+				this._emitServiceDiscovered('🎯 已发现 NUS 服务，尝试绑定 TX/RX 特征...');
 				try {
 					const txUuid = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 					const rxUuid = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
 					this.notifyCharacteristic = await nus.getCharacteristic(txUuid);
 					this.writeCharacteristic  = await nus.getCharacteristic(rxUuid);
+					this._setActiveProfile('NUS', {
+						serviceUuid: nus.uuid,
+						notifyUuid: txUuid,
+						writeUuid: rxUuid,
+					});
 					await this._startNotifications(this.notifyCharacteristic);
 					this._emitServiceDiscovered('✓ 使用 Nordic UART Service (NUS) 协议');
 					return;
 				} catch (e) {
 					this._emitServiceDiscovered(`⚠️ NUS 特征绑定失败: ${e.message}`);
 				}
+			} else {
+				this._emitServiceDiscovered('ℹ️ 未发现 NUS 服务，继续尝试通用自动发现...');
 			}
 
 			// 3. 都没找到 → 重试
@@ -142,6 +167,11 @@
 			const service = await this.server.getPrimaryService(UUID_FFF0);
 			this.notifyCharacteristic = await service.getCharacteristic(UUID_FFF1);
 			this.writeCharacteristic  = await service.getCharacteristic(UUID_FFF2);
+			this._setActiveProfile('FFF0', {
+				serviceUuid: service.uuid,
+				notifyUuid: UUID_FFF1,
+				writeUuid: UUID_FFF2,
+			});
 			await this._startNotifications(this.notifyCharacteristic);
 		}
 
@@ -151,6 +181,11 @@
 			const rxUuid = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'; // write
 			this.notifyCharacteristic = await service.getCharacteristic(txUuid);
 			this.writeCharacteristic  = await service.getCharacteristic(rxUuid);
+			this._setActiveProfile('NUS', {
+				serviceUuid: service.uuid,
+				notifyUuid: txUuid,
+				writeUuid: rxUuid,
+			});
 			await this._startNotifications(this.notifyCharacteristic);
 		}
 
@@ -185,6 +220,8 @@
 						if (props.notify || props.indicate) {
 							if (!this.notifyCharacteristic) {
 								this.notifyCharacteristic = ch; // 使用第一个作为主要通知特征
+								this.notifyCharacteristicUuid = ch.uuid;
+								this.activeServiceUuid ??= serviceUuid;
 								this._emitServiceDiscovered(`  ✓ 设为主要通知特征`);
 							}
 							await this._startNotifications(ch);
@@ -195,6 +232,8 @@
 						if (props.write || props.writeWithoutResponse) {
 							if (!this.writeCharacteristic) {
 								this.writeCharacteristic = ch; // 使用第一个作为主要写入特征
+								this.writeCharacteristicUuid = ch.uuid;
+								this.activeServiceUuid ??= serviceUuid;
 								this._emitServiceDiscovered(`  ✓ 设为主要写入特征`);
 							}
 							writableCount++;
@@ -209,6 +248,11 @@
 			if (notifiableCount === 0) {
 				throw new Error('未找到可通知(Notify/Indicate)的特征');
 			}
+			this._setActiveProfile(writableCount > 0 ? '通用自动发现' : '只读自动发现', {
+				serviceUuid: this.activeServiceUuid,
+				notifyUuid: this.notifyCharacteristicUuid,
+				writeUuid: this.writeCharacteristicUuid,
+			});
 			
 			this._emitServiceDiscovered(`🎉 完成扫描：${notifiableCount} 个可通知特征，${writableCount} 个可写特征`);
 		}
@@ -322,8 +366,18 @@
 			} finally {
 				this.server = null;
 				this.device = null;
+				this._resetActiveProfile('未连接');
 				this._emitDisconnect();
 			}
+		}
+
+		getConnectionProfile() {
+			return {
+				protocol: this.currentProtocol,
+				serviceUuid: this.activeServiceUuid,
+				notifyUuid: this.notifyCharacteristicUuid,
+				writeUuid: this.writeCharacteristicUuid,
+			};
 		}
 
 		// ── 设备持久化：保存/读取/清除上次连接的设备信息 ──
@@ -365,16 +419,11 @@
 			this.device = target;
 			this.device.addEventListener('gattserverdisconnected', this._handleDisconnect.bind(this));
 			this.server = await this.device.gatt.connect();
-
-			try {
-				await this._setupFFF();
-			} catch (_) {
-				try {
-					await this._setupNUS('6e400001-b5a3-f393-e0a9-e50e24dcca9e');
-				} catch (__) {
-					await this._setupAllNotifiableCharacteristics();
-				}
-			}
+			this._disconnectEmitted = false;
+			this._resetActiveProfile('正在发现服务');
+			this._emitServiceDiscovered('🔄 快速重连成功，按 FFF0 → NUS → 通用自动发现 重新绑定特征...');
+			await new Promise(r => setTimeout(r, 500));
+			await this._discoverAndSetup(1);
 
 			this._saveDevice();
 			this._emitConnect();
@@ -385,6 +434,7 @@
 			this.server = null;
 			this.notifyCharacteristic = null;
 			this.writeCharacteristic = null;
+			this._resetActiveProfile('未连接');
 			this._emitDisconnect();
 		}
 
@@ -395,6 +445,8 @@
 		}
 
 		_emitDisconnect() {
+			if (this._disconnectEmitted) return;
+			this._disconnectEmitted = true;
 			if (typeof this.onDisconnect === 'function') {
 				try { this.onDisconnect(); } catch (e) { console.error('[BLE] onDisconnect callback error:', e); }
 			}
@@ -412,6 +464,17 @@
 				try { this.onServiceDiscovered(info); } catch (_) {}
 			}
 			console.log('[BLE]', info);
+		}
+
+		_setActiveProfile(protocol, { serviceUuid = null, notifyUuid = null, writeUuid = null } = {}) {
+			this.currentProtocol = protocol;
+			this.activeServiceUuid = serviceUuid;
+			this.notifyCharacteristicUuid = notifyUuid;
+			this.writeCharacteristicUuid = writeUuid;
+		}
+
+		_resetActiveProfile(protocol = '未连接') {
+			this._setActiveProfile(protocol, {});
 		}
 
 		_formatUuid(uuid) {
@@ -434,5 +497,3 @@
 	window.BluetoothManager = BluetoothManager;
 	window.BLE = new BluetoothManager();
 })();
-
-

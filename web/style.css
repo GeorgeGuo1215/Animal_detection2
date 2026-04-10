@@ -243,7 +243,7 @@ input:focus, textarea:focus, select:focus {
 }
 
 /* 状态日志 */
-.status-log, .raw-data-log, #restingLog {
+.status-log, .raw-data-log, #restingLog, #bleBackfillLog {
     background: #1e293b !important; /* Always dark for logs */
     color: #e2e8f0 !important;
     font-family: 'JetBrains Mono', 'Fira Code', monospace !important;

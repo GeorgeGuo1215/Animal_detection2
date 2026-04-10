@@ -7,7 +7,7 @@ class RadarWebApp {
         if (typeof RadarDataProcessor === 'undefined') {
             throw new Error('RadarDataProcessor 未加载，请检查 radar-processor.js 是否成功加载。');
         }
-        // 采样率固定为50Hz，与串口接收频率一致
+        // 默认优先按 50Hz 处理；若 BLE 实际达不到，会在连接后自动降级为当前实际频率
         const samplingRate = 50;
         this.processor = new RadarDataProcessor(samplingRate);
         this.selectedFiles = [];
@@ -17,8 +17,13 @@ class RadarWebApp {
         // 蓝牙数据相关
         this.bleConnected = false;
         this.bleCharts = {}; // 蓝牙数据图表
+        this.bleBackfillCharts = {}; // 蓝牙补传图表
         this.bleBufferI = [];
         this.bleBufferQ = [];
+        this.bleBackfillBuffers = this._createEmptyBleBackfillBuffers();
+        this.bleBackfillState = this._createBleBackfillState();
+        this.bleBackfillMaxBuffer = 3000;
+        this.bleBackfillMaxBufferHard = this.bleBackfillMaxBuffer + 200;
 
         // 图表可用性（Chart.js 可能因网络/CDN加载失败）
         this._chartsEnabled = true;
@@ -52,6 +57,10 @@ class RadarWebApp {
         this.bleConnectTimer = null;
         this.lastBleRxTs = 0;
         this.rxWatchdogTimer = null;
+        this.bleRxStallWarned = false;
+        this.allowBackfillOnNextConnect = false;
+        this.lastLiveDeviceTsMs = null;
+        this.pendingBackfillFromTsMs = null;
         this._simInterval = null;
 
         // ===== 心率稳定机制（参考main.py第48-51行）=====
@@ -80,7 +89,8 @@ class RadarWebApp {
         };
 
         this.bleTargetFs = 50;
-        this.bleConfigStatus = 'pending'; // pending | configuring | configured | failed
+        this.bleConfigStatus = 'pending'; // pending | configuring | configured | fallback | failed
+        this.bleProtocol = '未连接';
         this._lastGpsTs = null;
         this._gpsGapMissed = 0;
 
@@ -89,6 +99,8 @@ class RadarWebApp {
         this._bleLogRenderTimer = null;
         this._bleRawLines = [];
         this._bleRawRenderTimer = null;
+        this._bleBackfillLogLines = [];
+        this._bleBackfillLogRenderTimer = null;
 
         this._bleChartRaf = null;
         this._bleChartLastUpdateTs = 0;
@@ -137,8 +149,10 @@ class RadarWebApp {
         this.initBleUploadConfig();
         this.initializeCharts();
         this.initializeBluetoothCharts();
+        this.initializeBleBackfillCharts();
         this.initializeBLEECG();
         this.initializeFileECG();
+        this.updateBleBackfillUI();
 
         // 初始化BLE事件
         this.initializeBLE();
@@ -146,8 +160,7 @@ class RadarWebApp {
         // 测试FFT是否正常工作
         this.testFFT();
 
-        // 启动接收看门狗：若长时间无数据则判定断连
-        this.startRxWatchdog();
+        // 不再启用自动断连看门狗：仅允许用户手动断开蓝牙
     }
 
     /**
@@ -262,8 +275,18 @@ class RadarWebApp {
         if (!window.BLE) return;
         BLE.onConnect = (device) => {
             this.bleConnected = true;
+            this.bleRxStallWarned = false;
+            this.bleBackfillState.enabled = !!this.allowBackfillOnNextConnect;
+            this.bleBackfillState.fromDeviceTsMs = this.pendingBackfillFromTsMs;
+            this.allowBackfillOnNextConnect = false;
+            this.pendingBackfillFromTsMs = null;
+            this.bleProtocol = this._getBleProtocolLabel();
             this.addBLELog(`✓ 已连接: ${device.name || '未知设备'} (${device.id})`);
-            this.addBLELog(`📡 正在扫描可用服务和特征...`);
+            this.addBLELog(`🧭 当前通信协议: ${this.bleProtocol}`);
+            if (this.bleBackfillState.enabled) {
+                this.addBLELog('🕘 本次连接已启用补传识别（由上次手动断开触发）');
+            }
+            this._updateBleProtocolUI();
 
             try {
                 if (typeof updateBLESavedDeviceUI === 'function') {
@@ -291,10 +314,12 @@ class RadarWebApp {
             if (chartsSection) {
                 chartsSection.style.display = 'block';
             }
-
             try {
                 if (!this.bleCharts.iSignal || !this.bleCharts.qSignal) {
                     this.initializeBluetoothCharts();
+                }
+                if (!this.bleBackfillCharts.iq || !this.bleBackfillCharts.lag) {
+                    this.initializeBleBackfillCharts();
                 }
             } catch (e) { console.warn('BLE图表初始化异常:', e.message); }
 
@@ -327,7 +352,13 @@ class RadarWebApp {
         };
         BLE.onDisconnect = () => {
             this.bleConnected = false;
+            this.bleRxStallWarned = false;
+            this.bleProtocol = '未连接';
             this.addBLELog('⚠️ 已断开连接');
+            this._updateBleProtocolUI();
+            if (this.bleBackfillState.backfillCount > 0) {
+                this.addBleBackfillLog('🔌 蓝牙已断开，本次补传会话结束');
+            }
             
             // 隐藏实时数据区域
             document.getElementById('bleRealTimeData').style.display = 'none';
@@ -347,8 +378,11 @@ class RadarWebApp {
         };
         BLE.onServiceDiscovered = (info) => {
             this.addBLELog(info);
+            this.bleProtocol = this._getBleProtocolLabel();
+            this._updateBleProtocolUI();
         };
         BLE.onLine = (line) => this.handleBLELine(line);
+        this._updateBleProtocolUI();
         this.updateBLEButtons();
     }
 
@@ -614,6 +648,378 @@ class RadarWebApp {
         }, 200); // 5Hz
     }
 
+    _createEmptyBleBackfillBuffers() {
+        return {
+            labels: [],
+            timestamps: [],
+            lagMs: [],
+            i: [],
+            q: [],
+            imuX: [],
+            imuY: [],
+            imuZ: [],
+            accX: [],
+            accY: [],
+            accZ: []
+        };
+    }
+
+    _createBleBackfillState() {
+        return {
+            mode: 'idle',
+            enabled: false,
+            fromDeviceTsMs: null,
+            deviceKey: '',
+            deviceMac: '',
+            checkpoint: null,
+            sessionCheckpointTsMs: null,
+            backfillCount: 0,
+            liveCount: 0,
+            overlapCount: 0,
+            backfillStartTsMs: null,
+            backfillEndTsMs: null,
+            currentDeviceTsMs: null,
+            currentLagMs: null,
+            catchupStreak: 0,
+            liveRateStreak: 0,
+            lastArrivalTsMs: null,
+            lastSampleDeviceTsMs: null,
+            connectionStartArrivalTsMs: Date.now(),
+            detectionWindowMs: 15000,
+            enterReplayStableCount: 3,
+            settleLiveStableCount: 8,
+            enterLagThresholdMs: 3000,
+            exitLagThresholdMs: 1200,
+            exitLagStableCount: 5
+        };
+    }
+
+    addBleBackfillLog(msg) {
+        const log = document.getElementById('bleBackfillLog');
+        const ts = new Date().toLocaleTimeString();
+        this._bleBackfillLogLines.push(`[${ts}] ${msg}`);
+        if (this._bleBackfillLogLines.length > 120) {
+            this._bleBackfillLogLines.splice(0, this._bleBackfillLogLines.length - 120);
+        }
+
+        if (!log || this._bleBackfillLogRenderTimer) return;
+        this._bleBackfillLogRenderTimer = setTimeout(() => {
+            this._bleBackfillLogRenderTimer = null;
+            log.style.whiteSpace = 'pre-line';
+            log.textContent = this._bleBackfillLogLines.join('\n');
+            log.scrollTop = log.scrollHeight;
+        }, 200);
+    }
+
+    _ensureBleBackfillSectionVisible() {
+        const section = document.getElementById('bleBackfillSection');
+        if (section) section.style.display = 'block';
+    }
+
+    _buildBleDeviceKey(sample) {
+        if (sample.deviceMac) return `mac:${sample.deviceMac}`;
+        const bleDeviceId = window.BLE?.device?.id || '';
+        if (bleDeviceId) return `ble:${bleDeviceId}`;
+        return 'ble:unknown-device';
+    }
+
+    _parseBleProtocolTimestamp(rawTs) {
+        if (rawTs === null || rawTs === undefined) return null;
+        const digits = String(rawTs).trim().replace(/\D/g, '');
+        if (!/^\d{15}$/.test(digits)) return null;
+        if (/^0{15}$/.test(digits)) return null;
+
+        const yy = Number(digits.slice(0, 2));
+        const mm = Number(digits.slice(2, 4));
+        const dd = Number(digits.slice(4, 6));
+        const hh = Number(digits.slice(6, 8));
+        const mi = Number(digits.slice(8, 10));
+        const ss = Number(digits.slice(10, 12));
+        const ms = Number(digits.slice(12, 15));
+
+        if (mm < 1 || mm > 12 || dd < 1 || dd > 31 || hh > 23 || mi > 59 || ss > 59) {
+            return null;
+        }
+
+        const date = new Date(2000 + yy, mm - 1, dd, hh, mi, ss, ms);
+        return Number.isFinite(date.getTime()) ? date.getTime() : null;
+    }
+
+    _formatBleDeviceTime(tsMs) {
+        if (!Number.isFinite(tsMs)) return '--';
+        return new Date(tsMs).toLocaleString('zh-CN', {
+            hour12: false,
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+    }
+
+    _formatBleDuration(ms) {
+        if (!Number.isFinite(ms) || ms <= 0) return '0 秒';
+        const totalSec = Math.floor(ms / 1000);
+        const hh = Math.floor(totalSec / 3600);
+        const mm = Math.floor((totalSec % 3600) / 60);
+        const ss = totalSec % 60;
+        if (hh > 0) return `${hh}小时 ${mm}分 ${ss}秒`;
+        if (mm > 0) return `${mm}分 ${ss}秒`;
+        return `${ss}秒`;
+    }
+
+    _setBleBackfillMode(mode, reason = '') {
+        if (this.bleBackfillState.mode === mode) return;
+        this.bleBackfillState.mode = mode;
+        this.bleBackfillState.catchupStreak = 0;
+
+        const messages = {
+            backfill: '🕘 检测到历史补传，正在回补断线期间数据',
+            overlap: '🧩 收到断点附近重叠数据'
+        };
+
+        if (messages[mode]) {
+            this.addBleBackfillLog(reason ? `${messages[mode]}（${reason}）` : messages[mode]);
+        }
+        this.updateBleBackfillUI();
+    }
+
+    _prepareBleBackfillContext(sample) {
+        const state = this.bleBackfillState;
+        if (!sample.deviceKey) sample.deviceKey = this._buildBleDeviceKey(sample);
+
+        if (!state.deviceKey || state.deviceKey !== sample.deviceKey) {
+            state.deviceKey = sample.deviceKey;
+            state.deviceMac = sample.deviceMac || '';
+            state.checkpoint = null;
+            state.sessionCheckpointTsMs = null;
+        }
+    }
+
+    _classifyBleSample(sample) {
+        const state = this.bleBackfillState;
+        this._prepareBleBackfillContext(sample);
+        const arrivalNow = Date.now();
+        if (!Number.isFinite(state.connectionStartArrivalTsMs)) {
+            state.connectionStartArrivalTsMs = arrivalNow;
+        }
+
+        if (!state.enabled) {
+            state.mode = 'idle';
+            this.updateBleBackfillUI();
+            return 'live';
+        }
+
+        if (!Number.isFinite(sample.deviceTsMs)) {
+            state.catchupStreak = 0;
+            state.liveCount += 1;
+            if (state.mode === 'backfill') {
+                state.mode = 'completed';
+                this.updateBleBackfillUI();
+            } else if (state.mode === 'idle' && state.liveCount >= state.settleLiveStableCount) {
+                state.mode = 'completed';
+                this.updateBleBackfillUI();
+            }
+            return 'live';
+        }
+
+        const previousDeviceTsMs = state.lastSampleDeviceTsMs;
+        const previousArrivalTsMs = state.lastArrivalTsMs;
+        const deviceDeltaMs = Number.isFinite(previousDeviceTsMs) ? (sample.deviceTsMs - previousDeviceTsMs) : null;
+        const arrivalDeltaMs = Number.isFinite(previousArrivalTsMs) ? (arrivalNow - previousArrivalTsMs) : null;
+        const lagMs = Math.max(0, arrivalNow - sample.deviceTsMs);
+        const withinDetectionWindow = (arrivalNow - state.connectionStartArrivalTsMs) <= state.detectionWindowMs;
+        const hasValidReplayWindow = Number.isFinite(state.fromDeviceTsMs) && sample.deviceTsMs > state.fromDeviceTsMs;
+        const paceLooksLikeReplay = (
+            Number.isFinite(deviceDeltaMs) &&
+            Number.isFinite(arrivalDeltaMs) &&
+            deviceDeltaMs > 50 &&
+            arrivalDeltaMs > 0 &&
+            deviceDeltaMs > arrivalDeltaMs * 1.8
+        );
+        const paceLooksRealtime = (
+            Number.isFinite(deviceDeltaMs) &&
+            Number.isFinite(arrivalDeltaMs) &&
+            deviceDeltaMs > 0 &&
+            arrivalDeltaMs > 0 &&
+            deviceDeltaMs <= arrivalDeltaMs * 1.4
+        );
+        const wallClockLooksReasonable = Math.abs(arrivalNow - sample.deviceTsMs) <= 5 * 60 * 1000;
+        const replayCandidate = (
+            withinDetectionWindow &&
+            hasValidReplayWindow &&
+            (
+                lagMs >= state.enterLagThresholdMs ||
+                (paceLooksLikeReplay && lagMs >= 500)
+            )
+        );
+
+        state.lastSampleDeviceTsMs = sample.deviceTsMs;
+        state.lastArrivalTsMs = arrivalNow;
+
+        if (state.mode === 'backfill') {
+            state.backfillCount += 1;
+            state.backfillEndTsMs = sample.deviceTsMs;
+            state.currentDeviceTsMs = sample.deviceTsMs;
+            state.currentLagMs = lagMs;
+            state.liveRateStreak = paceLooksRealtime || (wallClockLooksReasonable && lagMs <= state.exitLagThresholdMs)
+                ? (state.liveRateStreak + 1)
+                : 0;
+
+            if (state.liveRateStreak >= state.exitLagStableCount) {
+                state.mode = 'completed';
+                this.addBleBackfillLog('✅ 补传完成，后续数据恢复到蓝牙实时数据图表');
+                this.updateBleBackfillUI();
+                return 'live';
+            }
+
+            this.updateBleBackfillUI();
+            return 'backfill';
+        }
+
+        if (state.mode === 'completed') {
+            this.updateBleBackfillUI();
+            return 'live';
+        }
+
+        if (replayCandidate) {
+            state.catchupStreak += 1;
+            state.liveCount = 0;
+        } else {
+            state.catchupStreak = 0;
+            state.liveCount += 1;
+        }
+
+        if (
+            state.mode === 'idle' &&
+            (
+                !withinDetectionWindow ||
+                !hasValidReplayWindow ||
+                state.liveCount >= state.settleLiveStableCount
+            )
+        ) {
+            state.mode = 'completed';
+            if (state.backfillCount === 0 && state.liveCount === state.settleLiveStableCount) {
+                this.addBleBackfillLog('ℹ️ 本次重连未检测到补传，实时数据继续显示在蓝牙实时数据图表');
+            }
+            this.updateBleBackfillUI();
+            return 'live';
+        }
+
+        if (state.catchupStreak >= state.enterReplayStableCount) {
+            state.backfillStartTsMs = sample.deviceTsMs;
+            state.backfillEndTsMs = sample.deviceTsMs;
+            state.backfillCount += 1;
+            state.currentDeviceTsMs = sample.deviceTsMs;
+            state.currentLagMs = lagMs;
+            state.liveRateStreak = 0;
+            state.liveCount = 0;
+            this._setBleBackfillMode('backfill', `设备时间落后当前约 ${Math.round(lagMs / 1000)} 秒`);
+            this._ensureBleBackfillSectionVisible();
+            this.updateBleBackfillUI();
+            return 'backfill';
+        }
+
+        this.updateBleBackfillUI();
+        return 'live';
+    }
+
+    _appendBleBackfillSample(sample) {
+        this._ensureBleBackfillSectionVisible();
+        const buffers = this.bleBackfillBuffers;
+        buffers.labels.push(this._formatBleDeviceTime(sample.deviceTsMs || sample.ts));
+        buffers.timestamps.push(sample.deviceTsMs || sample.ts || Date.now());
+        buffers.lagMs.push(Number.isFinite(sample.deviceTsMs) ? Math.max(0, Date.now() - sample.deviceTsMs) : 0);
+        buffers.i.push(sample.iVal);
+        buffers.q.push(sample.qVal);
+        buffers.imuX.push(Number.isFinite(sample.imuX) ? sample.imuX : 0);
+        buffers.imuY.push(Number.isFinite(sample.imuY) ? sample.imuY : 0);
+        buffers.imuZ.push(Number.isFinite(sample.imuZ) ? sample.imuZ : 0);
+        buffers.accX.push(Number.isFinite(sample.accX) ? sample.accX : 0);
+        buffers.accY.push(Number.isFinite(sample.accY) ? sample.accY : 0);
+        buffers.accZ.push(Number.isFinite(sample.accZ) ? sample.accZ : 0);
+        this._trimBleBackfillBuffersIfNeeded();
+    }
+
+    _trimBleBackfillBuffersIfNeeded() {
+        const len = this.bleBackfillBuffers.timestamps.length;
+        if (len <= this.bleBackfillMaxBufferHard) return;
+        const removeCount = len - this.bleBackfillMaxBuffer;
+        Object.values(this.bleBackfillBuffers).forEach(arr => {
+            if (Array.isArray(arr) && arr.length >= removeCount) arr.splice(0, removeCount);
+        });
+    }
+
+    _appendBleLiveSample(sample) {
+        this.bleBufferTimestamps.push(sample.ts);
+        this.bleBufferI.push(sample.iVal);
+        this.bleBufferQ.push(sample.qVal);
+        this.bleBufferIMU_X.push(Number.isFinite(sample.imuX) ? sample.imuX : 0);
+        this.bleBufferIMU_Y.push(Number.isFinite(sample.imuY) ? sample.imuY : 0);
+        this.bleBufferIMU_Z.push(Number.isFinite(sample.imuZ) ? sample.imuZ : 0);
+        this.bleBufferACC_X.push(Number.isFinite(sample.accX) ? sample.accX : 0);
+        this.bleBufferACC_Y.push(Number.isFinite(sample.accY) ? sample.accY : 0);
+        this.bleBufferACC_Z.push(Number.isFinite(sample.accZ) ? sample.accZ : 0);
+        if (sample.temperature !== null && Number.isFinite(sample.temperature)) {
+            this.bleBufferTemperature.push(sample.temperature);
+        } else {
+            this.bleBufferTemperature.push(null);
+        }
+    }
+
+    updateBleBackfillUI() {
+        const state = this.bleBackfillState;
+        const modeEl = document.getElementById('bleBackfillMode');
+        const countEl = document.getElementById('bleBackfillCount');
+        const durationEl = document.getElementById('bleBackfillDuration');
+        const lagEl = document.getElementById('bleBackfillLag');
+        const checkpointEl = document.getElementById('bleBackfillCheckpoint');
+        const currentTsEl = document.getElementById('bleBackfillCurrentTs');
+        const overlapEl = document.getElementById('bleBackfillOverlap');
+
+        const modeMap = state.enabled ? {
+            idle: ['待补传', '#6c757d'],
+            live: ['待补传', '#6c757d'],
+            completed: [state.backfillCount > 0 ? '补传结束' : '未检测到补传', state.backfillCount > 0 ? '#34a853' : '#6c757d'],
+            backfill: ['补传中', '#ff9900'],
+            overlap: ['断点重叠', '#6f42c1']
+        } : {
+            idle: ['未启用', '#6c757d'],
+            live: ['未启用', '#6c757d'],
+            completed: ['未启用', '#6c757d'],
+            backfill: ['补传中', '#ff9900'],
+            overlap: ['断点重叠', '#6f42c1']
+        };
+        const [modeText, modeColor] = modeMap[state.mode] || ['待检测', '#6c757d'];
+
+        if (modeEl) {
+            modeEl.textContent = modeText;
+            modeEl.style.color = modeColor;
+        }
+        if (countEl) countEl.textContent = `${state.backfillCount} 条`;
+
+        const baseTs = state.sessionCheckpointTsMs ?? state.backfillStartTsMs;
+        const endTs = state.backfillEndTsMs ?? state.currentDeviceTsMs;
+        if (durationEl) {
+            const coveredMs = state.backfillCount > 0 && Number.isFinite(baseTs) && Number.isFinite(endTs)
+                ? Math.max(0, endTs - baseTs)
+                : 0;
+            durationEl.textContent = this._formatBleDuration(coveredMs);
+        }
+        if (lagEl) lagEl.textContent = (state.mode === 'backfill' || state.mode === 'completed') && Number.isFinite(state.currentLagMs)
+            ? `${(state.currentLagMs / 1000).toFixed(1)} 秒`
+            : '--';
+        if (checkpointEl) {
+            checkpointEl.textContent = state.enabled
+                ? (state.mode === 'completed' && state.backfillCount === 0 ? '本次连接按实时数据处理' : '本次连接已启用')
+                : '需先手动断开再重连';
+        }
+        if (currentTsEl) currentTsEl.textContent = (state.mode === 'backfill' || state.mode === 'completed') && Number.isFinite(state.currentDeviceTsMs)
+            ? this._formatBleDeviceTime(state.currentDeviceTsMs)
+            : '--';
+        if (overlapEl) overlapEl.textContent = `${state.overlapCount} 条`;
+    }
+
     /**
      * 处理 BLE 行数据 - 蓝牙实时数据接口
      * 默认逐行格式: ts i q
@@ -627,11 +1033,15 @@ class RadarWebApp {
         // 打印原始数据
         this.printRawData(line);
         this.lastBleRxTs = Date.now();
+        this.bleRxStallWarned = false;
         // 允许 JSON 格式 {ts:..., i:..., q:...}；也兼容无空格双小数如 "1.6421.588"
         let ts, iVal, qVal;
+        let seq = null;
+        let deviceMac = '';
+        let deviceTsRaw = '';
+        let deviceTsMs = null;
         let imuX = 0, imuY = 0, imuZ = 0; // gx/gy/gz（优先取 Gyr:）
         let temperature = null; // 温度数据
-        let adcI = 0, adcQ = 0; // ADC原始值
         let accX = 0, accY = 0, accZ = 0; // Acc原始值
         try {
             const trimmed = line.trim();
@@ -642,6 +1052,9 @@ class RadarWebApp {
                 const raw = trimmed.endsWith('*') ? trimmed.slice(1, -1) : trimmed.slice(1);
                 const parts   = raw.split(',');
                 if (parts.length >= 16) {
+                    deviceMac = parts[0] || '';
+                    deviceTsRaw = parts[1] || '';
+                    deviceTsMs = this._parseBleProtocolTimestamp(deviceTsRaw);
                     // Acc 已是 g，Gyr 已是 deg/s，直接使用
                     accX = parseFloat(parts[4]);
                     accY = parseFloat(parts[5]);
@@ -651,17 +1064,11 @@ class RadarWebApp {
                     imuZ = parseFloat(parts[9]);
                     iVal = parseFloat(parts[14]);
                     qVal = parseFloat(parts[15]);
-                    ts   = Date.now();
+                    ts   = Number.isFinite(deviceTsMs) ? deviceTsMs : Date.now();
                     temperature = null;
-                    this.bleBufferIMU_X.push(Number.isFinite(imuX) ? imuX : 0);
-                    this.bleBufferIMU_Y.push(Number.isFinite(imuY) ? imuY : 0);
-                    this.bleBufferIMU_Z.push(Number.isFinite(imuZ) ? imuZ : 0);
-                    this.bleBufferACC_X.push(Number.isFinite(accX) ? accX : 0);
-                    this.bleBufferACC_Y.push(Number.isFinite(accY) ? accY : 0);
-                    this.bleBufferACC_Z.push(Number.isFinite(accZ) ? accZ : 0);
 
                     // GPS 时间戳连续性检测丢帧
-                    const gpsTs = parseFloat(parts[1]);
+                    const gpsTs = deviceTsMs;
                     if (Number.isFinite(gpsTs) && this._lastGpsTs !== null) {
                         const gpsDeltaMs = gpsTs - this._lastGpsTs;
                         const expectedGapMs = this.bleTargetFs > 0 ? (1000 / this.bleTargetFs) : 20;
@@ -674,11 +1081,10 @@ class RadarWebApp {
                 } else {
                     return;
                 }
-                this._updateBleLossStats(null);
 
                 if (this.bleRecordingFlag === 1) {
                     const stamp = new Date().toISOString().replace('T', ' ').slice(0, 23);
-                    const mac   = parts[0] || '';
+                    const mac   = deviceMac;
                     const lon   = parts[2] || '';
                     const lat   = parts[3] || '';
                     const v1bat = parseFloat(parts[13]).toFixed(3);
@@ -727,7 +1133,6 @@ class RadarWebApp {
                     if (tempMatch) temperature = parseFloat(tempMatch[0]);
                 }
 
-                let seq = null;
                 const seqMatch = trimmed.match(/(?:\bSEQ\b|\bseq\b|\bidx\b|\bindex\b)\s*[:=]\s*(\d+)/);
                 if (seqMatch) seq = parseInt(seqMatch[1], 10);
 
@@ -763,15 +1168,6 @@ class RadarWebApp {
                     }
                 }
 
-                this._updateBleLossStats(seq);
-
-                this.bleBufferIMU_X.push(Number.isFinite(imuX) ? imuX : 0);
-                this.bleBufferIMU_Y.push(Number.isFinite(imuY) ? imuY : 0);
-                this.bleBufferIMU_Z.push(Number.isFinite(imuZ) ? imuZ : 0);
-                this.bleBufferACC_X.push(Number.isFinite(accX) ? accX : 0);
-                this.bleBufferACC_Y.push(Number.isFinite(accY) ? accY : 0);
-                this.bleBufferACC_Z.push(Number.isFinite(accZ) ? accZ : 0);
-
                 if (this.bleRecordingFlag === 1) {
                     const stamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
                     const adcMatch = trimmed.match(/ADC:([-\d]+)\s+([-\d]+)/);
@@ -805,26 +1201,61 @@ class RadarWebApp {
             return;
         }
 
+        const sample = {
+            ts,
+            seq,
+            iVal,
+            qVal,
+            imuX,
+            imuY,
+            imuZ,
+            accX,
+            accY,
+            accZ,
+            temperature,
+            deviceMac,
+            deviceTsRaw,
+            deviceTsMs
+        };
+        sample.deviceKey = this._buildBleDeviceKey(sample);
+        const sampleMode = this._classifyBleSample(sample);
+
         // 🔍 调试：确认数据被添加
         if (this.bleDataCount < 10) {
             console.log(`  ✅ 准备添加到buffer: I=${iVal.toFixed(4)}V, Q=${qVal.toFixed(4)}V`);
             console.log(`  当前buffer长度: I=${this.bleBufferI.length}, Q=${this.bleBufferQ.length}`);
         }
+        if (sampleMode === 'live') {
+            this._appendBleLiveSample(sample);
+            this._updateBleLossStats(seq);
+            if (Number.isFinite(sample.deviceTsMs)) {
+                this.lastLiveDeviceTsMs = sample.deviceTsMs;
+            }
 
-        this.bleBufferTimestamps.push(ts);
-        this.bleBufferI.push(iVal);
-        this.bleBufferQ.push(qVal);
-
-        // 🔍 调试：验证数据确实被添加
-        if (this.bleDataCount < 10) {
-            const lastI = this.bleBufferI[this.bleBufferI.length - 1];
-            const lastQ = this.bleBufferQ[this.bleBufferQ.length - 1];
-            console.log(`  ✅ 添加后验证: I数组最后一个=${lastI?.toFixed(4)}, Q数组最后一个=${lastQ?.toFixed(4)}`);
-            console.log(`  添加后buffer长度: I=${this.bleBufferI.length}, Q=${this.bleBufferQ.length}`);
-            console.log(`========================================\n`);
+            // 🔍 调试：验证数据确实被添加
+            if (this.bleDataCount < 10) {
+                const lastI = this.bleBufferI[this.bleBufferI.length - 1];
+                const lastQ = this.bleBufferQ[this.bleBufferQ.length - 1];
+                console.log(`  ✅ 添加后验证: I数组最后一个=${lastI?.toFixed(4)}, Q数组最后一个=${lastQ?.toFixed(4)}`);
+                console.log(`  添加后buffer长度: I=${this.bleBufferI.length}, Q=${this.bleBufferQ.length}`);
+                console.log(`========================================\n`);
+            }
+        } else if (sampleMode === 'backfill') {
+            this._appendBleBackfillSample(sample);
         }
 
+        this.bleDataCount++;
+        document.getElementById('bleDataCount').textContent = this.bleDataCount;
+        document.getElementById('bleTotalDataPoints').textContent = this.bleDataCount;
+        this.updateBleBackfillUI();
 
+        if (sampleMode === 'backfill') {
+            if (this.bleBackfillState.backfillCount === 1) {
+                this.addBleBackfillLog('📦 已开始接收 Flash 补传数据');
+            }
+            this._scheduleBleChartUpdate();
+            return;
+        }
 
         // ===== 活动量监测：将加速度数据传递给ActivityMonitor =====
         if (this.activityMonitorEnabled && this.activityMonitor && accX !== null && accY !== null && accZ !== null) {
@@ -838,11 +1269,9 @@ class RadarWebApp {
 
         // ===== 姿态解算：使用陀螺仪和加速度计数据 =====
         if (this.attitudeEnabled && this.attitudeSolver) {
-            // 检查是否有有效的 IMU 数据
             const hasValidAcc = accX !== 0 || accY !== 0 || accZ !== 0;
             const hasValidGyr = imuX !== 0 || imuY !== 0 || imuZ !== 0;
 
-            // 调试：打印前几次的数据
             if (this.bleDataCount < 5) {
                 console.log(`📊 姿态数据 #${this.bleDataCount}:`, {
                     gyr: { x: imuX, y: imuY, z: imuZ },
@@ -852,38 +1281,16 @@ class RadarWebApp {
                 });
             }
 
-            // 只有当有有效的加速度计数据时才更新姿态解算
             if (hasValidAcc) {
-                // 更新姿态解算器
                 this.attitudeSolver.update(imuX, imuY, imuZ, accX, accY, accZ);
-
-                // 更新显示 (每次都更新，不节流)
                 updateAttitudeDisplay();
-            } else {
-                // 警告：没有有效的 IMU 数据
-                if (this.bleDataCount === 5) {
-                    console.warn('⚠️ 前5条数据中没有检测到有效的 Acc 数据！');
-                    console.warn('请确保蓝牙设备发送的数据包含 Acc: 字段');
-                    console.warn('期望格式: ADC:xxx xxx|Acc:x.xxx y.yyy z.zzz|Gyr:x.x y.y z.z|T:xx.x');
-                }
+            } else if (this.bleDataCount === 5) {
+                console.warn('⚠️ 前5条数据中没有检测到有效的 Acc 数据！');
+                console.warn('请确保蓝牙设备发送的数据包含 Acc: 字段');
+                console.warn('期望格式: ADC:xxx xxx|Acc:x.xxx y.yyy z.zzz|Gyr:x.x y.y z.z|T:xx.x');
             }
         }
 
-        // 温度数据：只有当设备发送了温度数据时才更新，否则使用null表示无数据
-        if (temperature !== null && Number.isFinite(temperature)) {
-            this.bleBufferTemperature.push(temperature);
-        } else {
-            // 如果没有温度数据，仍然保持数组长度同步，填充null
-            this.bleBufferTemperature.push(null);
-        }
-        
-
-        // 更新数据计数
-        this.bleDataCount++;
-        document.getElementById('bleDataCount').textContent = this.bleDataCount;
-        document.getElementById('bleTotalDataPoints').textContent = this.bleDataCount;
-
-        // 确保实时数据区域和图表区域可见（防止连接时未正确显示）
         if (this.bleDataCount <= 5) {
             const bleRealTimeData = document.getElementById('bleRealTimeData');
             if (bleRealTimeData && bleRealTimeData.style.display === 'none') {
@@ -893,18 +1300,15 @@ class RadarWebApp {
             if (chartsSection && chartsSection.style.display === 'none') {
                 chartsSection.style.display = 'block';
             }
-            // 确保图表已初始化
             if (!this.bleCharts.iSignal || !this.bleCharts.qSignal) {
                 this.initializeBluetoothCharts();
             }
         }
 
-        // 通知静息监测模块（如果存在）
         if (typeof restingMonitor !== 'undefined' && restingMonitor) {
             restingMonitor.update();
         }
 
-        // 在页面上显示最新的I/Q值和温度（每10条更新一次）
         if (this.bleDataCount % 10 === 0) {
             const lastI = this.bleBufferI[this.bleBufferI.length - 1];
             const lastQ = this.bleBufferQ[this.bleBufferQ.length - 1];
@@ -913,7 +1317,6 @@ class RadarWebApp {
             if (debugEl) {
                 debugEl.textContent = debugInfo;
             }
-            // 更新陀螺仪和加速度计显示
             const gyrEl = document.getElementById('bleCurrentGyr');
             const accEl = document.getElementById('bleCurrentAcc');
             const tempEl = document.getElementById('bleCurrentTemp');
@@ -979,6 +1382,7 @@ class RadarWebApp {
             if (now - this._bleChartLastUpdateTs < this._bleChartMinIntervalMs) return;
             this._bleChartLastUpdateTs = now;
             this.updateBluetoothLiveCharts();
+            this.updateBleBackfillCharts();
         });
     }
 
@@ -1078,18 +1482,77 @@ class RadarWebApp {
         const map = {
             pending:     ['等待连接...', '#aaa'],
             configuring: ['正在配置 50Hz...', '#ff9900'],
-            configured:  ['已配置 50Hz', '#34a853'],
+            configured:  [`已设为 ${this.bleTargetFs} Hz`, '#34a853'],
+            fallback:    [`未达 50Hz，保持 ${this.bleTargetFs} Hz`, '#ff9900'],
             failed:      ['配置失败', '#ff4444']
         };
         const [text, color] = map[this.bleConfigStatus] || ['--', '#aaa'];
         el.textContent = text;
         el.style.color = color;
 
-        // 配置失败或已配置时显示手动重配按钮
+        // 配置失败、已配置或降级保持时显示手动重配按钮
         const btn = document.getElementById('bleReconfigBtn');
         if (btn) {
-            btn.style.display = (this.bleConfigStatus === 'failed' || this.bleConfigStatus === 'configured') ? 'inline-block' : 'none';
+            btn.style.display = (
+                this.bleConfigStatus === 'failed' ||
+                this.bleConfigStatus === 'configured' ||
+                this.bleConfigStatus === 'fallback'
+            ) ? 'inline-block' : 'none';
         }
+    }
+
+    _applyBleSamplingRate(fs, { updateTarget = true } = {}) {
+        const normalizedFs = Math.max(1, Math.round(fs || 0));
+        if (this.processor) this.processor.fs = normalizedFs;
+        if (this.activityMonitor) this.activityMonitor.fs = normalizedFs;
+        if (this.sleepMonitor) this.sleepMonitor.fs = normalizedFs;
+        if (updateTarget) this.bleTargetFs = normalizedFs;
+        return normalizedFs;
+    }
+
+    _estimateCurrentBleFs() {
+        const s = this.bleStats;
+        if (s && s.startRxTs && s.received > 0) {
+            const elapsedSec = Math.max(0.001, (Date.now() - s.startRxTs) / 1000);
+            const actualFs = s.received / elapsedSec;
+            if (Number.isFinite(actualFs) && actualFs > 0) return actualFs;
+        }
+        return null;
+    }
+
+    _fallbackToCurrentBleRate(reason = '') {
+        const estimatedFs = this._estimateCurrentBleFs();
+        const fallbackFs = this._applyBleSamplingRate(estimatedFs || 2);
+        this.bleConfigStatus = 'fallback';
+        this._updateConfigStatusUI();
+        const suffix = reason ? `，${reason}` : '';
+        this.addBLELog(`⚠️ 50Hz 未达成，保持当前约 ${fallbackFs} Hz 继续连接${suffix}`);
+        return fallbackFs;
+    }
+
+    _getBleProtocolLabel() {
+        try {
+            if (!window.BLE || typeof BLE.getConnectionProfile !== 'function') return this.bleProtocol || '未连接';
+            const profile = BLE.getConnectionProfile();
+            if (!profile || !profile.protocol) return this.bleProtocol || '未连接';
+            const parts = [profile.protocol];
+            if (profile.serviceUuid) parts.push(`服务 ${profile.serviceUuid}`);
+            return parts.join(' · ');
+        } catch (_) {
+            return this.bleProtocol || '未连接';
+        }
+    }
+
+    _updateBleProtocolUI() {
+        const el = document.getElementById('bleProtocol');
+        if (!el) return;
+        const text = this.bleProtocol || '未连接';
+        el.textContent = text;
+        el.style.color =
+            text.startsWith('FFF0') ? '#34a853' :
+            text.startsWith('NUS') ? '#1a73e8' :
+            text.startsWith('通用') || text.startsWith('只读') ? '#ff9900' :
+            '#aaa';
     }
 
     /**
@@ -1099,6 +1562,7 @@ class RadarWebApp {
     async _autoConfigTcycleWithRetry(maxRetries = 3) {
         const delayMs = 1500; // 等待 BLE 服务发现完成
         const checkIntervalMs = 2500; // 每次发送后等待 2.5 秒检测效果
+        let lastMeasuredFs = 0;
 
         await new Promise(r => setTimeout(r, delayMs));
 
@@ -1113,6 +1577,10 @@ class RadarWebApp {
             // 检查写入特征是否就绪
             if (!window.BLE || !window.BLE.writeCharacteristic) {
                 this.addBLELog(`第 ${attempt}/${maxRetries} 次尝试：写入特征未就绪，等待中...`);
+                if (attempt === maxRetries) {
+                    this._fallbackToCurrentBleRate('写入特征未就绪');
+                    return;
+                }
                 await new Promise(r => setTimeout(r, 1000));
                 continue;
             }
@@ -1128,24 +1596,33 @@ class RadarWebApp {
                 const countAfter = this.bleStats.received;
                 const elapsed = (Date.now() - tsBefore) / 1000;
                 const actualFs = elapsed > 0 ? (countAfter - countBefore) / elapsed : 0;
+                lastMeasuredFs = actualFs;
 
                 if (actualFs >= 10) {
                     // 采样率明显提升，配置成功
+                    this._applyBleSamplingRate(50);
                     this.bleConfigStatus = 'configured';
                     this._updateConfigStatusUI();
                     this.addBLELog(`配置成功！实际采样率 ~${actualFs.toFixed(1)} Hz`);
                     return;
                 }
 
-                this.addBLELog(`实际采样率仅 ~${actualFs.toFixed(1)} Hz，将重试...`);
+                if (attempt < maxRetries) {
+                    this.addBLELog(`实际采样率仅 ~${actualFs.toFixed(1)} Hz，将重试...`);
+                }
             } catch (e) {
+                if (attempt === maxRetries) {
+                    this._fallbackToCurrentBleRate(`配置异常: ${e.message}`);
+                    return;
+                }
                 this.addBLELog(`第 ${attempt} 次配置异常: ${e.message}`);
             }
         }
 
-        this.bleConfigStatus = 'failed';
-        this._updateConfigStatusUI();
-        this.addBLELog('自动配置 50Hz 失败（已用尽重试次数），请点击"重新配置 50Hz"手动重试');
+        const fallbackFs = this._fallbackToCurrentBleRate(
+            lastMeasuredFs > 0 ? `实测约 ${lastMeasuredFs.toFixed(1)} Hz` : '未检测到 50Hz'
+        );
+        this.addBLELog(`ℹ️ 蓝牙保持连接，当前按 ${fallbackFs} Hz 继续工作；如需更高频率可手动重试 50Hz`);
     }
 
     /**
@@ -1165,18 +1642,13 @@ class RadarWebApp {
 `;
             await window.BLE.send(cmd);
             const newFs = Math.round(1000 / periodMs);
-            if (this.processor) this.processor.fs = newFs;
-            if (this.activityMonitor) this.activityMonitor.fs = newFs;
-            if (this.sleepMonitor)    this.sleepMonitor.fs    = newFs;
-            this.bleTargetFs = newFs;
+            this._applyBleSamplingRate(newFs);
             this.bleConfigStatus = 'configured';
             this.resetBleStats();
             this._updateConfigStatusUI();
-            this.addBLELog(`📤 已发送: ${cmd.trim()} → ${newFs} Hz，统计已重置`);
+            this.addBLELog(`📤 通过 ${this._getBleProtocolLabel()} 发送: ${cmd.trim()} → ${newFs} Hz，统计已重置`);
         } catch (err) {
-            this.bleConfigStatus = 'failed';
-            this._updateConfigStatusUI();
-            this.addBLELog(`❌ 发送指令失败: ${err.message}`);
+            this._fallbackToCurrentBleRate(`发送指令失败: ${err.message}`);
         }
     }
 
@@ -1761,7 +2233,8 @@ class RadarWebApp {
             'bleQSignalChart',
             'bleConstellationChart',
             'bleRespiratoryChart',
-            'bleHeartbeatChart'
+            'bleHeartbeatChart',
+            'bleDynamicACCChart'
         ];
         const missing = requiredIds.filter(id => !document.getElementById(id));
         if (missing.length > 0) {
@@ -1883,7 +2356,30 @@ class RadarWebApp {
             this.bleCharts.acc = new Chart(accCanvas, {
                 type: 'line',
                 data: { labels: [], datasets: [] },
-                options: { ...chartOptions, plugins: { ...chartOptions.plugins, title: { display: true, text: '蓝牙 Ax/Ay/Az 三轴变化' } } }
+                options: {
+                    ...chartOptions,
+                    plugins: { ...chartOptions.plugins, title: { display: true, text: '蓝牙 Ax/Ay/Az 原始信号 (m/s²，自适应放大)' } },
+                    scales: {
+                        x: { display: true, title: { display: true, text: '采样点' } },
+                        y: { display: true, title: { display: true, text: '加速度 (m/s²)' } }
+                    }
+                }
+            });
+        }
+
+        const dynamicAccCanvas = document.getElementById('bleDynamicACCChart');
+        if (dynamicAccCanvas) {
+            this.bleCharts.accDynamic = new Chart(dynamicAccCanvas, {
+                type: 'line',
+                data: { labels: [], datasets: [] },
+                options: {
+                    ...chartOptions,
+                    plugins: { ...chartOptions.plugins, title: { display: true, text: '蓝牙 Ax/Ay/Az 动态变化 (m/s²，去基线)' } },
+                    scales: {
+                        x: { display: true, title: { display: true, text: '采样点' } },
+                        y: { display: true, title: { display: true, text: '动态加速度 (m/s²)' } }
+                    }
+                }
             });
         }
 
@@ -1908,6 +2404,88 @@ class RadarWebApp {
                 }
             });
         }
+    }
+
+    initializeBleBackfillCharts() {
+        if (typeof Chart === 'undefined') return;
+
+        const requiredIds = [
+            'bleBackfillIQChart',
+            'bleBackfillLagChart',
+            'bleBackfillIMUChart',
+            'bleBackfillACCChart'
+        ];
+        const missing = requiredIds.filter(id => !document.getElementById(id));
+        if (missing.length > 0) return;
+
+        Object.keys(this.bleBackfillCharts).forEach(key => {
+            try {
+                if (this.bleBackfillCharts[key] && typeof this.bleBackfillCharts[key].destroy === 'function') {
+                    this.bleBackfillCharts[key].destroy();
+                }
+            } catch (_) {}
+        });
+        this.bleBackfillCharts = {};
+
+        const chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top'
+                }
+            },
+            scales: {
+                x: { display: true, title: { display: true } },
+                y: { display: true, title: { display: true } }
+            },
+            animation: false
+        };
+
+        this.bleBackfillCharts.iq = new Chart(document.getElementById('bleBackfillIQChart'), {
+            type: 'line',
+            data: { labels: [], datasets: [] },
+            options: {
+                ...chartOptions,
+                plugins: { ...chartOptions.plugins, title: { display: true, text: '补传 I/Q 数据' } },
+                scales: {
+                    x: { display: true, title: { display: true, text: '样本序号' } },
+                    y: { display: true, title: { display: true, text: '幅度 / 电压' } }
+                }
+            }
+        });
+
+        this.bleBackfillCharts.lag = new Chart(document.getElementById('bleBackfillLagChart'), {
+            type: 'line',
+            data: { labels: [], datasets: [] },
+            options: {
+                ...chartOptions,
+                plugins: { ...chartOptions.plugins, title: { display: true, text: '补传追平进度（设备时间滞后）' } },
+                scales: {
+                    x: { display: true, title: { display: true, text: '样本序号' } },
+                    y: { display: true, title: { display: true, text: '滞后 (秒)' }, beginAtZero: true }
+                }
+            }
+        });
+
+        this.bleBackfillCharts.imu = new Chart(document.getElementById('bleBackfillIMUChart'), {
+            type: 'line',
+            data: { labels: [], datasets: [] },
+            options: {
+                ...chartOptions,
+                plugins: { ...chartOptions.plugins, title: { display: true, text: '补传 Gx/Gy/Gz' } }
+            }
+        });
+
+        this.bleBackfillCharts.acc = new Chart(document.getElementById('bleBackfillACCChart'), {
+            type: 'line',
+            data: { labels: [], datasets: [] },
+            options: {
+                ...chartOptions,
+                plugins: { ...chartOptions.plugins, title: { display: true, text: '补传 Ax/Ay/Az' } }
+            }
+        });
     }
 
     /**
@@ -2922,25 +3500,10 @@ class RadarWebApp {
     }
 
     /**
-     * 启动接收看门狗：3秒无数据则尝试判定掉线
+     * 接收看门狗已停用：蓝牙连接仅允许手动断开
      */
     startRxWatchdog() {
-        if (this.rxWatchdogTimer) return;
-        this.rxWatchdogTimer = setInterval(async () => {
-            try {
-                if (this.bleConnected) {
-                    const idleMs = Date.now() - (this.lastBleRxTs || 0);
-                    if (this.lastBleRxTs > 0 && idleMs > 3000) {
-                        this.addBLELog('⚠️ 3秒未收到数据，判定连接已中断，正在断开...');
-                        if (window.BLE && typeof BLE.disconnect === 'function') {
-                            await BLE.disconnect();
-                        }
-                    }
-                }
-            } catch (e) {
-                // 忽略看门狗异常
-            }
-        }, 1000);
+        return;
     }
 
     stopRxWatchdog() {
@@ -2964,6 +3527,8 @@ class RadarWebApp {
      * 重置蓝牙数据
      */
     resetBluetoothData() {
+        const backfillEnabled = !!this.bleBackfillState?.enabled;
+        const backfillFromTsMs = this.bleBackfillState?.fromDeviceTsMs ?? null;
         this.bleBufferI = [];
         this.bleBufferQ = [];
         this.bleBufferIMU_X = [];
@@ -3065,6 +3630,26 @@ class RadarWebApp {
             bleLog.style.whiteSpace = 'pre-line';
             bleLog.textContent = '';
         }
+
+        this.bleBackfillBuffers = this._createEmptyBleBackfillBuffers();
+        this.bleBackfillState = this._createBleBackfillState();
+        this.bleBackfillState.enabled = backfillEnabled;
+        this.bleBackfillState.fromDeviceTsMs = backfillFromTsMs;
+        this._bleBackfillLogLines = [];
+        const backfillLog = document.getElementById('bleBackfillLog');
+        if (backfillLog) {
+            backfillLog.style.whiteSpace = 'pre-line';
+            backfillLog.textContent = '';
+        }
+        this.updateBleBackfillUI();
+
+        Object.values(this.bleBackfillCharts || {}).forEach(chart => {
+            if (chart && chart.data) {
+                chart.data.labels = [];
+                chart.data.datasets = [];
+                if (typeof chart.update === 'function') chart.update('none');
+            }
+        });
         
         // 更新按钮状态
         this.updateBLEButtons();
@@ -3466,16 +4051,64 @@ class RadarWebApp {
             accDS.labels = indices;
             if (accDS.datasets.length < 3) {
                 accDS.datasets = [
-                    { label: 'Ax (g)', data: this.bleBufferACC_X.slice(start), borderColor: 'rgb(255, 159, 64)', backgroundColor: 'rgba(255, 159, 64, 0.08)', tension: 0.1, pointRadius: 0 },
-                    { label: 'Ay (g)', data: this.bleBufferACC_Y.slice(start), borderColor: 'rgb(153, 102, 255)', backgroundColor: 'rgba(153, 102, 255, 0.08)', tension: 0.1, pointRadius: 0 },
-                    { label: 'Az (g)', data: this.bleBufferACC_Z.slice(start), borderColor: 'rgb(255, 205, 86)', backgroundColor: 'rgba(255, 205, 86, 0.08)', tension: 0.1, pointRadius: 0 }
+                    { label: 'Ax (m/s²)', data: this.bleBufferACC_X.slice(start), borderColor: 'rgb(255, 159, 64)', backgroundColor: 'rgba(255, 159, 64, 0.08)', tension: 0.1, pointRadius: 0 },
+                    { label: 'Ay (m/s²)', data: this.bleBufferACC_Y.slice(start), borderColor: 'rgb(153, 102, 255)', backgroundColor: 'rgba(153, 102, 255, 0.08)', tension: 0.1, pointRadius: 0 },
+                    { label: 'Az (m/s²)', data: this.bleBufferACC_Z.slice(start), borderColor: 'rgb(255, 205, 86)', backgroundColor: 'rgba(255, 205, 86, 0.08)', tension: 0.1, pointRadius: 0 }
                 ];
             } else {
                 accDS.datasets[0].data = this.bleBufferACC_X.slice(start);
                 accDS.datasets[1].data = this.bleBufferACC_Y.slice(start);
                 accDS.datasets[2].data = this.bleBufferACC_Z.slice(start);
             }
+            const accMin = Math.min(
+                this._arrMin(this.bleBufferACC_X, start),
+                this._arrMin(this.bleBufferACC_Y, start),
+                this._arrMin(this.bleBufferACC_Z, start)
+            );
+            const accMax = Math.max(
+                this._arrMax(this.bleBufferACC_X, start),
+                this._arrMax(this.bleBufferACC_Y, start),
+                this._arrMax(this.bleBufferACC_Z, start)
+            );
+            const accCenter = (accMin + accMax) / 2;
+            const accRange = Math.max(0.3, accMax - accMin);
+            const accPadding = Math.max(0.05, accRange * 0.15);
+            this.bleCharts.acc.options.scales.y.min = accCenter - (accRange / 2) - accPadding;
+            this.bleCharts.acc.options.scales.y.max = accCenter + (accRange / 2) + accPadding;
             this.bleCharts.acc.update('none');
+        }
+
+        if (this.bleCharts.accDynamic && this.bleBufferACC_X.length > 0) {
+            const accXSlice = this.bleBufferACC_X.slice(start);
+            const accYSlice = this.bleBufferACC_Y.slice(start);
+            const accZSlice = this.bleBufferACC_Z.slice(start);
+            const meanX = accXSlice.reduce((sum, value) => sum + value, 0) / accXSlice.length;
+            const meanY = accYSlice.reduce((sum, value) => sum + value, 0) / accYSlice.length;
+            const meanZ = accZSlice.reduce((sum, value) => sum + value, 0) / accZSlice.length;
+            const dynX = accXSlice.map(value => value - meanX);
+            const dynY = accYSlice.map(value => value - meanY);
+            const dynZ = accZSlice.map(value => value - meanZ);
+            const dynDS = this.bleCharts.accDynamic.data;
+            dynDS.labels = indices;
+            if (dynDS.datasets.length < 3) {
+                dynDS.datasets = [
+                    { label: 'Ax 动态 (m/s²)', data: dynX, borderColor: 'rgb(255, 159, 64)', backgroundColor: 'rgba(255, 159, 64, 0.08)', tension: 0.1, pointRadius: 0 },
+                    { label: 'Ay 动态 (m/s²)', data: dynY, borderColor: 'rgb(153, 102, 255)', backgroundColor: 'rgba(153, 102, 255, 0.08)', tension: 0.1, pointRadius: 0 },
+                    { label: 'Az 动态 (m/s²)', data: dynZ, borderColor: 'rgb(255, 205, 86)', backgroundColor: 'rgba(255, 205, 86, 0.08)', tension: 0.1, pointRadius: 0 }
+                ];
+            } else {
+                dynDS.datasets[0].data = dynX;
+                dynDS.datasets[1].data = dynY;
+                dynDS.datasets[2].data = dynZ;
+            }
+            const dynMin = Math.min(...dynX, ...dynY, ...dynZ);
+            const dynMax = Math.max(...dynX, ...dynY, ...dynZ);
+            const dynCenter = (dynMin + dynMax) / 2;
+            const dynRange = Math.max(0.08, dynMax - dynMin);
+            const dynPadding = Math.max(0.02, dynRange * 0.2);
+            this.bleCharts.accDynamic.options.scales.y.min = dynCenter - (dynRange / 2) - dynPadding;
+            this.bleCharts.accDynamic.options.scales.y.max = dynCenter + (dynRange / 2) + dynPadding;
+            this.bleCharts.accDynamic.update('none');
         }
 
         // 更新温度图表
@@ -3543,6 +4176,109 @@ class RadarWebApp {
                 accEl.textContent = `ax:${ax.toFixed(3)} ay:${ay.toFixed(3)} az:${az.toFixed(3)}`;
             }
         }
+    }
+
+    updateBleBackfillCharts() {
+        if (!this.bleBackfillCharts.iq || !this.bleBackfillCharts.lag) return;
+
+        const len = this.bleBackfillBuffers.timestamps.length;
+        if (len === 0) return;
+
+        this._ensureBleBackfillSectionVisible();
+
+        const sampleSize = Math.min(600, len);
+        const start = len - sampleSize;
+        const labels = Array.from({ length: sampleSize }, (_, idx) => idx + 1);
+
+        const iqLabels = labels;
+        const iqI = this.bleBackfillBuffers.i.slice(start);
+        const iqQ = this.bleBackfillBuffers.q.slice(start);
+        this.bleBackfillCharts.iq.data.labels = iqLabels;
+        this.bleBackfillCharts.iq.data.datasets = [
+            {
+                label: 'I',
+                data: iqI,
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.08)',
+                tension: 0.1,
+                pointRadius: 0
+            },
+            {
+                label: 'Q',
+                data: iqQ,
+                borderColor: 'rgb(255, 99, 132)',
+                backgroundColor: 'rgba(255, 99, 132, 0.08)',
+                tension: 0.1,
+                pointRadius: 0
+            }
+        ];
+        this.bleBackfillCharts.iq.update('none');
+
+        this.bleBackfillCharts.lag.data.labels = iqLabels;
+        this.bleBackfillCharts.lag.data.datasets = [
+            {
+                label: '设备时间滞后 (秒)',
+                data: this.bleBackfillBuffers.lagMs.slice(start).map(v => v / 1000),
+                borderColor: 'rgb(255, 159, 64)',
+                backgroundColor: 'rgba(255, 159, 64, 0.10)',
+                tension: 0.15,
+                pointRadius: 0,
+                fill: true
+            }
+        ];
+        this.bleBackfillCharts.lag.update('none');
+
+        this.bleBackfillCharts.imu.data.labels = iqLabels;
+        this.bleBackfillCharts.imu.data.datasets = [
+            {
+                label: 'Gx',
+                data: this.bleBackfillBuffers.imuX.slice(start),
+                borderColor: 'rgb(255, 99, 132)',
+                tension: 0.1,
+                pointRadius: 0
+            },
+            {
+                label: 'Gy',
+                data: this.bleBackfillBuffers.imuY.slice(start),
+                borderColor: 'rgb(54, 162, 235)',
+                tension: 0.1,
+                pointRadius: 0
+            },
+            {
+                label: 'Gz',
+                data: this.bleBackfillBuffers.imuZ.slice(start),
+                borderColor: 'rgb(75, 192, 192)',
+                tension: 0.1,
+                pointRadius: 0
+            }
+        ];
+        this.bleBackfillCharts.imu.update('none');
+
+        this.bleBackfillCharts.acc.data.labels = iqLabels;
+        this.bleBackfillCharts.acc.data.datasets = [
+            {
+                label: 'Ax',
+                data: this.bleBackfillBuffers.accX.slice(start),
+                borderColor: 'rgb(255, 159, 64)',
+                tension: 0.1,
+                pointRadius: 0
+            },
+            {
+                label: 'Ay',
+                data: this.bleBackfillBuffers.accY.slice(start),
+                borderColor: 'rgb(153, 102, 255)',
+                tension: 0.1,
+                pointRadius: 0
+            },
+            {
+                label: 'Az',
+                data: this.bleBackfillBuffers.accZ.slice(start),
+                borderColor: 'rgb(255, 205, 86)',
+                tension: 0.1,
+                pointRadius: 0
+            }
+        ];
+        this.bleBackfillCharts.acc.update('none');
     }
 
     /**
@@ -3633,12 +4369,14 @@ class RadarWebApp {
     forceReinitializeCharts() {
         try { this.initializeCharts(); } catch (e) { console.warn('initializeCharts 异常:', e.message); }
         try { this.initializeBluetoothCharts(); } catch (e) { console.warn('initializeBluetoothCharts 异常:', e.message); }
+        try { this.initializeBleBackfillCharts(); } catch (e) { console.warn('initializeBleBackfillCharts 异常:', e.message); }
 
         setTimeout(() => {
             try {
                 const allCharts = [
                     ...Object.values(this.charts || {}),
-                    ...Object.values(this.bleCharts || {})
+                    ...Object.values(this.bleCharts || {}),
+                    ...Object.values(this.bleBackfillCharts || {})
                 ];
                 allCharts.forEach(chart => {
                     if (chart && typeof chart.resize === 'function') chart.resize();
@@ -3990,6 +4728,17 @@ async function bleConnect() {
 async function bleDisconnect() {
     if (!window.BLE) return;
     try {
+        if (window.app) {
+            if (Number.isFinite(app.lastLiveDeviceTsMs)) {
+                app.pendingBackfillFromTsMs = app.lastLiveDeviceTsMs;
+                app.allowBackfillOnNextConnect = true;
+                app.addBLELog('🕘 已记录手动断开；下次连接将只识别断开期间缺失的补传数据');
+            } else {
+                app.pendingBackfillFromTsMs = null;
+                app.allowBackfillOnNextConnect = false;
+                app.addBLELog('ℹ️ 当前没有可用设备时间戳，下一次连接将按实时数据处理');
+            }
+        }
         await BLE.disconnect();
     } catch (e) {
         // ignore
@@ -4163,6 +4912,24 @@ function clearBluetoothData() {
         app.resetBluetoothData();
         app.addBLELog('🔄 已清空蓝牙数据');
     }
+}
+
+function clearBleBackfillData() {
+    if (!app) return;
+    app.bleBackfillBuffers = app._createEmptyBleBackfillBuffers();
+    app.bleBackfillState = app._createBleBackfillState();
+    app._bleBackfillLogLines = [];
+    const logEl = document.getElementById('bleBackfillLog');
+    if (logEl) logEl.textContent = '';
+    app.updateBleBackfillUI();
+    Object.values(app.bleBackfillCharts || {}).forEach(chart => {
+        if (chart && chart.data) {
+            chart.data.labels = [];
+            chart.data.datasets = [];
+            if (typeof chart.update === 'function') chart.update('none');
+        }
+    });
+    app.addBLELog('🧹 已清空补传面板数据');
 }
 
 function saveBluetoothData() {

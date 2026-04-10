@@ -8,10 +8,10 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>毫米波雷达数据处理系统 - Web版</title>
-    <link rel="stylesheet" href="style.css?v=20260302-2">
+    <link rel="stylesheet" href="style.css?v=20260410-backfill1">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="fft.js?v=20260302-2"></script>
-    <script src="bluetooth.js?v=20260408-fix5"></script>
+    <script src="bluetooth.js?v=20260410-fallback1"></script>
 </head>
 <body>
     <div class="container">
@@ -70,7 +70,7 @@
                     
                     <!-- 实时数据监控 -->
                     <div id="bleRealTimeData" style="display:none;">
-                        <h4>📡 实时数据流:</h4>
+                        <h4>📡 实时数据流（实时数据进入下方“蓝牙实时数据图表”）:</h4>
                         <div class="realtime-stats">
                             <div class="stat-item">
                                 <span class="stat-label">目标频率:</span>
@@ -84,6 +84,10 @@
                                 <span class="stat-label">配置状态:</span>
                                 <span class="stat-value" id="bleConfigStatus" style="color:#aaa;">等待连接...</span>
                                 <button id="bleReconfigBtn" onclick="window.app && window.app._autoConfigTcycleWithRetry(3)" style="margin-left:8px;padding:2px 10px;font-size:12px;cursor:pointer;border:1px solid #1a73e8;background:#e8f0fe;color:#1a73e8;border-radius:4px;display:none;">重新配置 50Hz</button>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">当前协议:</span>
+                                <span class="stat-value" id="bleProtocol" style="color:#aaa;">未连接</span>
                             </div>
                             <div class="stat-item">
                                 <span class="stat-label">接收数据点:</span>
@@ -1134,6 +1138,7 @@
             <!-- 蓝牙实时图表区域 -->
             <section class="results-section" id="bluetoothChartsSection" style="display: none;">
                 <h2>📊 蓝牙实时数据图表</h2>
+                <p style="color:#8ab4f8;margin:4px 0 14px 0;">当前蓝牙连接后的实时数据统一显示在这里。</p>
                 
                 <!-- 蓝牙数据统计 -->
                 <div class="stats-grid">
@@ -1201,7 +1206,7 @@
                             <canvas id="bleIMUChart"></canvas>
                         </div>
                         <div class="chart-container">
-                            <h3>蓝牙 Ax/Ay/Az 信号(加速度计)</h3>
+                            <h3>蓝牙 Ax/Ay/Az 原始信号(加速度计)</h3>
                             <canvas id="bleACCChart"></canvas>
                         </div>
                     </div>
@@ -1211,7 +1216,10 @@
                             <h3>蓝牙 温度变化 (°C)</h3>
                             <canvas id="bleTemperatureChart"></canvas>
                         </div>
-                        <div class="chart-container" style="visibility: hidden;"></div>
+                        <div class="chart-container">
+                            <h3>蓝牙 Ax/Ay/Az 动态变化(去基线)</h3>
+                            <canvas id="bleDynamicACCChart"></canvas>
+                        </div>
                     </div>
                     
                     <div class="chart-row">
@@ -1279,6 +1287,97 @@
                         <button class="btn btn-success" onclick="if(app) app.forceDetailMode();">强制细节模式</button>
                         <button class="btn btn-secondary" onclick="hideBluetoothCharts()">隐藏图表</button>
                     </div>
+                </div>
+            </section>
+
+            <section class="results-section" id="bleBackfillSection">
+                <h2>🕘 蓝牙补传分析</h2>
+                <p style="color:#ffb74d;margin:4px 0 14px 0;">这里只显示断开后重连时补回的历史数据，不显示当前实时数据。</p>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">🧭</div>
+                        <div class="stat-content">
+                            <div class="stat-label">当前模式</div>
+                            <div class="stat-value" id="bleBackfillMode">待检测</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📦</div>
+                        <div class="stat-content">
+                            <div class="stat-label">已补传条数</div>
+                            <div class="stat-value" id="bleBackfillCount">0 条</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">⏳</div>
+                        <div class="stat-content">
+                            <div class="stat-label">补传覆盖时长</div>
+                            <div class="stat-value" id="bleBackfillDuration">0 秒</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🛰️</div>
+                        <div class="stat-content">
+                            <div class="stat-label">当前设备滞后</div>
+                            <div class="stat-value" id="bleBackfillLag">--</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📍</div>
+                        <div class="stat-content">
+                            <div class="stat-label">断点判断</div>
+                            <div class="stat-value" id="bleBackfillCheckpoint">未启用</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🕒</div>
+                        <div class="stat-content">
+                            <div class="stat-label">当前设备时间</div>
+                            <div class="stat-value" id="bleBackfillCurrentTs">--</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🧩</div>
+                        <div class="stat-content">
+                            <div class="stat-label">重叠条数</div>
+                            <div class="stat-value" id="bleBackfillOverlap">0 条</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="charts-container">
+                    <div class="chart-row">
+                        <div class="chart-container">
+                            <h3>补传 I/Q 数据</h3>
+                            <canvas id="bleBackfillIQChart"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <h3>补传追平进度</h3>
+                            <canvas id="bleBackfillLagChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-row">
+                        <div class="chart-container">
+                            <h3>补传 Gx/Gy/Gz</h3>
+                            <canvas id="bleBackfillIMUChart"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <h3>补传 Ax/Ay/Az</h3>
+                            <canvas id="bleBackfillACCChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <h3>补传面板控制</h3>
+                    <div class="table-actions">
+                        <button class="btn btn-warning" onclick="clearBleBackfillData()">清空补传面板</button>
+                    </div>
+                </div>
+
+                <div class="resting-log-container">
+                    <div id="bleBackfillLog"></div>
                 </div>
             </section>
 
@@ -1461,7 +1560,7 @@
     <!-- 姿态解算模块 -->
     <script src="attitude-solver.js?v=20260309-optimized"></script>
 
-    <script src="app.js?v=20260408-fix5"></script>
+    <script src="app.js?v=20260410-fallback1"></script>
 
     <!-- BLE调试代码 -->
     <script>
