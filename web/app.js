@@ -140,6 +140,10 @@ class RadarWebApp {
         this.sleepMonitor = null;
         this.sleepMonitorEnabled = false;
 
+        // ===== GPS 定位追踪模块 =====
+        this.gpsLocationMonitor = null;
+        this.gpsLocationMonitorEnabled = false;
+
         // ===== 姿态解算模块 =====
         this.attitudeSolver = null;
         this.attitudeVisualizer = null;
@@ -1044,6 +1048,7 @@ class RadarWebApp {
         let temperature = null; // 温度数据
         let accX = 0, accY = 0, accZ = 0; // Acc原始值
         let roll = 0, pitch = 0, yaw = 0; // Roll/Pitch/Yaw 姿态角
+        let gpsLonRaw = '', gpsLatRaw = ''; // GPS 经纬度原始字符串
         try {
             const trimmed = line.trim();
 
@@ -1085,6 +1090,9 @@ class RadarWebApp {
                 } else {
                     return;
                 }
+
+                gpsLonRaw = parts[2] || '';
+                gpsLatRaw = parts[3] || '';
 
                 if (this.bleRecordingFlag === 1) {
                     const stamp = new Date().toISOString().replace('T', ' ').slice(0, 23);
@@ -1277,6 +1285,11 @@ class RadarWebApp {
         // 睡眠监测模块：使用加速度计数据
         if (this.sleepMonitorEnabled && this.sleepMonitor && accX !== null && accY !== null && accZ !== null) {
             this.sleepMonitor.addAccelerometerData(accX, accY, accZ, Date.now());
+        }
+
+        // ===== GPS 定位追踪：将经纬度数据传递给GPSLocationMonitor =====
+        if (this.gpsLocationMonitorEnabled && this.gpsLocationMonitor && gpsLonRaw && gpsLatRaw) {
+            this.gpsLocationMonitor.addGPSData(gpsLonRaw, gpsLatRaw, Date.now());
         }
 
         // ===== 姿态解算：使用陀螺仪和加速度计数据 =====
@@ -5665,9 +5678,54 @@ function stopPetEmotionMonitor() {
     console.log('🐾 宠物情绪监测已停止');
 }
 
+// ===== GPS 定位追踪控制函数 =====
+
+function startGPSLocation() {
+    if (!app) { alert('应用未初始化，请先连接蓝牙'); return; }
+
+    if (!app.gpsLocationMonitor) {
+        if (typeof GPSLocationMonitor === 'undefined') {
+            alert('GPSLocationMonitor 模块未加载，请检查 gps-location.js');
+            return;
+        }
+        app.gpsLocationMonitor = new GPSLocationMonitor();
+    }
+
+    document.getElementById('gpsDashboard').style.display = 'block';
+    document.getElementById('gpsStartBtn').style.display = 'none';
+    document.getElementById('gpsStopBtn').style.display = 'inline-block';
+
+    setTimeout(() => {
+        app.gpsLocationMonitor.start();
+        app.gpsLocationMonitorEnabled = true;
+        console.log('📍 GPS 定位追踪已启动');
+    }, 100);
+}
+
+function stopGPSLocation() {
+    if (!app) return;
+    if (app.gpsLocationMonitor) app.gpsLocationMonitor.stop();
+    app.gpsLocationMonitorEnabled = false;
+
+    document.getElementById('gpsStartBtn').style.display = 'inline-block';
+    document.getElementById('gpsStopBtn').style.display = 'none';
+    console.log('📍 GPS 定位追踪已停止');
+}
+
+function resetGPSLocation() {
+    if (!app || !app.gpsLocationMonitor) return;
+    if (confirm('确定要重置GPS轨迹数据吗？')) {
+        app.gpsLocationMonitor.reset();
+        console.log('🔄 GPS 轨迹数据已重置');
+    }
+}
+
 // 导出睡眠监测相关函数到全局作用域
 // 确保这些函数可以被HTML的onclick属性调用
 if (typeof window !== 'undefined') {
+    window.startGPSLocation = startGPSLocation;
+    window.stopGPSLocation = stopGPSLocation;
+    window.resetGPSLocation = resetGPSLocation;
     window.startPetEmotionMonitor = startPetEmotionMonitor;
     window.stopPetEmotionMonitor  = stopPetEmotionMonitor;
     window.startSleepMonitor = startSleepMonitor;

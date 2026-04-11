@@ -9,6 +9,8 @@
     <meta http-equiv="Expires" content="0">
     <title>毫米波雷达数据处理系统 - Web版</title>
     <link rel="stylesheet" href="style.css?v=20260410-backfill1">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="fft.js?v=20260302-2"></script>
     <script src="bluetooth.js?v=20260410-fallback1"></script>
@@ -807,6 +809,65 @@
                 </div>
             </section>
 
+            <!-- GPS 定位追踪模块 -->
+            <section class="upload-section" id="gpsLocationSection">
+                <h2>📍 GPS 定位追踪</h2>
+                <p class="section-desc">
+                    基于BLE协议GPS数据，实时显示宠物位置、运动轨迹，计算移动距离和当前速度
+                </p>
+
+                <div class="file-actions" style="align-items:center; flex-wrap:wrap; gap:8px;">
+                    <button class="btn btn-success" id="gpsStartBtn" onclick="startGPSLocation()">
+                        ▶ 开始追踪
+                    </button>
+                    <button class="btn btn-danger" id="gpsStopBtn" onclick="stopGPSLocation()" style="display:none;">
+                        ⏹ 停止
+                    </button>
+                    <button class="btn btn-secondary" onclick="resetGPSLocation()">
+                        🔄 重置
+                    </button>
+                    <span id="gpsStatus" style="margin-left:8px; color:#7f8c8d; font-size:13px;">未启动</span>
+                </div>
+
+                <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:16px 0;">
+                    <div style="background:#f0faf2; border-radius:10px; padding:14px; text-align:center; border:1px solid #b2dfc0;">
+                        <div style="font-size:12px; color:#888; margin-bottom:4px;">移动距离</div>
+                        <div id="gpsDistance" style="font-size:22px; font-weight:700; color:#27ae60;">0 m</div>
+                    </div>
+                    <div style="background:#f0f7ff; border-radius:10px; padding:14px; text-align:center; border:1px solid #b3d4f5;">
+                        <div style="font-size:12px; color:#888; margin-bottom:4px;">当前速度</div>
+                        <div id="gpsSpeed" style="font-size:22px; font-weight:700; color:#3498db;">0.0 km/h</div>
+                    </div>
+                    <div style="background:#fdf2f2; border-radius:10px; padding:14px; text-align:center; border:1px solid #f5c6c6;">
+                        <div style="font-size:12px; color:#888; margin-bottom:4px;">GPS 定位</div>
+                        <div id="gpsFixStatus" style="font-size:22px; font-weight:700; color:#e74c3c;">无信号</div>
+                    </div>
+                    <div style="background:#f8f2fd; border-radius:10px; padding:14px; text-align:center; border:1px solid #d5b8f5;">
+                        <div style="font-size:12px; color:#888; margin-bottom:4px;">轨迹点数</div>
+                        <div id="gpsPointCount" style="font-size:22px; font-weight:700; color:#9b59b6;">0</div>
+                    </div>
+                </div>
+
+                <div id="gpsDashboard" style="display:none;">
+                    <div style="background:#fff; border-radius:10px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,0.07);">
+                        <div style="font-size:13px; font-weight:600; color:#27ae60; margin-bottom:8px;">🗺️ 实时位置地图</div>
+                        <div id="gpsMapContainer" style="height:450px; border-radius:8px; border:1px solid #ddd;"></div>
+                        <div style="margin-top:8px; font-size:12px; color:#aaa;">
+                            经度: <span id="gpsCurrentLon">--</span> &nbsp;|&nbsp;
+                            纬度: <span id="gpsCurrentLat">--</span> &nbsp;|&nbsp;
+                            最后更新: <span id="gpsLastUpdate">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top:16px; padding:12px 16px; background:#fffbe6; border-radius:8px; border:1px solid #ffe58f; font-size:12px; color:#7a6300;">
+                    <strong>📌 使用说明：</strong>
+                    先连接蓝牙设备并确保数据正常接收，然后点击"开始追踪"。
+                    GPS需要在户外有良好卫星信号才能定位。当GPS无定位(0,0)时数据将被忽略。
+                    地图使用OpenStreetMap免费图层，无需API密钥。
+                </div>
+            </section>
+
             <!-- 文件上传区域 -->
             <section class="upload-section">
                 <h2>📁 数据文件上传</h2>
@@ -1553,6 +1614,7 @@
     <script src="activity-monitor.js?v=20260302-2"></script>
     <script src="sleep-monitor.js?v=20260302-2"></script>
     <script src="pet-emotion-monitor.js?v=20260328-1"></script>
+    <script src="gps-location.js?v=20260411-1"></script>
 
     <!-- Three.js 用于 3D 姿态可视化 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
