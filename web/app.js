@@ -1043,6 +1043,7 @@ class RadarWebApp {
         let imuX = 0, imuY = 0, imuZ = 0; // gx/gy/gz（优先取 Gyr:）
         let temperature = null; // 温度数据
         let accX = 0, accY = 0, accZ = 0; // Acc原始值
+        let roll = 0, pitch = 0, yaw = 0; // Roll/Pitch/Yaw 姿态角
         try {
             const trimmed = line.trim();
 
@@ -1062,6 +1063,9 @@ class RadarWebApp {
                     imuX = parseFloat(parts[7]);
                     imuY = parseFloat(parts[8]);
                     imuZ = parseFloat(parts[9]);
+                    roll  = parseFloat(parts[10]);
+                    pitch = parseFloat(parts[11]);
+                    yaw   = parseFloat(parts[12]);
                     iVal = parseFloat(parts[14]);
                     qVal = parseFloat(parts[15]);
                     ts   = Number.isFinite(deviceTsMs) ? deviceTsMs : Date.now();
@@ -1087,9 +1091,12 @@ class RadarWebApp {
                     const mac   = deviceMac;
                     const lon   = parts[2] || '';
                     const lat   = parts[3] || '';
-                    const v1bat = parseFloat(parts[13]).toFixed(3);
+                    const v1    = parts[13] || '';
+                    const v2    = parts[14] || '';
+                    const v3    = parts[15] || '';
+                    // Payload Format: MAC,Time,Lon,Lat,Ax,Ay,Az,Gx,Gy,Gz,Roll,Pitch,Yaw,V1,V2,V3
                     this.bleRecordingData.push(
-                        `${stamp}  ${mac}  ${lon}  ${lat}  ${accX.toFixed(4)}  ${accY.toFixed(4)}  ${accZ.toFixed(4)}  ${imuX.toFixed(3)}  ${imuY.toFixed(3)}  ${imuZ.toFixed(3)}  ${iVal.toFixed(4)}  ${qVal.toFixed(4)}  ${v1bat}`
+                        `${mac},${stamp},${lon},${lat},${accX.toFixed(4)},${accY.toFixed(4)},${accZ.toFixed(4)},${imuX.toFixed(3)},${imuY.toFixed(3)},${imuZ.toFixed(3)},${roll.toFixed(4)},${pitch.toFixed(4)},${yaw.toFixed(4)},${v1},${v2},${v3}`
                     );
                 }
 
@@ -1174,8 +1181,10 @@ class RadarWebApp {
                     let rAdcI = 0, rAdcQ = 0;
                     if (adcMatch) { rAdcI = parseInt(adcMatch[1]); rAdcQ = parseInt(adcMatch[2]); }
                     const lastTemp = this.bleBufferTemperature[this.bleBufferTemperature.length - 1];
+                    const tempStr = lastTemp !== null && lastTemp !== undefined ? lastTemp.toFixed(2) : 'N/A';
+                    // Payload Format: timestamp,ADC_I,ADC_Q,Acc_X,Acc_Y,Acc_Z,I_voltage,Q_voltage,Gyr_x,Gyr_y,Gyr_z,temperature
                     this.bleRecordingData.push(
-                        `${stamp}  ${rAdcI}  ${rAdcQ}  ${accX.toFixed(3)}  ${accY.toFixed(3)}  ${accZ.toFixed(3)}  ${iVal.toFixed(6)}  ${qVal.toFixed(6)}  ${imuX.toFixed(3)}  ${imuY.toFixed(3)}  ${imuZ.toFixed(3)}  ${lastTemp !== null && lastTemp !== undefined ? lastTemp.toFixed(2) : 'N/A'}`
+                        `${stamp},${rAdcI},${rAdcQ},${accX.toFixed(3)},${accY.toFixed(3)},${accZ.toFixed(3)},${iVal.toFixed(6)},${qVal.toFixed(6)},${imuX.toFixed(3)},${imuY.toFixed(3)},${imuZ.toFixed(3)},${tempStr}`
                     );
                 }
             }
@@ -1212,6 +1221,9 @@ class RadarWebApp {
             accX,
             accY,
             accZ,
+            roll,
+            pitch,
+            yaw,
             temperature,
             deviceMac,
             deviceTsRaw,
@@ -3456,30 +3468,36 @@ class RadarWebApp {
      * 打印原始数据到日志
      */
     printRawData(line) {
-        console.log('📝 printRawData被调用, line:', line.substring(0, 100));
         const log = document.getElementById('bleRawDataLog');
-        if (!log) {
-            console.warn('❌ 未找到 bleRawDataLog 元素');
-            return;
-        }
-        console.log('✅ 找到 bleRawDataLog 元素');
+        if (!log) return;
 
         const ts = new Date().toLocaleTimeString();
         const trimmed = line.trim();
-        this._bleRawLines.push(`[${ts}] ${trimmed}`);
+
+        // V1.02 协议帧：解析并标注每个字段
+        let displayLine;
+        if (trimmed.startsWith('$') && !trimmed.startsWith('$AT')) {
+            const raw = trimmed.endsWith('*') ? trimmed.slice(1, -1) : trimmed.slice(1);
+            const p = raw.split(',');
+            if (p.length >= 16) {
+                displayLine = `[${ts}] MAC=${p[0]} Time=${p[1]} Lon=${p[2]} Lat=${p[3]} Ax=${p[4]} Ay=${p[5]} Az=${p[6]} Gx=${p[7]} Gy=${p[8]} Gz=${p[9]} Roll=${p[10]} Pitch=${p[11]} Yaw=${p[12]} V1=${p[13]} V2=${p[14]} V3=${p[15]}`;
+            } else {
+                displayLine = `[${ts}] ${trimmed}`;
+            }
+        } else {
+            displayLine = `[${ts}] ${trimmed}`;
+        }
+
+        this._bleRawLines.push(displayLine);
         if (this._bleRawLines.length > 50) this._bleRawLines.splice(0, this._bleRawLines.length - 50);
 
         // 节流渲染
-        if (this._bleRawRenderTimer) {
-            console.log('⏱️ 节流中，等待渲染');
-            return;
-        }
+        if (this._bleRawRenderTimer) return;
         this._bleRawRenderTimer = setTimeout(() => {
             this._bleRawRenderTimer = null;
             log.style.whiteSpace = 'pre-wrap';
-            log.textContent = `原始数据:\n${this._bleRawLines.join('\n')}\n`;
+            log.textContent = `原始数据 (Payload: MAC,Time,Lon,Lat,Ax,Ay,Az,Gx,Gy,Gz,Roll,Pitch,Yaw,V1,V2,V3):\n${this._bleRawLines.join('\n')}\n`;
             log.scrollTop = log.scrollHeight;
-            console.log(`✅ 已渲染原始数据，共 ${this._bleRawLines.length} 行`);
         }, 200);
     }
 
@@ -3680,7 +3698,12 @@ class RadarWebApp {
             // 在录制数据开头添加元数据信息
             this.bleRecordingData.push(`# 录制开始时间: ${startTimestamp}`);
             this.bleRecordingData.push(`# 开始时心率: ${currentHR} bpm, 呼吸率: ${currentRR} bpm`);
-            this.bleRecordingData.push(`# 数据格式: timestamp ADC_I ADC_Q Acc_X Acc_Y Acc_Z I_voltage Q_voltage IMU_x IMU_y IMU_z temperature`);
+            const isFFF0 = this.bleProtocol && this.bleProtocol.indexOf('FFF0') >= 0;
+            if (isFFF0) {
+                this.bleRecordingData.push(`# Payload Format: MAC,Time,Lon,Lat,Ax,Ay,Az,Gx,Gy,Gz,Roll,Pitch,Yaw,V1,V2,V3`);
+            } else {
+                this.bleRecordingData.push(`# Payload Format: timestamp,ADC_I,ADC_Q,Acc_X,Acc_Y,Acc_Z,I_voltage,Q_voltage,Gyr_x,Gyr_y,Gyr_z,temperature`);
+            }
             this.bleRecordingData.push(`# 原始数据开始`);
 
             this.addBLELog(`🔴 开始录制数据 - ${timestamp}`);
