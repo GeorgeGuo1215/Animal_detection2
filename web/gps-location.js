@@ -197,12 +197,27 @@ class GPSLocationMonitor {
     }
 
     start() {
-        if (!this.initialized) this.init();
         this.enabled = true;
         this._updateStatusUI(true);
-        // Leaflet 需要在容器可见后刷新尺寸
-        if (this.map) {
-            setTimeout(() => this.map.invalidateSize(), 200);
+
+        if (!this.initialized) {
+            // 确保在浏览器完成 display:block 重排后再初始化地图
+            // requestAnimationFrame 在下一帧绘制前执行，此时容器已有真实宽高
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {          // 双 rAF：第一帧触发重排，第二帧读取布局
+                    this.init();
+                    if (this.map) {
+                        this.map.invalidateSize();
+                        setTimeout(() => this.map.invalidateSize(), 300); // 兜底
+                    }
+                });
+            });
+        } else if (this.map) {
+            // 已初始化过，只刷新尺寸（比如从隐藏重新显示）
+            requestAnimationFrame(() => {
+                this.map.invalidateSize();
+                setTimeout(() => this.map.invalidateSize(), 300);
+            });
         }
     }
 
