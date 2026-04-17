@@ -2,34 +2,35 @@
    1. 全局变量与重置 (Variables & Reset)
    ========================================= */
 :root {
-    /* 核心色板 (Modern Dashboard Palette) */
-    --primary-color: #4f46e5;       /* Indigo-600 */
-    --primary-hover: #4338ca;       /* Indigo-700 */
-    --secondary-color: #64748b;     /* Slate-500 */
-    --secondary-hover: #475569;     /* Slate-600 */
-    --success-color: #10b981;       /* Emerald-500 */
-    --success-hover: #059669;       /* Emerald-600 */
-    --warning-color: #f59e0b;       /* Amber-500 */
-    --warning-hover: #d97706;       /* Amber-600 */
-    --danger-color: #ef4444;        /* Red-500 */
-    --danger-hover: #dc2626;        /* Red-600 */
-    --info-color: #0ea5e9;          /* Sky-500 */
-    --info-hover: #0284c7;          /* Sky-600 */
+    /* 核心色板 (Huemint Gradient-6 Palette) */
+    /* #fbfffe · #adcada · #9f9c9d · #857780 · #637b8f · #585671 */
+    --primary-color: #637b8f;       /* Steel Blue — 主交互色 */
+    --primary-hover: #4e6475;       /* Steel Blue 深 */
+    --secondary-color: #857780;     /* Mauve Gray — 次要按钮 */
+    --secondary-hover: #6d6069;     /* Mauve Gray 深 */
+    --success-color: #5a9070;       /* 柔绿 */
+    --success-hover: #427a59;       /* 柔绿 深 */
+    --warning-color: #b8935a;       /* 琥珀暖棕 */
+    --warning-hover: #9a7640;       /* 琥珀深 */
+    --danger-color: #9c5a5a;        /* 柔红 */
+    --danger-hover: #7f4040;        /* 柔红 深 */
+    --info-color: #637b8f;          /* 同主色，用于信息强调 */
+    --info-hover: #4e6475;
 
     /* 背景与文本 */
-    --bg-body: #f1f5f9;             /* Slate-100 */
-    --bg-card: #ffffff;
-    --bg-input: #f8fafc;
-    --text-main: #1e293b;           /* Slate-800 */
-    --text-muted: #64748b;          /* Slate-500 */
-    --border-color: #e2e8f0;        /* Slate-200 */
+    --bg-body: #f0f4f7;             /* 略带蓝灰的浅背景（不刺眼）*/
+    --bg-card: #fbfffe;             /* 近白卡片背景 */
+    --bg-input: #f3f6f8;            /* 输入框背景 */
+    --text-main: #585671;           /* Dark Purple-Blue — 主文本 */
+    --text-muted: #857780;          /* Mauve Gray — 次要文本 */
+    --border-color: #adcada;        /* Light Periwinkle — 边框 */
 
     /* 布局属性 */
     --border-radius: 12px;
     --border-radius-sm: 6px;
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -1px rgb(0 0 0 / 0.06);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -2px rgb(0 0 0 / 0.05);
+    --shadow-sm: 0 1px 3px 0 rgb(88 86 113 / 0.08);
+    --shadow-md: 0 4px 12px -1px rgb(88 86 113 / 0.12), 0 2px 6px -1px rgb(88 86 113 / 0.08);
+    --shadow-lg: 0 10px 24px -3px rgb(88 86 113 / 0.14), 0 4px 8px -2px rgb(88 86 113 / 0.08);
     --header-height: 70px;
     --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
@@ -37,12 +38,12 @@
 /* 深色模式变量 */
 @media (prefers-color-scheme: dark) {
     :root {
-        --bg-body: #0f172a;         /* Slate-900 */
-        --bg-card: #1e293b;         /* Slate-800 */
-        --bg-input: #334155;        /* Slate-700 */
-        --text-main: #f8fafc;       /* Slate-50 */
-        --text-muted: #94a3b8;      /* Slate-400 */
-        --border-color: #334155;    /* Slate-700 */
+        --bg-body: #2a2935;
+        --bg-card: #333244;
+        --bg-input: #3d3c50;
+        --text-main: #e8e6f0;
+        --text-muted: #adcada;
+        --border-color: #4e4d62;
     }
 }
 
@@ -80,10 +81,9 @@ header {
 header h1 {
     font-size: 2.25rem;
     font-weight: 800;
-    color: var(--primary-color);
     margin-bottom: 8px;
     letter-spacing: -0.025em;
-    background: linear-gradient(135deg, var(--primary-color), #818cf8);
+    background: linear-gradient(135deg, #637b8f, #585671);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
@@ -201,7 +201,7 @@ input[type="text"], input[type="number"], input[type="password"], textarea, sele
 input:focus, textarea:focus, select:focus {
     outline: none;
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    box-shadow: 0 0 0 3px rgba(99, 123, 143, 0.15);
 }
 
 /* 输入框尺寸工具类 */
@@ -238,18 +238,18 @@ input:focus, textarea:focus, select:focus {
     font-weight: 600;
     padding: 6px 10px;
     border-radius: 4px;
-    background: #e2e8f0;
+    background: #dde6ed;
     color: var(--text-muted);
 }
 
 /* 状态日志 */
 .status-log, .raw-data-log, #restingLog, #bleBackfillLog {
-    background: #1e293b !important; /* Always dark for logs */
-    color: #e2e8f0 !important;
+    background: #2a2935 !important; /* Always dark for logs */
+    color: #e0ddef !important;
     font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
     padding: 16px !important;
     border-radius: var(--border-radius) !important;
-    border: 1px solid var(--border-color);
+    border: 1px solid #3d3c50;
     font-size: 0.85rem !important;
     line-height: 1.5;
     max-height: 200px;
@@ -302,7 +302,7 @@ input:focus, textarea:focus, select:focus {
 /* 静息监测模块 */
 .resting-section {
     border-left: 4px solid var(--info-color);
-    background: linear-gradient(to right, rgba(14, 165, 233, 0.05), transparent);
+    background: linear-gradient(to right, rgba(99, 123, 143, 0.05), transparent);
 }
 
 .resting-status-panel {
@@ -355,7 +355,7 @@ input:focus, textarea:focus, select:focus {
 }
 
 .resting-info-box {
-    background: #f0f9ff;
+    background: rgba(173, 202, 218, 0.15);
     border-left: 4px solid var(--info-color);
     padding: 16px;
     border-radius: 4px;
@@ -388,7 +388,7 @@ input:focus, textarea:focus, select:focus {
 
 .upload-area:hover {
     border-color: var(--primary-color);
-    background: #eef2ff;
+    background: rgba(173, 202, 218, 0.12);
 }
 
 .upload-icon {
@@ -492,7 +492,7 @@ input:focus, textarea:focus, select:focus {
 }
 
 .monitor-header h4 {
-    color: #e2e8f0;
+    color: #e0ddef;
     font-family: 'Courier New', monospace;
     font-size: 1rem;
     margin: 0;
@@ -514,16 +514,16 @@ input:focus, textarea:focus, select:focus {
 }
 
 /* 呼吸监测器颜色 */
-.respiratory-monitor .monitor-header h4 { color: #38bdf8; } /* Sky-400 */
-.respiratory-monitor .vital-value { color: #38bdf8; font-size: 1.2rem; font-weight: bold; }
+.respiratory-monitor .monitor-header h4 { color: #adcada; }
+.respiratory-monitor .vital-value { color: #adcada; font-size: 1.2rem; font-weight: bold; }
 
 /* 心跳监测器颜色 */
-.heartbeat-monitor .monitor-header h4 { color: #f87171; } /* Red-400 */
-.heartbeat-monitor .vital-value { color: #f87171; font-size: 1.2rem; font-weight: bold; }
+.heartbeat-monitor .monitor-header h4 { color: #c08080; }
+.heartbeat-monitor .vital-value { color: #c08080; font-size: 1.2rem; font-weight: bold; }
 
 /* 设置面板 */
 .settings-panel {
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(251, 255, 254, 0.97);
     backdrop-filter: blur(12px);
     border-left: 1px solid var(--border-color);
     width: 340px;
@@ -535,7 +535,7 @@ input:focus, textarea:focus, select:focus {
     align-items: center;
     gap: 15px;
     font-size: 0.9rem;
-    color: #666;
+    color: var(--text-muted);
 }
 
 .report-content {
@@ -546,20 +546,20 @@ input:focus, textarea:focus, select:focus {
 
 /* JSON数据详细信息样式 */
 .json-data-section h3 {
-    color: #2c3e50;
+    color: var(--text-main);
     margin: 25px 0 15px 0;
     font-size: 1.4rem;
-    border-bottom: 2px solid #3498db;
+    border-bottom: 2px solid var(--primary-color);
     padding-bottom: 8px;
 }
 
 .animal-info-card, .device-info-card, .measurement-info-card {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    background: linear-gradient(135deg, #f3f7fa 0%, #e8eff5 100%);
     border-radius: 12px;
     padding: 20px;
     margin-bottom: 20px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    border: 1px solid #dee2e6;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-color);
 }
 
 .animal-header {
@@ -571,24 +571,24 @@ input:focus, textarea:focus, select:focus {
 .animal-avatar {
     width: 60px;
     height: 60px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #637b8f 0%, #585671 100%);
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 2rem;
     margin-right: 15px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    box-shadow: var(--shadow-md);
 }
 
 .animal-details h4 {
     font-size: 1.3rem;
-    color: #2c3e50;
+    color: var(--text-main);
     margin-bottom: 5px;
 }
 
 .animal-details p {
-    color: #6c757d;
+    color: var(--text-muted);
     font-size: 0.9rem;
 }
 
@@ -603,7 +603,7 @@ input:focus, textarea:focus, select:focus {
     justify-content: space-between;
     align-items: center;
     padding: 8px 0;
-    border-bottom: 1px solid #dee2e6;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .animal-stats .stat-item:last-child, .device-item:last-child, .measurement-item:last-child {
@@ -612,13 +612,13 @@ input:focus, textarea:focus, select:focus {
 
 .stat-label, .device-label, .measurement-label {
     font-weight: 600;
-    color: #495057;
+    color: var(--text-muted);
     font-size: 0.9rem;
 }
 
 .stat-value, .device-value, .measurement-value {
     font-weight: 500;
-    color: #2c3e50;
+    color: var(--text-main);
 }
 
 .device-details, .measurement-details {
@@ -629,27 +629,27 @@ input:focus, textarea:focus, select:focus {
 
 /* 健康分析样式 */
 .health-analysis-section h3 {
-    color: #2c3e50;
+    color: var(--text-main);
     margin: 25px 0 15px 0;
     font-size: 1.4rem;
-    border-bottom: 2px solid #28a745;
+    border-bottom: 2px solid var(--success-color);
     padding-bottom: 8px;
 }
 
 .health-analysis-controls {
-    background: #f8f9fa;
+    background: var(--bg-body);
     padding: 15px;
     border-radius: 8px;
     margin-bottom: 15px;
-    border: 1px solid #dee2e6;
+    border: 1px solid var(--border-color);
 }
 
 .health-analysis-report {
-    background: white;
-    border: 2px solid #28a745;
+    background: var(--bg-card);
+    border: 2px solid var(--success-color);
     border-radius: 12px;
     padding: 20px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    box-shadow: var(--shadow-md);
 }
 
 .report-header {
@@ -658,11 +658,11 @@ input:focus, textarea:focus, select:focus {
     align-items: center;
     margin-bottom: 20px;
     padding-bottom: 15px;
-    border-bottom: 1px solid #dee2e6;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .report-header h4 {
-    color: #28a745;
+    color: var(--success-color);
     margin: 0;
 }
 
@@ -671,12 +671,12 @@ input:focus, textarea:focus, select:focus {
     align-items: center;
     gap: 15px;
     font-size: 0.9rem;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 .analysis-content {
     line-height: 1.6;
-    color: #333;
+    color: var(--text-main);
     margin-bottom: 20px;
 }
 
@@ -685,14 +685,14 @@ input:focus, textarea:focus, select:focus {
 }
 
 .analysis-plan, .tool-results {
-    background: #f8f9fa;
+    background: var(--bg-body);
     padding: 15px;
     border-radius: 8px;
-    border-left: 4px solid #28a745;
+    border-left: 4px solid var(--success-color);
 }
 
 .analysis-plan h4, .tool-results h4 {
-    color: #28a745;
+    color: var(--success-color);
     margin-bottom: 10px;
 }
 
@@ -702,29 +702,29 @@ input:focus, textarea:focus, select:focus {
 
 .analysis-plan li {
     margin-bottom: 8px;
-    color: #495057;
+    color: var(--text-muted);
 }
 
 .tool-result-item {
     margin-bottom: 15px;
     padding: 10px;
-    background: white;
+    background: var(--bg-card);
     border-radius: 6px;
-    border: 1px solid #dee2e6;
+    border: 1px solid var(--border-color);
 }
 
 .tool-result-item h5 {
-    color: #495057;
+    color: var(--text-muted);
     margin-bottom: 8px;
     font-size: 1rem;
 }
 
 .rag-item {
-    background: #f8f9fa;
+    background: var(--bg-body);
     padding: 10px;
     border-radius: 4px;
     margin-bottom: 8px;
-    border-left: 3px solid #17a2b8;
+    border-left: 3px solid var(--info-color);
     font-size: 0.9rem;
     line-height: 1.4;
 }
@@ -737,8 +737,8 @@ input:focus, textarea:focus, select:focus {
 .loading-analysis .loading-spinner {
     width: 40px;
     height: 40px;
-    border: 4px solid #f3f3f3;
-    border-top: 4px solid #28a745;
+    border: 4px solid rgba(173, 202, 218, 0.3);
+    border-top: 4px solid var(--success-color);
     border-radius: 50%;
     animation: spin 1s linear infinite;
     margin: 0 auto 15px;
@@ -750,11 +750,11 @@ input:focus, textarea:focus, select:focus {
 }
 
 .analysis-error {
-    background: #f8d7da;
-    color: #721c24;
+    background: rgba(156, 90, 90, 0.1);
+    color: var(--danger-color);
     padding: 15px;
     border-radius: 8px;
-    border: 1px solid #f5c6cb;
+    border: 1px solid rgba(156, 90, 90, 0.3);
 }
 
 .analysis-error h4 {
@@ -771,7 +771,7 @@ input:focus, textarea:focus, select:focus {
     height: 100vh;
     transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 1000;
-    box-shadow: -5px 0 25px rgba(0,0,0,0.1);
+    box-shadow: -5px 0 25px rgba(88, 86, 113, 0.15);
     overflow-y: auto;
 }
 
@@ -819,7 +819,7 @@ input:focus, textarea:focus, select:focus {
     align-items: center;
     gap: 20px;
     box-shadow: var(--shadow-sm);
-    color: var(--text-main); 
+    color: var(--text-main);
 }
 
 .stat-icon {
@@ -885,7 +885,7 @@ tr:last-child td {
 }
 
 tr:hover {
-    background-color: var(--bg-body);
+    background-color: rgba(173, 202, 218, 0.08);
 }
 
 /* 状态标签 */
@@ -900,25 +900,25 @@ tr:hover {
    ========================================= */
 @media (max-width: 768px) {
     .container { padding: 15px; }
-    
+
     header h1 { font-size: 1.8rem; }
-    
+
     .chart-row { grid-template-columns: 1fr; }
-    
+
     .ble-upload-config { flex-direction: column; align-items: stretch; }
-    
+
     .file-actions { flex-direction: column; }
-    
+
     .file-actions .btn { width: 100%; }
-    
+
     .settings-panel { width: 100%; }
-    
+
     .ecg-monitors { grid-template-columns: 1fr; }
 }
 
 /* AI 报告样式 */
 .ai-diagnosis-section {
-    background: linear-gradient(135deg, #4f46e5, #8b5cf6);
+    background: linear-gradient(135deg, #637b8f, #585671);
     color: white;
 }
 
@@ -965,11 +965,11 @@ tr:hover {
 
 /* 状态区容器 */
 .message-status-area {
-    background: linear-gradient(135deg, #1e293b, #334155);
+    background: linear-gradient(135deg, #2a2935, #333244);
     border-radius: 8px;
     margin-bottom: 12px;
     overflow: hidden;
-    border: 1px solid rgba(99, 102, 241, 0.3);
+    border: 1px solid rgba(99, 123, 143, 0.35);
     font-size: 0.9em;
 }
 
@@ -979,14 +979,14 @@ tr:hover {
     align-items: center;
     gap: 8px;
     padding: 10px 14px;
-    background: rgba(99, 102, 241, 0.15);
+    background: rgba(99, 123, 143, 0.15);
     cursor: pointer;
     user-select: none;
     transition: background 0.2s;
 }
 
 .message-status-area .status-header:hover {
-    background: rgba(99, 102, 241, 0.25);
+    background: rgba(99, 123, 143, 0.25);
 }
 
 .message-status-area .status-icon {
@@ -996,11 +996,11 @@ tr:hover {
 .message-status-area .status-title {
     flex: 1;
     font-weight: 500;
-    color: #a5b4fc;
+    color: #adcada;
 }
 
 .message-status-area .status-toggle {
-    color: #94a3b8;
+    color: #9f9c9d;
     font-size: 0.8em;
     transition: transform 0.2s;
 }
@@ -1045,34 +1045,34 @@ tr:hover {
 }
 
 .status-item-text {
-    color: #cbd5e1;
+    color: #c8c6d8;
     line-height: 1.4;
 }
 
 /* 不同状态的样式 */
 .status-item.status-thinking .status-item-text {
-    color: #fbbf24;
+    color: #d4a96a;
 }
 
 .status-item.status-tool_calling .status-item-text {
-    color: #60a5fa;
+    color: #adcada;
 }
 
 .status-item.status-tool_complete .status-item-text {
-    color: #34d399;
+    color: #7aad90;
 }
 
 .status-item.status-decided_final .status-item-text {
-    color: #a78bfa;
+    color: #b8a8d0;
 }
 
 .status-item.status-generating .status-item-text {
-    color: #f472b6;
+    color: #c896a8;
 }
 
 /* 加载状态 */
 .status-loading {
-    color: #94a3b8;
+    color: #9f9c9d;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -1083,8 +1083,8 @@ tr:hover {
     display: inline-block;
     width: 12px;
     height: 12px;
-    border: 2px solid rgba(148, 163, 184, 0.3);
-    border-top-color: #94a3b8;
+    border: 2px solid rgba(159, 156, 157, 0.3);
+    border-top-color: #9f9c9d;
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
 }
@@ -1125,13 +1125,13 @@ tr:hover {
 .message-text blockquote {
     margin: 12px 0;
     padding: 8px 16px;
-    border-left: 4px solid #6366f1;
-    background: rgba(99, 102, 241, 0.1);
+    border-left: 4px solid #637b8f;
+    background: rgba(99, 123, 143, 0.1);
     border-radius: 0 4px 4px 0;
 }
 
 .message-text code {
-    background: rgba(99, 102, 241, 0.15);
+    background: rgba(99, 123, 143, 0.15);
     padding: 2px 6px;
     border-radius: 4px;
     font-family: 'JetBrains Mono', 'Fira Code', monospace;
@@ -1139,7 +1139,7 @@ tr:hover {
 }
 
 .message-text pre {
-    background: #1e293b;
+    background: #2a2935;
     padding: 12px 16px;
     border-radius: 8px;
     overflow-x: auto;
@@ -1160,23 +1160,23 @@ tr:hover {
 .message-text th,
 .message-text td {
     padding: 8px 12px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(173, 202, 218, 0.2);
     text-align: left;
 }
 
 .message-text th {
-    background: rgba(99, 102, 241, 0.15);
+    background: rgba(99, 123, 143, 0.15);
     font-weight: 600;
 }
 
 .message-text hr {
     border: none;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid rgba(173, 202, 218, 0.2);
     margin: 16px 0;
 }
 
 .message-text a {
-    color: #60a5fa;
+    color: #637b8f;
     text-decoration: none;
 }
 
@@ -1186,22 +1186,22 @@ tr:hover {
 
 /* 强调文本 */
 .message-text strong {
-    color: #00000085;
+    color: #585671;
     font-weight: 600;
 }
 
 .message-text em {
     font-style: italic;
-    color: #cbd5e1;
+    color: #857780;
 }
 
 /* 姿态解算模块样式 */
 .attitude-section {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #637b8f 0%, #585671 100%);
 }
 
 .attitude-data-panel {
-    background: #f8f9fa;
+    background: #f3f7fa;
     padding: 20px;
     border-radius: 8px;
     height: 400px;
@@ -1211,7 +1211,7 @@ tr:hover {
 .attitude-data-group {
     margin-bottom: 20px;
     padding-bottom: 15px;
-    border-bottom: 1px solid #dee2e6;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .attitude-data-group:last-child {
@@ -1219,7 +1219,7 @@ tr:hover {
 }
 
 .attitude-data-group h4 {
-    color: #495057;
+    color: var(--text-muted);
     font-size: 14px;
     font-weight: 600;
     margin-bottom: 10px;
@@ -1234,12 +1234,12 @@ tr:hover {
 }
 
 .attitude-data-item span:first-child {
-    color: #6c757d;
+    color: var(--text-muted);
     font-weight: 500;
 }
 
 .attitude-data-item span:last-child {
-    color: #212529;
+    color: var(--text-main);
     font-weight: 600;
     font-size: 16px;
 }
