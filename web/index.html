@@ -829,42 +829,91 @@
                     <span id="gpsStatus" style="margin-left:8px; color:#7f8c8d; font-size:13px;">未启动</span>
                 </div>
 
-                <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:16px 0;">
-                    <div style="background:#f0faf2; border-radius:10px; padding:14px; text-align:center; border:1px solid #b2dfc0;">
-                        <div style="font-size:12px; color:#888; margin-bottom:4px;">移动距离</div>
-                        <div id="gpsDistance" style="font-size:22px; font-weight:700; color:#27ae60;">0 m</div>
-                    </div>
-                    <div style="background:#f0f7ff; border-radius:10px; padding:14px; text-align:center; border:1px solid #b3d4f5;">
-                        <div style="font-size:12px; color:#888; margin-bottom:4px;">当前速度</div>
-                        <div id="gpsSpeed" style="font-size:22px; font-weight:700; color:#3498db;">0.0 km/h</div>
-                    </div>
-                    <div style="background:#fdf2f2; border-radius:10px; padding:14px; text-align:center; border:1px solid #f5c6c6;">
-                        <div style="font-size:12px; color:#888; margin-bottom:4px;">GPS 定位</div>
-                        <div id="gpsFixStatus" style="font-size:22px; font-weight:700; color:#e74c3c;">无信号</div>
-                    </div>
-                    <div style="background:#f8f2fd; border-radius:10px; padding:14px; text-align:center; border:1px solid #d5b8f5;">
-                        <div style="font-size:12px; color:#888; margin-bottom:4px;">轨迹点数</div>
-                        <div id="gpsPointCount" style="font-size:22px; font-weight:700; color:#9b59b6;">0</div>
-                    </div>
-                </div>
+                <!-- GPS仪表板：地图 + 统计侧边栏（双列布局） -->
+                <div id="gpsDashboard" style="display:none; margin-top:16px;">
+                    <div style="display:grid; grid-template-columns:1fr 220px; gap:12px; align-items:start;">
 
-                <div id="gpsDashboard" style="display:none;">
-                    <div style="background:#fff; border-radius:10px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,0.07);">
-                        <div style="font-size:13px; font-weight:600; color:#27ae60; margin-bottom:8px;">🗺️ 实时位置地图</div>
-                        <div id="gpsMapContainer" style="height:450px; border-radius:8px; border:1px solid #ddd;"></div>
-                        <div style="margin-top:8px; font-size:12px; color:#aaa;">
-                            经度: <span id="gpsCurrentLon">--</span> &nbsp;|&nbsp;
-                            纬度: <span id="gpsCurrentLat">--</span> &nbsp;|&nbsp;
-                            最后更新: <span id="gpsLastUpdate">--</span>
+                        <!-- 左：地图容器 -->
+                        <div style="background:#fff; border-radius:10px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,0.07);">
+                            <div style="font-size:13px; font-weight:600; color:#27ae60; margin-bottom:8px;">🗺️ 实时位置地图</div>
+                            <div style="position:relative;">
+                                <div id="gpsMapContainer" style="height:480px; border-radius:8px; border:1px solid #ddd; position:relative;"></div>
+                                <!-- 速度色标图例（悬浮在地图左下角） -->
+                                <div id="gpsSpeedLegend" style="position:absolute; bottom:40px; left:10px; z-index:500; background:rgba(255,255,255,0.92); border-radius:8px; padding:8px 12px; font-size:11px; box-shadow:0 2px 6px rgba(0,0,0,0.2); pointer-events:none;">
+                                    <div style="font-weight:600; margin-bottom:4px; color:#444;">速度色标</div>
+                                    <div style="width:80px; height:8px; border-radius:4px; background:linear-gradient(to right, rgb(30,100,230), rgb(0,200,200), rgb(50,200,50), rgb(230,230,0), rgb(255,140,0), rgb(220,20,20)); margin-bottom:3px;"></div>
+                                    <div style="display:flex; justify-content:space-between; width:80px; color:#666;">
+                                        <span>慢</span><span>快</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="margin-top:8px; font-size:12px; color:#aaa;">
+                                经度: <span id="gpsCurrentLon">--</span> &nbsp;|&nbsp;
+                                纬度: <span id="gpsCurrentLat">--</span> &nbsp;|&nbsp;
+                                最后更新: <span id="gpsLastUpdate">--</span>
+                            </div>
                         </div>
-                    </div>
-                </div>
+
+                        <!-- 右：统计侧边栏 -->
+                        <div style="display:flex; flex-direction:column; gap:10px;">
+                            <div style="font-size:13px; font-weight:700; color:#333; padding:4px 0;">📊 轨迹统计</div>
+
+                            <!-- 最高速度 -->
+                            <div style="background:linear-gradient(135deg,#fff5f5,#ffe0e0); border-radius:10px; padding:14px; text-align:center; border:1px solid #ffb3b3;">
+                                <div style="font-size:11px; color:#999; margin-bottom:4px;">最高速度</div>
+                                <div id="gpsMaxSpeed" style="font-size:20px; font-weight:700; color:#e74c3c;">0.0 km/h</div>
+                            </div>
+
+                            <!-- 平均速度 -->
+                            <div style="background:linear-gradient(135deg,#f0f7ff,#dceeff); border-radius:10px; padding:14px; text-align:center; border:1px solid #b3d4f5;">
+                                <div style="font-size:11px; color:#999; margin-bottom:4px;">平均速度</div>
+                                <div id="gpsAvgSpeed" style="font-size:20px; font-weight:700; color:#3498db;">0.0 km/h</div>
+                            </div>
+
+                            <!-- 运动时长 -->
+                            <div style="background:linear-gradient(135deg,#f5fff0,#deffdc); border-radius:10px; padding:14px; text-align:center; border:1px solid #b3f5b3;">
+                                <div style="font-size:11px; color:#999; margin-bottom:4px;">运动时长</div>
+                                <div id="gpsDuration" style="font-size:20px; font-weight:700; color:#27ae60;">0s</div>
+                            </div>
+
+                            <!-- 停留点数 -->
+                            <div style="background:linear-gradient(135deg,#fdf5ff,#eedeff); border-radius:10px; padding:14px; text-align:center; border:1px solid #d5b8f5;">
+                                <div style="font-size:11px; color:#999; margin-bottom:4px;">停留点数</div>
+                                <div id="gpsStayCount" style="font-size:20px; font-weight:700; color:#9b59b6;">0</div>
+                            </div>
+
+                            <div style="border-top:1px solid #eee; margin:2px 0;"></div>
+
+                            <!-- 基础4项（紧凑行） -->
+                            <div style="background:#f8f8f8; border-radius:8px; padding:10px; font-size:12px;">
+                                <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                                    <span style="color:#888;">移动距离</span>
+                                    <span id="gpsDistance" style="font-weight:600; color:#27ae60;">0 m</span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                                    <span style="color:#888;">当前速度</span>
+                                    <span id="gpsSpeed" style="font-weight:600; color:#3498db;">0.0 km/h</span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                                    <span style="color:#888;">GPS 定位</span>
+                                    <span id="gpsFixStatus" style="font-weight:600; color:#e74c3c;">无信号</span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between;">
+                                    <span style="color:#888;">轨迹点数</span>
+                                    <span id="gpsPointCount" style="font-weight:600; color:#9b59b6;">0</span>
+                                </div>
+                            </div>
+                        </div><!-- /右侧边栏 -->
+
+                    </div><!-- /grid -->
+                </div><!-- /gpsDashboard -->
 
                 <div style="margin-top:16px; padding:12px 16px; background:#fffbe6; border-radius:8px; border:1px solid #ffe58f; font-size:12px; color:#7a6300;">
                     <strong>📌 使用说明：</strong>
                     先连接蓝牙设备并确保数据正常接收，然后点击"开始追踪"。
                     GPS需要在户外有良好卫星信号才能定位。当GPS无定位(0,0)时数据将被忽略。
-                    地图使用OpenStreetMap免费图层，无需API密钥。
+                    地图使用高德普通图+卫星图（官方 API Key），右上角可切换 🗺️/🛰️ 底图。
+                    注意：高德地图使用GCJ-02坐标系，GPS原始数据为WGS-84，国内使用时轨迹线可能有约100-500m视觉偏移，不影响速度/距离/停留点计算。
                 </div>
             </section>
 
