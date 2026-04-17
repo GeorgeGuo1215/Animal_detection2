@@ -288,7 +288,7 @@ class AttitudeSolver {
         if (this._accHistory.length > 20) this._accHistory.shift();
         const accVar = this._accVariance(this._accHistory);
 
-        // 基于真实数据的姿态模型（统计学方法）
+        // ── 姿态模型（pitch/roll 统计来自真实数据；gyrMag/accMag 仅供参考，动态检测已改用 accVar）
         const postureModels = [
             {
                 name: '低头进食',
@@ -339,16 +339,19 @@ class AttitudeSolver {
                 accMag_std: 0.1461
             },
             {
+                // ── 奔跑模型参数已用 2026-04-17 真实奔跑数据更新 ──
+                // pitch/roll 在奔跑时大幅变化（std 极高），仅供 fallback 距离匹配参考
+                // 动态检测主要依赖 accVar + gyrMag，不依赖此处数值
                 name: '奔跑',
                 label: '🏃 奔跑',
-                pitch_mean: -7.23,
-                pitch_std: 11.23,
-                roll_mean: 100.60,
-                roll_std: 6.01,
-                gyrMag_mean: 23.30,
-                gyrMag_std: 6.45,
-                accMag_mean: 1.1685,
-                accMag_std: 0.3288
+                pitch_mean: -1.97,
+                pitch_std: 9.68,
+                roll_mean: -3.68,
+                roll_std: 85.46,
+                gyrMag_mean: 4.45,
+                gyrMag_std: 3.41,
+                accMag_mean: 26.52,
+                accMag_std: 20.16
             },
             {
                 name: '仰卧',
@@ -388,58 +391,53 @@ class AttitudeSolver {
             },
         ];
 
-        // 判断运动状态（使用更保守的阈值避免误判）
+        // ── 动态姿态检测（v2：以 accVar 为主，gyrMag 为辅）──────────────────
+        //
+        // 背景：2026-04-17 真实奔跑数据分析（948帧）：
+        //   gyrMag 范围 0.1-17.3 deg/s（旧阈值 23 永远不触发 → 算法完全失效）
+        //   accVar（20帧窗口）mean=191，>50 覆盖 69.7% 奔跑帧
+        //   accMag 单位为 m/s²（非 g-force），静止≈9.81，奔跑 mean=26.52
+        //
+        // 新阈值（实测最优）：
+        //   奔跑：accVar > 50 OR gyrMag > 6   → 70.3% 召回
+        //   行走：accVar > 15 OR gyrMag > 3   → 覆盖低强度运动
+        //
         const runningModel = postureModels.find(m => m.name === '奔跑');
         const walkingModel = postureModels.find(m => m.name === '行走');
 
-        // 奔跑：需要同时满足角速度和加速度的条件，或者角速度非常高
-        // 使用更严格的阈值：角速度 > 23°/s 且加速度 > 1.1g
-        let isRunning = (gyrMag > 23 && accMag > 1.1) ||
-                         gyrMag > (runningModel.gyrMag_mean + runningModel.gyrMag_std);
+        let isRunning = (accVar > 50) || (gyrMag > 6);
+        let isWalking = !isRunning && ((accVar > 15) || (gyrMag > 3));
 
-        // 行走：角速度超过阈值，但不满足奔跑条件
-        // 使用更严格的阈值：角速度 > 20°/s 且加速度方差 > 0.02
-        // 同时要求持续时间，避免站立摇头被误判
-        let isWalking = !isRunning && (gyrMag > 20 && accVar > 0.02);
-
-        // 状态转换逻辑：防止从躺卧/站立状态突然跳到运动状态
-        // 记录上一次的姿态状态
-        if (!this._lastPosture) this._lastPosture = null;
-        if (!this._lastPostureTime) this._lastPostureTime = 0;
-        if (!this._highMotionStartTime) this._highMotionStartTime = 0;
+        // ── 状态转换保护（防止静止摇头/翻身误判为运动）──────────────────────
+        if (!this._lastPosture)          this._lastPosture = null;
+        if (!this._lastPostureTime)      this._lastPostureTime = 0;
+        if (!this._highMotionStartTime)  this._highMotionStartTime = 0;
 
         const now = Date.now();
-
-        // 静态姿态列表（包括躺卧和站立）
         const staticPostures = ['左侧躺', '右侧躺', '仰卧', '趴卧', '站立', '低头进食'];
 
-        // 如果上一次是静态姿态，需要持续高角速度才能转换为运动状态
         if (this._lastPosture && staticPostures.includes(this._lastPosture)) {
             if (isRunning || isWalking) {
-                // 检测到高运动，记录开始时间
                 if (this._highMotionStartTime === 0) {
                     this._highMotionStartTime = now;
                 }
-
                 const highMotionDuration = now - this._highMotionStartTime;
 
-                // 需要持续高角速度至少1.5秒，且角速度足够高
-                // 这样可以过滤掉站立摇头、翻身等短暂的高角速度
-                if (highMotionDuration < 1500) {
-                    // 时间太短，保持静态姿态
+                // ── 修复：锁定时间 1500ms→500ms；解锁条件由 gyrMag>25 改为 accVar>30 ──
+                // 原因：gyrMag 在真实奔跑数据中最高仅 17.3，旧条件永远无法解锁状态机
+                if (highMotionDuration < 500) {
+                    // 持续时间太短，保持静态（过滤翻身、抖动等单帧噪声）
                     isRunning = false;
                     isWalking = false;
-                } else if (gyrMag < 25) {
-                    // 角速度不够高，可能只是摇头或翻身
+                } else if (accVar < 30 && gyrMag < 5) {
+                    // 加速度方差和角速度都不够高 → 非真实运动（摇头、翻身等）
                     isRunning = false;
                     isWalking = false;
                 }
             } else {
-                // 没有检测到高运动，重置计时器
                 this._highMotionStartTime = 0;
             }
         } else {
-            // 不是静态姿态，重置计时器
             this._highMotionStartTime = 0;
         }
 
