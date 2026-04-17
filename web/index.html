@@ -492,7 +492,7 @@
                         <label style="margin-left:10px;">步数目标:</label>
                         <input type="number" id="activityStepsGoal" value="1000" min="100" step="100" style="width:100px; padding:5px;">
                         <label style="margin-left:10px;">活动量目标:</label>
-                        <input type="number" id="activityENMOGoal" value="2.0" min="0.5" max="10" step="0.5" style="width:100px; padding:5px;">
+                        <input type="number" id="activityENMOGoal" value="100" min="10" max="500" step="10" style="width:100px; padding:5px;">
                         <label style="margin-left:10px;">卡路里目标(kcal):</label>
                         <input type="number" id="activityCalorieGoal" value="100" min="10" max="500" step="10" style="width:100px; padding:5px;">
                         <button class="btn btn-primary" onclick="updateActivityGoals()" style="margin-left:10px;">更新目标</button>
@@ -520,7 +520,7 @@
                                 <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 28px; font-weight: 700;" id="activityENMOPercent">0%</div>
                             </div>
                             <div style="font-size: 32px; font-weight: 700; margin-top: 16px;" id="activityTotalENMO">0.00</div>
-                            <div style="font-size: 14px; color: #86868b;">目标: <span id="displayActivityGoal">2.0</span></div>
+                            <div style="font-size: 14px; color: #86868b;">目标: <span id="displayActivityGoal">100</span></div>
                         </div>
 
                         <div class="resting-stat-card" style="text-align: center; padding: 24px;">

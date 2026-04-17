@@ -36,7 +36,9 @@ class ActivityMonitor {
         this.totalSteps = 0;        // 总步数
         this.totalCalories = 0;     // 总卡路里消耗 (kcal)
         this.dailyGoal = 1000;      // 每日步数目标
-        this.activityGoal = 2.0;    // 每日活动量目标（归一化后的合理值：1-5）
+        // 每日活动量目标（g单位ENMO，慢走≈0.2/s，小跑≈0.5/s）
+        // 参考：中等活跃犬 10分钟慢走 ≈ 12，30分钟小跑 ≈ 90 → 日目标100合理
+        this.activityGoal = 100;
         this.calorieGoal = 100;     // 每日卡路里目标 (kcal)
 
         // 实时状态
@@ -82,15 +84,22 @@ class ActivityMonitor {
 
     /**
      * 添加加速度数据
-     * @param {number} ax - X轴加速度 (g)
-     * @param {number} ay - Y轴加速度 (g)
-     * @param {number} az - Z轴加速度 (g)
+     * @param {number} ax - X轴加速度 (m/s²，内部自动转换为 g)
+     * @param {number} ay - Y轴加速度 (m/s²，内部自动转换为 g)
+     * @param {number} az - Z轴加速度 (m/s²，内部自动转换为 g)
      * @param {number} timestamp - 时间戳 (ms)
      */
     addAccelerometerData(ax, ay, az, timestamp) {
-        this.accBufferX.push(ax);
-        this.accBufferY.push(ay);
-        this.accBufferZ.push(az);
+        // 项圈IMU输出单位为 m/s²，ENMO公式需要 g 单位（减去 1.0g 重力）
+        // 统一在入口转换：1g = 9.80665 m/s²
+        const G = 9.80665;
+        const axG = ax / G;
+        const ayG = ay / G;
+        const azG = az / G;
+
+        this.accBufferX.push(axG);
+        this.accBufferY.push(ayG);
+        this.accBufferZ.push(azG);
         this.timestamps.push(timestamp);
 
         // 增加全局样本计数器
