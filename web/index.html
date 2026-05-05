@@ -13,6 +13,7 @@
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="fft.js?v=20260302-2"></script>
+    <script src="cwt-vitals.js?v=20260506-strict"></script>
     <script src="bluetooth.js?v=20260410-fallback1"></script>
 </head>
 <body>
@@ -157,6 +158,43 @@
                             <div class="stat-item">
                                 <span class="stat-label">当前呼吸:</span>
                                 <span class="stat-value" id="bleCurrentResp">-- bpm</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">新算法心率:</span>
+                                <span class="stat-value" id="vitalsHRNew" style="color:#adcada;font-weight:600;">-- bpm</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">新算法呼吸:</span>
+                                <span class="stat-value" id="vitalsRRNew" style="color:#adcada;font-weight:600;">-- bpm</span>
+                            </div>
+                            <div class="stat-item" style="grid-column: 1/-1;">
+                                <span class="stat-label" style="font-weight:600;">CWT 心率呼吸算法:</span>
+                                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:1;">
+                                    <select id="vitalsMethodSelect" onchange="if(app)app.changeVitalsMethod(this.value)"
+                                            style="padding:4px 8px;border-radius:5px;border:1px solid #adcada;background:#2a2935;color:#e0ddef;">
+                                        <option value="freqBP">频域带通(快/近似)</option>
+                                        <option value="cwt" selected>CWT/ICWT(严格/接近MATLAB)</option>
+                                    </select>
+                                    <label style="font-size:0.85em;color:#aaa;">滑窗(s):
+                                        <input id="vitalsWindowSec" type="number" min="8" max="120" value="8"
+                                               onchange="if(app)app.updateVitalsSettings()"
+                                               style="width:56px;padding:3px 6px;border-radius:5px;border:1px solid #adcada;background:#2a2935;color:#e0ddef;">
+                                    </label>
+                                    <label style="font-size:0.85em;color:#aaa;">周期(s):
+                                        <input id="vitalsPeriodSec" type="number" min="1" max="30" value="1"
+                                               onchange="if(app)app.updateVitalsSettings()"
+                                               style="width:56px;padding:3px 6px;border-radius:5px;border:1px solid #adcada;background:#2a2935;color:#e0ddef;">
+                                    </label>
+                                    <button onclick="if(app)app.runVitalsFullDiagnostic()"
+                                            style="padding:4px 12px;background:#585671;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85em;">
+                                        完整诊断
+                                    </button>
+                                    <span id="vitalsRuntime" title="新版算法默认CWT，滑窗8s，周期1s；使用中位数N=5、HR跳变阈值25bpm、HR向下防抖12bpm、RR跳变阈值8bpm" style="font-size:0.82em;color:#999;">未启动</span>
+                                </div>
+                            </div>
+                            <div id="vitalsDiagnosticPanel" class="stat-item" style="grid-column: 1/-1; display:none; min-height:260px;">
+                                <span class="stat-label">新算法频谱:</span>
+                                <canvas id="vitalsSpectrumChart" style="width:100%;max-height:260px;"></canvas>
                             </div>
                             <div class="stat-item">
                                 <span class="stat-label">I/Q 调试:</span>
@@ -1671,7 +1709,8 @@
     <!-- 姿态解算模块 -->
     <script src="attitude-solver.js?v=20260417-accvar"></script>
 
-    <script src="app.js?v=20260410-fallback1"></script>
+    <script src="version.js"></script>
+    <script src="app.js?v=20260506-debounce"></script>
 
     <!-- BLE调试代码 -->
     <script>
@@ -1724,6 +1763,18 @@
                 console.error('bleConnect函数不存在!');
             }
         });
+    </script>
+
+    <footer id="serviceUpdateFooter" style="margin-top:24px;padding:12px 16px;text-align:center;font-size:0.85em;color:#9aa8b6;border-top:1px solid rgba(173,202,218,0.15);">
+        最新更新服务时间：<span id="serviceUpdateTime">--</span>
+    </footer>
+    <script>
+        (function () {
+            var el = document.getElementById('serviceUpdateTime');
+            if (el) {
+                el.textContent = window.__SERVICE_UPDATE_TIME__ || '未知';
+            }
+        })();
     </script>
 </body>
 </html>

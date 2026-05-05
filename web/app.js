@@ -109,6 +109,15 @@ class RadarWebApp {
         this._bleVitalLogLastTs = 0; // 限制生理参数日志刷屏
         this._lastVitalUpdateTime = 0; // 上次生理参数更新时间（用于节流）
 
+        // ===== 新版 CWT/频域带通心率呼吸率算法 =====
+        this.vitalsMethod = 'cwt';
+        this.vitalsExtractor = null;
+        this.vitalsTimer = null;
+        this.vitalsWindowSec = 8;
+        this.vitalsPeriodSec = 1;
+        this.vitalsSpectrumChart = null;
+        this.lastVitalsResult = null;
+
         // 全局禁用 Chart.js 动画（避免实时曲线渲染卡顿）
         if (typeof Chart !== 'undefined') {
             Chart.defaults.animation = false;
@@ -131,6 +140,24 @@ class RadarWebApp {
         // 当前心率和呼吸率（供静息监测模块使用）
         this.currentHeartRate = null;
         this.currentRespiratoryRate = null;
+
+        // ===== 新版 CWT/频域带通心率呼吸率算法 =====
+        this.vitalsMethod = 'cwt';
+        this.vitalsWindowSec = 8;
+        this.vitalsPeriodSec = 1;
+        this.vitalsExtractor = null;
+        this.vitalsTimer = null;
+        this.vitalsSpectrumChart = null;
+        this.vitalsDiagnosticOpen = false;
+        this.lastVitalsResult = null;
+        this.vitalsFirstResultLogged = false;
+        this.vitalsHrHistory = [];
+        this.vitalsRrHistory = [];
+        this.vitalsSmoothN = 5;
+        this.vitalsLastStableHR = null;
+        this.vitalsLastStableRR = null;
+        this.vitalsHrDropGuardBpm = 12;
+        this.vitalsHrLegacyAgreeBpm = 10;
 
         // ===== 活动量与步数监测模块 =====
         this.activityMonitor = null;
@@ -353,6 +380,7 @@ class RadarWebApp {
             this.bleConfigStatus = 'configuring';
             this._updateConfigStatusUI();
             this._autoConfigTcycleWithRetry();
+            this.startVitalsRealtime();
         };
         BLE.onDisconnect = () => {
             this.bleConnected = false;
@@ -360,6 +388,7 @@ class RadarWebApp {
             this.bleProtocol = '未连接';
             this.addBLELog('⚠️ 已断开连接');
             this._updateBleProtocolUI();
+            this.stopVitalsRealtime();
             if (this.bleBackfillState.backfillCount > 0) {
                 this.addBleBackfillLog('🔌 蓝牙已断开，本次补传会话结束');
             }
@@ -1260,6 +1289,7 @@ class RadarWebApp {
                 console.log(`  添加后buffer长度: I=${this.bleBufferI.length}, Q=${this.bleBufferQ.length}`);
                 console.log(`========================================\n`);
             }
+            this._ensureVitalsRealtime();
         } else if (sampleMode === 'backfill') {
             this._appendBleBackfillSample(sample);
         }
@@ -3633,6 +3663,15 @@ class RadarWebApp {
         document.getElementById('bleTotalDataPoints').textContent = '0';
         document.getElementById('bleCurrentHR').textContent = '-- bpm';
         document.getElementById('bleCurrentResp').textContent = '-- bpm';
+        const vitalsHrEl = document.getElementById('vitalsHRNew');
+        const vitalsRrEl = document.getElementById('vitalsRRNew');
+        const vitalsRuntimeEl = document.getElementById('vitalsRuntime');
+        if (vitalsHrEl) vitalsHrEl.textContent = '-- bpm';
+        if (vitalsRrEl) vitalsRrEl.textContent = '-- bpm';
+        if (vitalsRuntimeEl) vitalsRuntimeEl.textContent = '等待数据';
+        this.lastVitalsResult = null;
+        this.vitalsFirstResultLogged = false;
+        this._resetVitalsStability();
         const iqEl = document.getElementById('bleCurrentIQ');
         if (iqEl) iqEl.textContent = '--';
         const gyrEl = document.getElementById('bleCurrentGyr');
@@ -4422,6 +4461,374 @@ class RadarWebApp {
         }, 100);
     }
 
+    _getVitalsFs() {
+        return (this.processor && Number.isFinite(this.processor.fs)) ? this.processor.fs : 50;
+    }
+
+    _initVitalsExtractor() {
+        if (!window.VitalsExtractor) {
+            const runtimeEl = document.getElementById('vitalsRuntime');
+            if (runtimeEl) runtimeEl.textContent = '算法未加载';
+            return null;
+        }
+        const fs = this._getVitalsFs();
+        this.vitalsExtractor = window.VitalsExtractor.create(this.vitalsMethod, fs);
+        return this.vitalsExtractor;
+    }
+
+    _ensureVitalsRealtime() {
+        if (this.vitalsTimer) return;
+        if (!window.VitalsExtractor) {
+            const runtimeEl = document.getElementById('vitalsRuntime');
+            if (runtimeEl) runtimeEl.textContent = '算法未加载';
+            return;
+        }
+        const available = Math.min(this.bleBufferI.length, this.bleBufferQ.length);
+        if (available <= 0) return;
+        this.startVitalsRealtime();
+    }
+
+    updateVitalsSettings(restartTimer = true) {
+        const winEl = document.getElementById('vitalsWindowSec');
+        const periodEl = document.getElementById('vitalsPeriodSec');
+        const win = parseFloat(winEl?.value);
+        const period = parseFloat(periodEl?.value);
+        if (Number.isFinite(win)) this.vitalsWindowSec = Math.max(8, Math.min(120, win));
+        if (Number.isFinite(period)) this.vitalsPeriodSec = Math.max(1, Math.min(30, period));
+        if (winEl) winEl.value = String(this.vitalsWindowSec);
+        if (periodEl) periodEl.value = String(this.vitalsPeriodSec);
+        if (restartTimer && this.vitalsTimer) this.startVitalsRealtime();
+    }
+
+    changeVitalsMethod(method) {
+        this.vitalsMethod = method === 'cwt' ? 'cwt' : 'freqBP';
+        this._initVitalsExtractor();
+        this.vitalsFirstResultLogged = false;
+        this._resetVitalsStability();
+        const runtimeEl = document.getElementById('vitalsRuntime');
+        if (runtimeEl) runtimeEl.textContent = this.vitalsMethod === 'cwt' ? 'CWT/ICWT 已选择' : '频域带通已选择';
+        this._runVitalsCycle();
+    }
+
+    startVitalsRealtime() {
+        this.updateVitalsSettings(false);
+        this.stopVitalsRealtime();
+        this._initVitalsExtractor();
+        this._runVitalsCycle();
+        this.vitalsTimer = setInterval(() => this._runVitalsCycle(), this.vitalsPeriodSec * 1000);
+    }
+
+    stopVitalsRealtime() {
+        if (this.vitalsTimer) {
+            clearInterval(this.vitalsTimer);
+            this.vitalsTimer = null;
+        }
+        this._resetVitalsStability();
+    }
+
+    _resetVitalsStability() {
+        this.vitalsHrHistory = [];
+        this.vitalsRrHistory = [];
+        this.vitalsLastStableHR = null;
+        this.vitalsLastStableRR = null;
+    }
+
+    _median(values) {
+        const arr = values.filter(v => Number.isFinite(v)).slice().sort((a, b) => a - b);
+        if (!arr.length) return NaN;
+        const mid = Math.floor(arr.length / 2);
+        return arr.length % 2 ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2;
+    }
+
+    _pushVitalsHistory(kind, value) {
+        const history = kind === 'hr' ? this.vitalsHrHistory : this.vitalsRrHistory;
+        history.push(value);
+        while (history.length > this.vitalsSmoothN) history.shift();
+        return this._median(history);
+    }
+
+    _getLegacyVitalValue(id) {
+        const el = document.getElementById(id);
+        if (!el) return NaN;
+        const value = parseFloat((el.textContent || '').replace(/[^\d.-]/g, ''));
+        return Number.isFinite(value) ? value : NaN;
+    }
+
+    _stabilizeVitalsResult(result) {
+        const rawHR = result ? result.HR_bpm : NaN;
+        const rawRR = result ? result.RR_bpm : NaN;
+        const hrInRange = Number.isFinite(rawHR) && rawHR >= 40 && rawHR <= 220;
+        const rrInRange = Number.isFinite(rawRR) && rawRR >= 6 && rawRR <= 30;
+        const legacyHR = this._getLegacyVitalValue('bleCurrentHR');
+        const messages = [];
+
+        let stableHR = NaN;
+        if (hrInRange) {
+            const jump = Number.isFinite(this.vitalsLastStableHR)
+                ? Math.abs(rawHR - this.vitalsLastStableHR)
+                : 0;
+            const legacyConfirmsDrop = Number.isFinite(this.vitalsLastStableHR)
+                && rawHR < this.vitalsLastStableHR - this.vitalsHrDropGuardBpm
+                && Number.isFinite(legacyHR)
+                && legacyHR < this.vitalsLastStableHR - this.vitalsHrDropGuardBpm
+                && Math.abs(legacyHR - rawHR) <= this.vitalsHrLegacyAgreeBpm;
+            if (jump > 25) {
+                stableHR = this.vitalsLastStableHR;
+                messages.push(`HR跳变保护: ${rawHR.toFixed(1)}→${stableHR.toFixed(1)}`);
+            } else if (legacyConfirmsDrop) {
+                this.vitalsHrHistory = [rawHR];
+                stableHR = rawHR;
+                this.vitalsLastStableHR = stableHR;
+                messages.push(`HR下降已由旧算法确认: ${rawHR.toFixed(1)}`);
+            } else if (
+                Number.isFinite(this.vitalsLastStableHR)
+                && rawHR < this.vitalsLastStableHR - this.vitalsHrDropGuardBpm
+            ) {
+                stableHR = this.vitalsLastStableHR;
+                messages.push(`HR向下防抖: ${rawHR.toFixed(1)}→${stableHR.toFixed(1)}`);
+            } else {
+                const median = this._pushVitalsHistory('hr', rawHR);
+                stableHR = this.vitalsHrHistory.length >= 3 ? median : rawHR;
+                this.vitalsLastStableHR = stableHR;
+            }
+        } else if (Number.isFinite(this.vitalsLastStableHR)) {
+            stableHR = this.vitalsLastStableHR;
+            messages.push('HR越界/无峰，沿用稳定值');
+        }
+
+        let stableRR = NaN;
+        if (rrInRange) {
+            const jump = Number.isFinite(this.vitalsLastStableRR)
+                ? Math.abs(rawRR - this.vitalsLastStableRR)
+                : 0;
+            if (jump > 8) {
+                stableRR = this.vitalsLastStableRR;
+                messages.push(`RR跳变保护: ${rawRR.toFixed(1)}→${stableRR.toFixed(1)}`);
+            } else {
+                const median = this._pushVitalsHistory('rr', rawRR);
+                stableRR = this.vitalsRrHistory.length >= 3 ? median : rawRR;
+                this.vitalsLastStableRR = stableRR;
+            }
+        } else if (Number.isFinite(this.vitalsLastStableRR)) {
+            stableRR = this.vitalsLastStableRR;
+            messages.push('RR越界/无峰，沿用稳定值');
+        }
+
+        const warmup = Math.min(this.vitalsHrHistory.length, this.vitalsRrHistory.length);
+        if (warmup > 0 && warmup < 3) {
+            messages.push(`预热中 ${warmup}/3`);
+        }
+
+        return {
+            rawHR,
+            rawRR,
+            stableHR,
+            stableRR,
+            hrValid: Number.isFinite(stableHR),
+            rrValid: Number.isFinite(stableRR),
+            messages
+        };
+    }
+
+    _runVitalsCycle() {
+        const runtimeEl = document.getElementById('vitalsRuntime');
+        const hrEl = document.getElementById('vitalsHRNew');
+        const rrEl = document.getElementById('vitalsRRNew');
+        if (!this.vitalsExtractor) this._initVitalsExtractor();
+        if (!this.vitalsExtractor) {
+            if (runtimeEl) runtimeEl.textContent = '算法未加载';
+            return;
+        }
+
+        const fs = this._getVitalsFs();
+        const windowSamples = Math.max(1, Math.round(this.vitalsWindowSec * fs));
+        const available = Math.min(this.bleBufferI.length, this.bleBufferQ.length);
+        const measuredFs = (this.bleStats && this.bleStats.gapEmaMs > 0)
+            ? (1000 / this.bleStats.gapEmaMs)
+            : fs;
+        const requiredSamples = Math.max(128, Math.round(fs * 5));
+        if (available < requiredSamples) {
+            if (runtimeEl) {
+                runtimeEl.textContent = `等待数据 ${available}/${requiredSamples}，fs=${fs.toFixed(1)}Hz，实测=${measuredFs.toFixed(1)}Hz`;
+            }
+            return;
+        }
+
+        const start = Math.max(0, available - windowSamples);
+        const iData = this.bleBufferI.slice(start, available);
+        const qData = this.bleBufferQ.slice(start, available);
+        const label = `vitals-${this.vitalsMethod}`;
+        const t0 = performance.now();
+        try {
+            this.vitalsExtractor.setSampleRate(fs);
+            const rrHintFreq = Number.isFinite(this.vitalsLastStableRR) ? this.vitalsLastStableRR / 60 : NaN;
+            const result = this.vitalsExtractor.run(iData, qData, fs, { rrHintFreq });
+            const elapsed = performance.now() - t0;
+            const stable = this._stabilizeVitalsResult(result);
+            result.raw_HR_bpm = stable.rawHR;
+            result.raw_RR_bpm = stable.rawRR;
+            result.HR_bpm = stable.stableHR;
+            result.RR_bpm = stable.stableRR;
+            result.stability = {
+                hrHistory: this.vitalsHrHistory.slice(),
+                rrHistory: this.vitalsRrHistory.slice(),
+                messages: stable.messages
+            };
+            this.lastVitalsResult = result;
+            if (hrEl) hrEl.textContent = stable.hrValid ? `${stable.stableHR.toFixed(1)} bpm` : '-- bpm';
+            if (rrEl) rrEl.textContent = stable.rrValid ? `${stable.stableRR.toFixed(1)} bpm` : '-- bpm';
+            if (runtimeEl) {
+                const name = this.vitalsMethod === 'cwt' ? 'CWT' : '频域';
+                const oldRR = this._getLegacyVitalValue('bleCurrentResp');
+                const rrTop = result.diagnostics?.rrPeaksTop?.[0];
+                const hrTop = result.diagnostics?.hrPeaksRobustTop?.[0];
+                const rrDiffWarn = Number.isFinite(oldRR) && Number.isFinite(stable.rawRR) && Math.abs(oldRR - stable.rawRR) > 4
+                    ? `，RR峰值偏离旧算法(${oldRR.toFixed(0)}→${stable.rawRR.toFixed(1)})，HR可能被带偏`
+                    : '';
+                const peakState = (stable.hrValid && stable.rrValid)
+                    ? '运行中'
+                    : `未找到有效峰值: HR=${Number.isFinite(stable.rawHR) ? stable.rawHR.toFixed(1) : '--'}, RR=${Number.isFinite(stable.rawRR) ? stable.rawRR.toFixed(1) : '--'}`;
+                const rawText = `原始HR=${Number.isFinite(stable.rawHR) ? stable.rawHR.toFixed(1) : '--'}, 中位HR=${stable.hrValid ? stable.stableHR.toFixed(1) : '--'}, 原始RR=${Number.isFinite(stable.rawRR) ? stable.rawRR.toFixed(1) : '--'}, 中位RR=${stable.rrValid ? stable.stableRR.toFixed(1) : '--'}`;
+                const peakText = `，RR峰=${rrTop ? rrTop.bpm.toFixed(1) : '--'}, HR峰=${hrTop ? hrTop.bpm.toFixed(1) : '--'}, 抑制RR=${Number.isFinite(result.diagnostics?.rrUsedForHarmonic) ? (result.diagnostics.rrUsedForHarmonic * 60).toFixed(1) : '--'}`;
+                const guardText = stable.messages.length ? `，${stable.messages.join('，')}` : '';
+                runtimeEl.textContent = `${peakState}，${name}，${result.samples || iData.length}点，fs=${fs.toFixed(1)}Hz，${elapsed.toFixed(1)}ms，${rawText}${peakText}${rrDiffWarn}${guardText}`;
+            }
+            if (this.vitalsDiagnosticOpen) this._renderVitalsSpectrum(result, false);
+            if (window.console && console.timeStamp) console.timeStamp(label);
+            if (!this.vitalsFirstResultLogged && stable.hrValid && stable.rrValid) {
+                this.vitalsFirstResultLogged = true;
+                const algoName = this.vitalsMethod === 'cwt' ? 'CWT/ICWT' : '频域带通';
+                this.addBLELog(`🫀 新算法已启动 (${algoName})：HR=${stable.stableHR.toFixed(1)} bpm, RR=${stable.stableRR.toFixed(1)} bpm，窗口=${iData.length}点，fs=${fs.toFixed(1)}Hz`);
+            }
+        } catch (e) {
+            console.error('新版心率呼吸算法错误:', e);
+            if (runtimeEl) runtimeEl.textContent = `算法错误: ${e.message}`;
+        }
+    }
+
+    runVitalsFullDiagnostic() {
+        if (!this.vitalsExtractor) this._initVitalsExtractor();
+        if (!this.vitalsExtractor) {
+            alert('新版算法未加载，请刷新页面后重试');
+            return;
+        }
+        const available = Math.min(this.bleBufferI.length, this.bleBufferQ.length);
+        if (available < 128) {
+            alert('数据不足，至少需要 128 个 I/Q 点');
+            return;
+        }
+        const fs = this._getVitalsFs();
+        const iData = this.bleBufferI.slice(-available);
+        const qData = this.bleBufferQ.slice(-available);
+        const t0 = performance.now();
+        const rrHintFreq = Number.isFinite(this.vitalsLastStableRR) ? this.vitalsLastStableRR / 60 : NaN;
+        const result = this.vitalsExtractor.run(iData, qData, fs, { rrHintFreq });
+        const elapsed = performance.now() - t0;
+        this.lastVitalsResult = result;
+        this.vitalsDiagnosticOpen = true;
+        this._renderVitalsSpectrum(result, true);
+        const runtimeEl = document.getElementById('vitalsRuntime');
+        if (runtimeEl) {
+            runtimeEl.textContent = `完整诊断: HR=${Number.isFinite(result.HR_bpm) ? result.HR_bpm.toFixed(1) : '--'} bpm, RR=${Number.isFinite(result.RR_bpm) ? result.RR_bpm.toFixed(1) : '--'} bpm, ${elapsed.toFixed(1)}ms`;
+        }
+    }
+
+    _renderVitalsSpectrum(result, forceShow = false) {
+        if (!result || !result.spectrum || !result.spectrum.hr) return;
+        const panel = document.getElementById('vitalsDiagnosticPanel');
+        const canvas = document.getElementById('vitalsSpectrumChart');
+        if (!canvas || typeof Chart === 'undefined') return;
+        if (forceShow) this.vitalsDiagnosticOpen = true;
+        if (panel && this.vitalsDiagnosticOpen) panel.style.display = 'block';
+        if (!this.vitalsDiagnosticOpen) return;
+
+        const hr = result.spectrum.hr;
+        const rr = result.spectrum.rr;
+        const labels = [];
+        const raw = [];
+        const robust = [];
+        const harmonicMarks = [];
+        const peakMarks = [];
+        const edgeMarks = [];
+        const edgeBins = (result.options && Number.isFinite(result.options.bandEdgeBins)) ? result.options.bandEdgeBins : 1;
+        const df = hr.f.length > 1 ? (hr.f[1] - hr.f[0]) : 0;
+        const safeLow = (result.options?.hrLow || 0.5) + edgeBins * df;
+        const safeHigh = (result.options?.hrHigh || 3.0) - edgeBins * df;
+        const peakFreq = result.HR_peak?.freq || result.HR_freq;
+        const maxRobust = Math.max(...hr.P_robust.filter(v => Number.isFinite(v)), 0);
+        for (let i = 0; i < hr.f.length; i++) {
+            if (hr.f[i] < 0 || hr.f[i] > 3.2) continue;
+            labels.push(hr.f[i].toFixed(3));
+            raw.push(hr.P_raw[i]);
+            robust.push(hr.P_robust[i]);
+            let mark = null;
+            if (Number.isFinite(result.RR_freq) && result.RR_freq > 0) {
+                for (let k = 2; k <= 6; k++) {
+                    const fH = k * result.RR_freq;
+                    if (Math.abs(hr.f[i] - fH) <= (this._getVitalsFs() / (2 * hr.f.length))) {
+                        mark = Math.max(hr.P_raw[i], hr.P_robust[i]);
+                        break;
+                    }
+                }
+            }
+            harmonicMarks.push(mark);
+            const isPeak = Number.isFinite(peakFreq) && Math.abs(hr.f[i] - peakFreq) <= Math.max(df, 1e-6);
+            peakMarks.push(isPeak ? Math.max(hr.P_raw[i], hr.P_robust[i]) : null);
+            const isEdge = Math.abs(hr.f[i] - safeLow) <= Math.max(df / 2, 1e-6)
+                || Math.abs(hr.f[i] - safeHigh) <= Math.max(df / 2, 1e-6);
+            edgeMarks.push(isEdge ? maxRobust : null);
+        }
+
+        const rrTopText = result.diagnostics?.rrPeaksTop?.slice(0, 3)
+            .map(p => p.bpm.toFixed(1))
+            .join('/') || '--';
+        const hrTopText = result.diagnostics?.hrPeaksRobustTop?.slice(0, 3)
+            .map(p => p.bpm.toFixed(1))
+            .join('/') || '--';
+        const rrUsedText = Number.isFinite(result.diagnostics?.rrUsedForHarmonic)
+            ? (result.diagnostics.rrUsedForHarmonic * 60).toFixed(1)
+            : '--';
+        const title = `新版算法频谱 | HR=${Number.isFinite(result.HR_bpm) ? result.HR_bpm.toFixed(1) : '--'} bpm, RR=${Number.isFinite(result.RR_bpm) ? result.RR_bpm.toFixed(1) : '--'} bpm | RR候选=${rrTopText}, HR候选=${hrTopText}, 抑制RR=${rrUsedText}`;
+        if (this.vitalsSpectrumChart) {
+            const datasets = this.vitalsSpectrumChart.data.datasets;
+            if (!datasets[3]) datasets[3] = { label: 'HR峰值(抛物线)', data: [], borderColor: '#22aa88', backgroundColor: '#22aa88', pointRadius: 5, showLine: false };
+            if (!datasets[4]) datasets[4] = { label: 'HR带沿安全边界', data: [], borderColor: '#f0a500', backgroundColor: '#f0a500', pointRadius: 4, showLine: false };
+            this.vitalsSpectrumChart.data.labels = labels;
+            this.vitalsSpectrumChart.data.datasets[0].data = raw;
+            this.vitalsSpectrumChart.data.datasets[1].data = robust;
+            this.vitalsSpectrumChart.data.datasets[2].data = harmonicMarks;
+            this.vitalsSpectrumChart.data.datasets[3].data = peakMarks;
+            this.vitalsSpectrumChart.data.datasets[4].data = edgeMarks;
+            this.vitalsSpectrumChart.options.plugins.title.text = title;
+            this.vitalsSpectrumChart.update('none');
+        } else {
+            this.vitalsSpectrumChart = new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'HR原始谱', data: raw, borderColor: '#d85c6b', pointRadius: 0, tension: 0 },
+                        { label: '谐波抑制后谱', data: robust, borderColor: '#5a9bd4', pointRadius: 0, tension: 0 },
+                        { label: 'RR谐波位置', data: harmonicMarks, borderColor: '#222', backgroundColor: '#222', pointRadius: 3, showLine: false },
+                        { label: 'HR峰值(抛物线)', data: peakMarks, borderColor: '#22aa88', backgroundColor: '#22aa88', pointRadius: 5, showLine: false },
+                        { label: 'HR带沿安全边界', data: edgeMarks, borderColor: '#f0a500', backgroundColor: '#f0a500', pointRadius: 4, showLine: false }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    animation: false,
+                    plugins: {
+                        title: { display: true, text: title }
+                    },
+                    scales: {
+                        x: { title: { display: true, text: '频率 (Hz)' } },
+                        y: { title: { display: true, text: '幅值' } }
+                    }
+                }
+            });
+        }
+    }
+
     /**
      * 更新蓝牙生理参数（参考main.py的心率稳定算法）
      */
@@ -5033,6 +5440,9 @@ function startSimulationTest() {
     }, 200);
 
     app.updateBLEButtons();
+    if (typeof app.startVitalsRealtime === 'function') {
+        app.startVitalsRealtime();
+    }
     
     // 生成模拟数据 (模拟心率75bpm，呼吸18bpm)
     let dataCount = 0;
