@@ -157,7 +157,14 @@ class RadarWebApp {
         this.vitalsLastStableHR = null;
         this.vitalsLastStableRR = null;
         this.vitalsHrDropGuardBpm = 12;
-        this.vitalsHrLegacyAgreeBpm = 10;
+        this.vitalsWarmupMinCycles = 3;
+        this.vitalsAcceptedCycles = 0;
+        this.vitalsMinConfidence = 0.35;
+        this.vitalsGuardWindowSec = 16;
+        this.vitalsGuardMaxAgeMs = 2500;
+        this.vitalsLastGuardResult = null;
+        this.vitalsLastGuardTs = 0;
+        this.vitalsGuardDiffBpm = 12;
 
         // ===== 活动量与步数监测模块 =====
         this.activityMonitor = null;
@@ -4531,6 +4538,9 @@ class RadarWebApp {
         this.vitalsRrHistory = [];
         this.vitalsLastStableHR = null;
         this.vitalsLastStableRR = null;
+        this.vitalsAcceptedCycles = 0;
+        this.vitalsLastGuardResult = null;
+        this.vitalsLastGuardTs = 0;
     }
 
     _median(values) {
@@ -4547,87 +4557,158 @@ class RadarWebApp {
         return this._median(history);
     }
 
-    _getLegacyVitalValue(id) {
-        const el = document.getElementById(id);
-        if (!el) return NaN;
-        const value = parseFloat((el.textContent || '').replace(/[^\d.-]/g, ''));
-        return Number.isFinite(value) ? value : NaN;
+    _guardSupportsValue(kind, value, guardResult) {
+        if (!guardResult || !Number.isFinite(value)) return true;
+        const guardValue = kind === 'hr' ? guardResult.HR_bpm : guardResult.RR_bpm;
+        const guardConfidence = kind === 'hr' ? guardResult.HR_confidence : guardResult.RR_confidence;
+        if (!Number.isFinite(guardValue) || guardConfidence < this.vitalsMinConfidence) return true;
+        const maxDiff = kind === 'hr' ? this.vitalsGuardDiffBpm : 4;
+        return Math.abs(value - guardValue) <= maxDiff;
     }
 
-    _stabilizeVitalsResult(result) {
+    _stabilizeVitalsResult(result, guardResult = null) {
         const rawHR = result ? result.HR_bpm : NaN;
         const rawRR = result ? result.RR_bpm : NaN;
-        const hrInRange = Number.isFinite(rawHR) && rawHR >= 40 && rawHR <= 220;
-        const rrInRange = Number.isFinite(rawRR) && rawRR >= 6 && rawRR <= 30;
-        const legacyHR = this._getLegacyVitalValue('bleCurrentHR');
+        let candidateHR = rawHR;
+        let candidateRR = rawRR;
+        let hrConfidence = Number.isFinite(result?.HR_confidence) ? result.HR_confidence : 0;
+        let rrConfidence = Number.isFinite(result?.RR_confidence) ? result.RR_confidence : 0;
         const messages = [];
 
+        if (guardResult && Number.isFinite(guardResult.HR_bpm) && guardResult.HR_confidence >= this.vitalsMinConfidence) {
+            const shortBad = !Number.isFinite(candidateHR) || hrConfidence < this.vitalsMinConfidence;
+            const shortDisagrees = Number.isFinite(candidateHR) && Math.abs(candidateHR - guardResult.HR_bpm) > this.vitalsGuardDiffBpm;
+            if (shortBad || shortDisagrees) {
+                candidateHR = guardResult.HR_bpm;
+                hrConfidence = guardResult.HR_confidence;
+                messages.push(`HR采用长窗校验: ${candidateHR.toFixed(1)}`);
+            }
+        }
+
+        if (guardResult && Number.isFinite(guardResult.RR_bpm) && guardResult.RR_confidence >= this.vitalsMinConfidence) {
+            const shortBad = !Number.isFinite(candidateRR) || rrConfidence < this.vitalsMinConfidence;
+            const shortDisagrees = Number.isFinite(candidateRR) && Math.abs(candidateRR - guardResult.RR_bpm) > 4;
+            if (shortBad || shortDisagrees) {
+                candidateRR = guardResult.RR_bpm;
+                rrConfidence = guardResult.RR_confidence;
+                messages.push(`RR采用长窗校验: ${candidateRR.toFixed(1)}`);
+            }
+        }
+
+        const hrInRange = Number.isFinite(candidateHR) && candidateHR >= 40 && candidateHR <= 220;
+        const rrInRange = Number.isFinite(candidateRR) && candidateRR >= 6 && candidateRR <= 30;
+        const hrConfident = hrInRange && hrConfidence >= this.vitalsMinConfidence && this._guardSupportsValue('hr', candidateHR, guardResult);
+        const rrConfident = rrInRange && rrConfidence >= this.vitalsMinConfidence && this._guardSupportsValue('rr', candidateRR, guardResult);
+
         let stableHR = NaN;
-        if (hrInRange) {
+        if (hrConfident) {
             const jump = Number.isFinite(this.vitalsLastStableHR)
-                ? Math.abs(rawHR - this.vitalsLastStableHR)
+                ? Math.abs(candidateHR - this.vitalsLastStableHR)
                 : 0;
-            const legacyConfirmsDrop = Number.isFinite(this.vitalsLastStableHR)
-                && rawHR < this.vitalsLastStableHR - this.vitalsHrDropGuardBpm
-                && Number.isFinite(legacyHR)
-                && legacyHR < this.vitalsLastStableHR - this.vitalsHrDropGuardBpm
-                && Math.abs(legacyHR - rawHR) <= this.vitalsHrLegacyAgreeBpm;
+            const guardConfirmsDrop = Number.isFinite(this.vitalsLastStableHR)
+                && candidateHR < this.vitalsLastStableHR - this.vitalsHrDropGuardBpm
+                && guardResult
+                && Number.isFinite(guardResult.HR_bpm)
+                && guardResult.HR_confidence >= this.vitalsMinConfidence
+                && guardResult.HR_bpm < this.vitalsLastStableHR - this.vitalsHrDropGuardBpm
+                && Math.abs(guardResult.HR_bpm - candidateHR) <= this.vitalsGuardDiffBpm;
             if (jump > 25) {
                 stableHR = this.vitalsLastStableHR;
-                messages.push(`HR跳变保护: ${rawHR.toFixed(1)}→${stableHR.toFixed(1)}`);
-            } else if (legacyConfirmsDrop) {
-                this.vitalsHrHistory = [rawHR];
-                stableHR = rawHR;
+                messages.push(`HR跳变保护: ${candidateHR.toFixed(1)}→${stableHR.toFixed(1)}`);
+            } else if (guardConfirmsDrop) {
+                this.vitalsHrHistory = [candidateHR];
+                stableHR = candidateHR;
                 this.vitalsLastStableHR = stableHR;
-                messages.push(`HR下降已由旧算法确认: ${rawHR.toFixed(1)}`);
+                messages.push(`HR下降已由长窗确认: ${candidateHR.toFixed(1)}`);
             } else if (
                 Number.isFinite(this.vitalsLastStableHR)
-                && rawHR < this.vitalsLastStableHR - this.vitalsHrDropGuardBpm
+                && candidateHR < this.vitalsLastStableHR - this.vitalsHrDropGuardBpm
             ) {
                 stableHR = this.vitalsLastStableHR;
-                messages.push(`HR向下防抖: ${rawHR.toFixed(1)}→${stableHR.toFixed(1)}`);
+                messages.push(`HR向下防抖: ${candidateHR.toFixed(1)}→${stableHR.toFixed(1)}`);
             } else {
-                const median = this._pushVitalsHistory('hr', rawHR);
-                stableHR = this.vitalsHrHistory.length >= 3 ? median : rawHR;
+                const median = this._pushVitalsHistory('hr', candidateHR);
+                stableHR = this.vitalsHrHistory.length >= 3 ? median : candidateHR;
                 this.vitalsLastStableHR = stableHR;
             }
+        } else if (hrInRange && Number.isFinite(this.vitalsLastStableHR)) {
+            stableHR = this.vitalsLastStableHR;
+            messages.push(`HR低置信度(${hrConfidence.toFixed(2)})，沿用稳定值`);
         } else if (Number.isFinite(this.vitalsLastStableHR)) {
             stableHR = this.vitalsLastStableHR;
             messages.push('HR越界/无峰，沿用稳定值');
         }
 
         let stableRR = NaN;
-        if (rrInRange) {
+        if (rrConfident) {
             const jump = Number.isFinite(this.vitalsLastStableRR)
-                ? Math.abs(rawRR - this.vitalsLastStableRR)
+                ? Math.abs(candidateRR - this.vitalsLastStableRR)
                 : 0;
             if (jump > 8) {
                 stableRR = this.vitalsLastStableRR;
-                messages.push(`RR跳变保护: ${rawRR.toFixed(1)}→${stableRR.toFixed(1)}`);
+                messages.push(`RR跳变保护: ${candidateRR.toFixed(1)}→${stableRR.toFixed(1)}`);
             } else {
-                const median = this._pushVitalsHistory('rr', rawRR);
-                stableRR = this.vitalsRrHistory.length >= 3 ? median : rawRR;
+                const median = this._pushVitalsHistory('rr', candidateRR);
+                stableRR = this.vitalsRrHistory.length >= 3 ? median : candidateRR;
                 this.vitalsLastStableRR = stableRR;
             }
+        } else if (rrInRange && Number.isFinite(this.vitalsLastStableRR)) {
+            stableRR = this.vitalsLastStableRR;
+            messages.push(`RR低置信度(${rrConfidence.toFixed(2)})，沿用稳定值`);
         } else if (Number.isFinite(this.vitalsLastStableRR)) {
             stableRR = this.vitalsLastStableRR;
             messages.push('RR越界/无峰，沿用稳定值');
         }
 
-        const warmup = Math.min(this.vitalsHrHistory.length, this.vitalsRrHistory.length);
-        if (warmup > 0 && warmup < 3) {
-            messages.push(`预热中 ${warmup}/3`);
+        if (hrConfident && rrConfident) {
+            this.vitalsAcceptedCycles = Math.min(this.vitalsWarmupMinCycles, this.vitalsAcceptedCycles + 1);
+        }
+
+        const warmupReady = this.vitalsAcceptedCycles >= this.vitalsWarmupMinCycles;
+        if (!warmupReady) {
+            messages.push(`预热中 ${this.vitalsAcceptedCycles}/${this.vitalsWarmupMinCycles}`);
+            stableHR = NaN;
+            stableRR = NaN;
         }
 
         return {
             rawHR,
             rawRR,
+            candidateHR,
+            candidateRR,
             stableHR,
             stableRR,
             hrValid: Number.isFinite(stableHR),
             rrValid: Number.isFinite(stableRR),
+            hrConfidence,
+            rrConfidence,
+            guardHR: guardResult?.HR_bpm,
+            guardRR: guardResult?.RR_bpm,
             messages
         };
+    }
+
+    _runVitalsGuardWindow(available, fs) {
+        const now = performance.now();
+        if (this.vitalsLastGuardResult && now - this.vitalsLastGuardTs < this.vitalsGuardMaxAgeMs) {
+            return this.vitalsLastGuardResult;
+        }
+        const guardSamples = Math.round(this.vitalsGuardWindowSec * fs);
+        if (available < guardSamples || !this.vitalsExtractor) return this.vitalsLastGuardResult;
+
+        const start = Math.max(0, available - guardSamples);
+        const iData = this.bleBufferI.slice(start, available);
+        const qData = this.bleBufferQ.slice(start, available);
+        const rrHintFreq = Number.isFinite(this.vitalsLastStableRR) ? this.vitalsLastStableRR / 60 : NaN;
+        try {
+            const guardResult = this.vitalsExtractor.run(iData, qData, fs, { rrHintFreq });
+            this.vitalsLastGuardResult = guardResult;
+            this.vitalsLastGuardTs = now;
+            return guardResult;
+        } catch (e) {
+            console.warn('新版算法长窗校验失败:', e);
+            return this.vitalsLastGuardResult;
+        }
     }
 
     _runVitalsCycle() {
@@ -4664,14 +4745,24 @@ class RadarWebApp {
             const rrHintFreq = Number.isFinite(this.vitalsLastStableRR) ? this.vitalsLastStableRR / 60 : NaN;
             const result = this.vitalsExtractor.run(iData, qData, fs, { rrHintFreq });
             const elapsed = performance.now() - t0;
-            const stable = this._stabilizeVitalsResult(result);
+            const guardResult = this._runVitalsGuardWindow(available, fs);
+            const stable = this._stabilizeVitalsResult(result, guardResult);
             result.raw_HR_bpm = stable.rawHR;
             result.raw_RR_bpm = stable.rawRR;
+            result.candidate_HR_bpm = stable.candidateHR;
+            result.candidate_RR_bpm = stable.candidateRR;
             result.HR_bpm = stable.stableHR;
             result.RR_bpm = stable.stableRR;
             result.stability = {
                 hrHistory: this.vitalsHrHistory.slice(),
                 rrHistory: this.vitalsRrHistory.slice(),
+                acceptedCycles: this.vitalsAcceptedCycles,
+                guard: guardResult ? {
+                    HR_bpm: guardResult.HR_bpm,
+                    RR_bpm: guardResult.RR_bpm,
+                    HR_confidence: guardResult.HR_confidence,
+                    RR_confidence: guardResult.RR_confidence
+                } : null,
                 messages: stable.messages
             };
             this.lastVitalsResult = result;
@@ -4679,19 +4770,19 @@ class RadarWebApp {
             if (rrEl) rrEl.textContent = stable.rrValid ? `${stable.stableRR.toFixed(1)} bpm` : '-- bpm';
             if (runtimeEl) {
                 const name = this.vitalsMethod === 'cwt' ? 'CWT' : '频域';
-                const oldRR = this._getLegacyVitalValue('bleCurrentResp');
                 const rrTop = result.diagnostics?.rrPeaksTop?.[0];
                 const hrTop = result.diagnostics?.hrPeaksRobustTop?.[0];
-                const rrDiffWarn = Number.isFinite(oldRR) && Number.isFinite(stable.rawRR) && Math.abs(oldRR - stable.rawRR) > 4
-                    ? `，RR峰值偏离旧算法(${oldRR.toFixed(0)}→${stable.rawRR.toFixed(1)})，HR可能被带偏`
-                    : '';
                 const peakState = (stable.hrValid && stable.rrValid)
                     ? '运行中'
                     : `未找到有效峰值: HR=${Number.isFinite(stable.rawHR) ? stable.rawHR.toFixed(1) : '--'}, RR=${Number.isFinite(stable.rawRR) ? stable.rawRR.toFixed(1) : '--'}`;
-                const rawText = `原始HR=${Number.isFinite(stable.rawHR) ? stable.rawHR.toFixed(1) : '--'}, 中位HR=${stable.hrValid ? stable.stableHR.toFixed(1) : '--'}, 原始RR=${Number.isFinite(stable.rawRR) ? stable.rawRR.toFixed(1) : '--'}, 中位RR=${stable.rrValid ? stable.stableRR.toFixed(1) : '--'}`;
+                const rawText = `短窗HR=${Number.isFinite(stable.rawHR) ? stable.rawHR.toFixed(1) : '--'}, 候选HR=${Number.isFinite(stable.candidateHR) ? stable.candidateHR.toFixed(1) : '--'}, 中位HR=${stable.hrValid ? stable.stableHR.toFixed(1) : '--'}, 短窗RR=${Number.isFinite(stable.rawRR) ? stable.rawRR.toFixed(1) : '--'}, 候选RR=${Number.isFinite(stable.candidateRR) ? stable.candidateRR.toFixed(1) : '--'}, 中位RR=${stable.rrValid ? stable.stableRR.toFixed(1) : '--'}`;
                 const peakText = `，RR峰=${rrTop ? rrTop.bpm.toFixed(1) : '--'}, HR峰=${hrTop ? hrTop.bpm.toFixed(1) : '--'}, 抑制RR=${Number.isFinite(result.diagnostics?.rrUsedForHarmonic) ? (result.diagnostics.rrUsedForHarmonic * 60).toFixed(1) : '--'}`;
+                const confidenceText = `，置信度HR=${stable.hrConfidence.toFixed(2)}, RR=${stable.rrConfidence.toFixed(2)}`;
+                const guardText2 = guardResult
+                    ? `，长窗HR=${Number.isFinite(guardResult.HR_bpm) ? guardResult.HR_bpm.toFixed(1) : '--'}, 长窗RR=${Number.isFinite(guardResult.RR_bpm) ? guardResult.RR_bpm.toFixed(1) : '--'}`
+                    : '，长窗=等待数据';
                 const guardText = stable.messages.length ? `，${stable.messages.join('，')}` : '';
-                runtimeEl.textContent = `${peakState}，${name}，${result.samples || iData.length}点，fs=${fs.toFixed(1)}Hz，${elapsed.toFixed(1)}ms，${rawText}${peakText}${rrDiffWarn}${guardText}`;
+                runtimeEl.textContent = `${peakState}，${name}，${result.samples || iData.length}点，fs=${fs.toFixed(1)}Hz，${elapsed.toFixed(1)}ms，${rawText}${peakText}${confidenceText}${guardText2}${guardText}`;
             }
             if (this.vitalsDiagnosticOpen) this._renderVitalsSpectrum(result, false);
             if (window.console && console.timeStamp) console.timeStamp(label);

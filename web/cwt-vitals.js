@@ -275,6 +275,30 @@
         return preferred || top;
     }
 
+    function peakConfidence(peaks, selectedPeak) {
+        if (!selectedPeak || !peaks.length) {
+            return { score: 0, ratio: 0 };
+        }
+        const sorted = peaks.slice().sort((a, b) => b.prominence - a.prominence);
+        const second = sorted.find(p => p.index !== selectedPeak.index);
+        const ratio = second && second.prominence > 0
+            ? selectedPeak.prominence / second.prominence
+            : 3;
+        const score = Math.max(0, Math.min(1, (ratio - 1) / 1.5));
+        return { score, ratio };
+    }
+
+    function harmonicDistance(freq, rrFreq, options) {
+        if (!Number.isFinite(freq) || !Number.isFinite(rrFreq) || rrFreq <= 0) return Infinity;
+        let best = Infinity;
+        for (let k = 2; k <= options.maxHarmonic; k++) {
+            const harmonic = k * rrFreq;
+            if (harmonic > options.hrHigh) break;
+            best = Math.min(best, Math.abs(freq - harmonic));
+        }
+        return best;
+    }
+
     function gaussianHarmonicSuppression(freq, amp, rrFreq, options) {
         const out = amp.slice();
         if (!Number.isFinite(rrFreq) || rrFreq <= 0) return out;
@@ -337,6 +361,7 @@
             const rrPeak = selectRrPeak(rrPeaks, hints.rrHintFreq);
             const rrFreq = rrPeak ? rrPeak.freq : NaN;
             const rrBpm = Number.isFinite(rrFreq) ? rrFreq * 60 : NaN;
+            const rrPeakConf = peakConfidence(rrPeaks, rrPeak);
 
             const hrFiltered = this.bandpass(signal.re, signal.im, this.options.hrLow, this.options.hrHigh, this.fs);
             const hrSpec = this.spectrumFromTime(hrFiltered.re, hrFiltered.im, this.fs, signal.nSamples);
@@ -366,10 +391,19 @@
             const hrPeak = hrPeaks.length ? hrPeaks[0] : null;
             const hrFreq = hrPeak ? hrPeak.freq : NaN;
             const hrBpm = Number.isFinite(hrFreq) ? hrFreq * 60 : NaN;
+            const hrPeakConf = peakConfidence(hrPeaks, hrPeak);
+            const hrHarmonicDistance = harmonicDistance(hrFreq, rrUsedForHarmonic, this.options);
+            const harmonicPenalty = Number.isFinite(hrHarmonicDistance)
+                ? Math.max(0.2, Math.min(1, hrHarmonicDistance / Math.max(this.options.harmonicBw, 1e-6)))
+                : 1;
+            const hrConfidence = Math.max(0, Math.min(1, hrPeakConf.score * harmonicPenalty));
+            const rrConfidence = rrPeakConf.score;
 
             return {
                 RR_bpm: Number.isFinite(rrBpm) ? rrBpm : NaN,
                 HR_bpm: Number.isFinite(hrBpm) ? hrBpm : NaN,
+                RR_confidence: rrConfidence,
+                HR_confidence: hrConfidence,
                 RR_freq: rrFreq,
                 HR_freq: hrFreq,
                 RR_peak: rrPeak,
@@ -385,6 +419,9 @@
                     rrPeaksTop: summarizePeaks(rrPeaks),
                     hrPeaksRawTop: summarizePeaks(hrRawPeaks),
                     hrPeaksRobustTop: summarizePeaks(hrPeaks),
+                    rrPeakRatio: rrPeakConf.ratio,
+                    hrPeakRatio: hrPeakConf.ratio,
+                    hrHarmonicDistance,
                     rrUsedForHarmonic,
                     rrHintFreq: hints.rrHintFreq,
                     strictMatlab: !!this.strictMatlab

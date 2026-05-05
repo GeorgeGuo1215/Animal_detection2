@@ -13,7 +13,7 @@
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="fft.js?v=20260302-2"></script>
-    <script src="cwt-vitals.js?v=20260506-strict"></script>
+    <script src="cwt-vitals.js?v=20260506-confidence"></script>
     <script src="bluetooth.js?v=20260410-fallback1"></script>
 </head>
 <body>
@@ -189,7 +189,7 @@
                                             style="padding:4px 12px;background:#585671;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85em;">
                                         完整诊断
                                     </button>
-                                    <span id="vitalsRuntime" title="新版算法默认CWT，滑窗8s，周期1s；使用中位数N=5、HR跳变阈值25bpm、HR向下防抖12bpm、RR跳变阈值8bpm" style="font-size:0.82em;color:#999;">未启动</span>
+                                    <span id="vitalsRuntime" title="新版算法默认CWT，滑窗8s，周期1s；仅参考新算法自身置信度和16s长窗校验，不参考旧算法" style="font-size:0.82em;color:#999;">未启动</span>
                                 </div>
                             </div>
                             <div id="vitalsDiagnosticPanel" class="stat-item" style="grid-column: 1/-1; display:none; min-height:260px;">
@@ -1710,7 +1710,7 @@
     <script src="attitude-solver.js?v=20260417-accvar"></script>
 
     <script src="version.js"></script>
-    <script src="app.js?v=20260506-debounce"></script>
+    <script src="app.js?v=20260506-startupstable"></script>
 
     <!-- BLE调试代码 -->
     <script>
