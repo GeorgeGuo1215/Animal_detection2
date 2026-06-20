@@ -66,6 +66,34 @@
                     <button class="btn btn-danger" id="bleStopUploadBtn" onclick="bleStopUpload()" style="display:none;">停止上传</button>
                     <span id="bleUploadStatus">未上传</span>
                 </div>
+
+                <div class="ble-pet-profile">
+                    <div class="ble-pet-profile-title">🐾 宠物档案（录制时一并保存）</div>
+                    <label for="blePetName">名称:</label>
+                    <input id="blePetName" type="text" placeholder="如 豆豆" class="input-sm">
+                    <label for="blePetSpecies">物种:</label>
+                    <select id="blePetSpecies" class="input-sm">
+                        <option value="dog">狗</option>
+                        <option value="cat">猫</option>
+                        <option value="other">其他</option>
+                    </select>
+                    <label for="blePetBreed">品种:</label>
+                    <input id="blePetBreed" type="text" placeholder="如 金毛" class="input-sm">
+                    <label for="blePetAgeYears">年龄(岁):</label>
+                    <input id="blePetAgeYears" type="number" min="0" value="0" class="input-xs">
+                    <label for="blePetAgeMonths">月龄:</label>
+                    <input id="blePetAgeMonths" type="number" min="0" max="11" value="0" class="input-xs">
+                    <label for="blePetSex">性别:</label>
+                    <select id="blePetSex" class="input-xs">
+                        <option value="unknown">未知</option>
+                        <option value="male">公</option>
+                        <option value="female">母</option>
+                    </select>
+                    <label for="blePetWeight">体重(kg):</label>
+                    <input id="blePetWeight" type="number" min="0" step="0.1" placeholder="10" class="input-xs">
+                    <label for="blePetCondition">病情/备注:</label>
+                    <input id="blePetCondition" type="text" placeholder="如 术后恢复、咳嗽" class="input-condition">
+                </div>
                 
                 <!-- 连接状态和实时数据显示 -->
                 <div class="ble-status">
@@ -1710,7 +1738,7 @@
     <script src="attitude-solver.js?v=20260417-accvar"></script>
 
     <script src="version.js"></script>
-    <script src="app.js?v=20260506-startupstable"></script>
+    <script src="app.js?v=20260620-pet-record"></script>
 
     <!-- BLE调试代码 -->
     <script>

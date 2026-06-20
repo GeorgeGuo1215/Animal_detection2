@@ -233,6 +233,36 @@ input:focus, textarea:focus, select:focus {
     color: var(--text-muted);
 }
 
+.ble-pet-profile {
+    background: var(--bg-body);
+    padding: 16px;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    margin-top: 12px;
+}
+
+.ble-pet-profile-title {
+    width: 100%;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text-main);
+}
+
+.ble-pet-profile label {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.input-condition {
+    flex: 2;
+    min-width: 220px;
+}
+
 #bleUploadStatus {
     font-size: 0.9rem;
     font-weight: 600;
@@ -906,6 +936,7 @@ tr:hover {
     .chart-row { grid-template-columns: 1fr; }
 
     .ble-upload-config { flex-direction: column; align-items: stretch; }
+    .ble-pet-profile { flex-direction: column; align-items: stretch; }
 
     .file-actions { flex-direction: column; }
 

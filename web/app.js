@@ -185,6 +185,7 @@ class RadarWebApp {
 
         this.initializeEventListeners();
         this.initBleUploadConfig();
+        this.initBlePetProfile();
         this.initializeCharts();
         this.initializeBluetoothCharts();
         this.initializeBleBackfillCharts();
@@ -286,6 +287,178 @@ class RadarWebApp {
         }
     }
 
+    initBlePetProfile() {
+        const fields = [
+            ['blePetName', 'blePetName', ''],
+            ['blePetSpecies', 'blePetSpecies', 'dog'],
+            ['blePetBreed', 'blePetBreed', ''],
+            ['blePetAgeYears', 'blePetAgeYears', '0'],
+            ['blePetAgeMonths', 'blePetAgeMonths', '0'],
+            ['blePetSex', 'blePetSex', 'unknown'],
+            ['blePetWeight', 'blePetWeight', ''],
+            ['blePetCondition', 'blePetCondition', '']
+        ];
+
+        fields.forEach(([id, key, fallback]) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const saved = localStorage.getItem(key);
+            if (saved !== null) el.value = saved;
+            else if (fallback !== '') el.value = fallback;
+            el.addEventListener('change', () => this._saveBlePetProfile());
+            el.addEventListener('blur', () => this._saveBlePetProfile());
+        });
+    }
+
+    _getBlePetProfile() {
+        const getVal = (id) => {
+            const el = document.getElementById(id);
+            return el ? el.value.trim() : '';
+        };
+        const years = parseInt(getVal('blePetAgeYears'), 10);
+        const months = parseInt(getVal('blePetAgeMonths'), 10);
+        const weight = parseFloat(getVal('blePetWeight'));
+        const uploadCfg = this._getBleUploadConfig();
+
+        return {
+            animal_id: uploadCfg.animalId || 'unknown',
+            name: getVal('blePetName') || 'unknown',
+            species: getVal('blePetSpecies') || 'other',
+            breed: getVal('blePetBreed') || 'unknown',
+            sex: getVal('blePetSex') || 'unknown',
+            age_years: Number.isFinite(years) && years >= 0 ? years : 0,
+            age_months: (Number.isFinite(years) && years >= 0 ? years : 0) * 12
+                + (Number.isFinite(months) && months >= 0 ? Math.min(months, 11) : 0),
+            weight_kg: Number.isFinite(weight) && weight >= 0 ? weight : 0,
+            medical_condition: getVal('blePetCondition') || ''
+        };
+    }
+
+    _saveBlePetProfile() {
+        const profile = this._getBlePetProfile();
+        localStorage.setItem('blePetName', profile.name === 'unknown' ? '' : profile.name);
+        localStorage.setItem('blePetSpecies', profile.species);
+        localStorage.setItem('blePetBreed', profile.breed === 'unknown' ? '' : profile.breed);
+        localStorage.setItem('blePetAgeYears', String(Math.floor(profile.age_months / 12)));
+        localStorage.setItem('blePetAgeMonths', String(profile.age_months % 12));
+        localStorage.setItem('blePetSex', profile.sex);
+        localStorage.setItem('blePetWeight', profile.weight_kg > 0 ? String(profile.weight_kg) : '');
+        localStorage.setItem('blePetCondition', profile.medical_condition);
+    }
+
+    _getLatestImuSnapshot() {
+        const len = this.bleBufferI.length;
+        if (len === 0) return null;
+
+        const i = len - 1;
+        const snapshot = {
+            acc: {
+                x: Number(this.bleBufferACC_X[i] || 0),
+                y: Number(this.bleBufferACC_Y[i] || 0),
+                z: Number(this.bleBufferACC_Z[i] || 0)
+            },
+            gyr: {
+                x: Number(this.bleBufferIMU_X[i] || 0),
+                y: Number(this.bleBufferIMU_Y[i] || 0),
+                z: Number(this.bleBufferIMU_Z[i] || 0)
+            },
+            temperature: this.bleBufferTemperature[i]
+        };
+
+        if (this.attitudeSolver) {
+            const euler = this.attitudeSolver.getEulerAngles();
+            const quat = this.attitudeSolver.getQuaternion();
+            const angVel = this.attitudeSolver.getAngularVelocity();
+            snapshot.attitude = {
+                roll: Number(euler?.roll || 0),
+                pitch: Number(euler?.pitch || 0),
+                yaw: Number(euler?.yaw || 0),
+                quaternion: {
+                    w: Number(quat?.w || 1),
+                    x: Number(quat?.x || 0),
+                    y: Number(quat?.y || 0),
+                    z: Number(quat?.z || 0)
+                },
+                angular_velocity: {
+                    x: Number(angVel?.x || 0),
+                    y: Number(angVel?.y || 0),
+                    z: Number(angVel?.z || 0)
+                }
+            };
+        }
+
+        return snapshot;
+    }
+
+    _getBleVitalsSnapshot() {
+        return {
+            heartRate: Number.isFinite(this.currentHeartRate) ? Number(this.currentHeartRate) : null,
+            respiratoryRate: Number.isFinite(this.currentRespiratoryRate) ? Number(this.currentRespiratoryRate) : null
+        };
+    }
+
+    _appendBleRecordingMetadataComments(profile, vitals, imu, phase = 'start') {
+        const sexLabel = profile.sex === 'male' ? '公' : profile.sex === 'female' ? '母' : '未知';
+        const speciesLabel = profile.species === 'dog' ? '狗' : profile.species === 'cat' ? '猫' : '其他';
+        const ageText = `${Math.floor(profile.age_months / 12)}岁${profile.age_months % 12}个月`;
+
+        this.bleRecordingData.push(`# 宠物名称: ${profile.name}`);
+        this.bleRecordingData.push(`# 宠物物种: ${speciesLabel} (${profile.species})`);
+        this.bleRecordingData.push(`# 宠物品种: ${profile.breed}`);
+        this.bleRecordingData.push(`# 宠物年龄: ${ageText} (${profile.age_months} months)`);
+        this.bleRecordingData.push(`# 宠物性别: ${sexLabel}`);
+        this.bleRecordingData.push(`# 宠物体重: ${profile.weight_kg} kg`);
+        this.bleRecordingData.push(`# 病情/备注: ${profile.medical_condition || '无'}`);
+        this.bleRecordingData.push(`# animal_id: ${profile.animal_id}`);
+
+        const hr = vitals.heartRate ?? '--';
+        const rr = vitals.respiratoryRate ?? '--';
+        this.bleRecordingData.push(`# ${phase === 'start' ? '开始' : '结束'}时心率: ${hr} bpm, 呼吸率: ${rr} bpm`);
+
+        if (imu) {
+            this.bleRecordingData.push(
+                `# ${phase === 'start' ? '开始' : '结束'}时IMU Acc(g): ${imu.acc.x.toFixed(4)}, ${imu.acc.y.toFixed(4)}, ${imu.acc.z.toFixed(4)}`
+            );
+            this.bleRecordingData.push(
+                `# ${phase === 'start' ? '开始' : '结束'}时IMU Gyr(deg/s): ${imu.gyr.x.toFixed(3)}, ${imu.gyr.y.toFixed(3)}, ${imu.gyr.z.toFixed(3)}`
+            );
+            if (imu.attitude) {
+                this.bleRecordingData.push(
+                    `# ${phase === 'start' ? '开始' : '结束'}时姿态 Roll/Pitch/Yaw(deg): ${imu.attitude.roll.toFixed(2)}, ${imu.attitude.pitch.toFixed(2)}, ${imu.attitude.yaw.toFixed(2)}`
+                );
+            }
+            if (imu.temperature !== null && imu.temperature !== undefined) {
+                this.bleRecordingData.push(`# ${phase === 'start' ? '开始' : '结束'}时温度: ${Number(imu.temperature).toFixed(2)} °C`);
+            }
+        }
+    }
+
+    _buildBleRecordingSessionMeta({ profile, startTime, endTime, durationSeconds, startVitals, endVitals, startImu, endImu, dataPoints }) {
+        const uploadCfg = this._getBleUploadConfig();
+        return {
+            pet: profile,
+            device: {
+                device_id: uploadCfg.deviceId || 'unknown',
+                protocol: this.bleProtocol || '未连接'
+            },
+            recording: {
+                startTime: startTime.toISOString(),
+                endTime: endTime.toISOString(),
+                durationSeconds
+            },
+            vitals: {
+                start: startVitals,
+                end: endVitals
+            },
+            imu: {
+                start: startImu,
+                end: endImu
+            },
+            dataPoints,
+            note: '宠物档案、最终心率呼吸率与IMU快照随录制一并保存'
+        };
+    }
+
     initBleUploadConfig() {
         const urlEl = document.getElementById('bleUploadUrl');
         const animalEl = document.getElementById('bleAnimalId');
@@ -305,6 +478,7 @@ class RadarWebApp {
             intervalEl.value = localStorage.getItem('bleUploadInterval') || String(this.bleUploadIntervalSec);
         }
     }
+
 
     /**
      * 初始化 BLE 事件
@@ -524,6 +698,7 @@ class RadarWebApp {
 
     _buildBleEventPayload() {
         const cfg = this._getBleUploadConfig();
+        const pet = this._getBlePetProfile();
         const fs = (this.processor && Number.isFinite(this.processor.fs)) ? this.processor.fs : 50;
         const len = this.bleBufferI.length;
         if (len < Math.max(10, fs * 2)) {
@@ -573,13 +748,14 @@ class RadarWebApp {
             event_id: `ble_${Date.now()}`,
             ts: new Date(endTsMs).toISOString(),
             animal: {
-                animal_id: cfg.animalId,
-                species: 'other',
-                name: 'unknown',
-                breed: 'unknown',
-                sex: 'unknown',
-                age_months: 0,
-                weight_kg: 0
+                animal_id: pet.animal_id,
+                species: pet.species,
+                name: pet.name,
+                breed: pet.breed,
+                sex: pet.sex,
+                age_months: pet.age_months,
+                weight_kg: pet.weight_kg,
+                medical_condition: pet.medical_condition
             },
             device: {
                 device_id: cfg.deviceId,
@@ -592,7 +768,7 @@ class RadarWebApp {
                 timezone
             },
             context: {
-                notes: 'web ble upload',
+                notes: pet.medical_condition || 'web ble upload',
                 tags: ['web', 'ble'],
                 location: { lat: 0, lng: 0, accuracy_m: 0 }
             },
@@ -3744,19 +3920,24 @@ class RadarWebApp {
             this.bleRecordingData = [];
             this.bleRecordingRawData = [];
             this.bleRecordingStartTime = new Date();
+            this._saveBlePetProfile();
+
+            const profile = this._getBlePetProfile();
+            this.bleRecordingPetProfile = profile;
+            const startVitals = this._getBleVitalsSnapshot();
+            const startImu = this._getLatestImuSnapshot();
+            this.bleRecordingStartVitals = startVitals;
+            this.bleRecordingStartImu = startImu;
 
             // 生成录制文件名 (参考main.py的命名规则)
             const timestamp = this.bleRecordingStartTime.toISOString()
                 .slice(0, 16).replace('T', '-').replace(/:/g, '-');
 
-            // 记录开始时的心率和呼吸率
-            const currentHR = this.currentHeartRate || 0;
-            const currentRR = this.currentRespiratoryRate || 0;
             const startTimestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
             // 在录制数据开头添加元数据信息
             this.bleRecordingData.push(`# 录制开始时间: ${startTimestamp}`);
-            this.bleRecordingData.push(`# 开始时心率: ${currentHR} bpm, 呼吸率: ${currentRR} bpm`);
+            this._appendBleRecordingMetadataComments(profile, startVitals, startImu, 'start');
             const isFFF0 = this.bleProtocol && this.bleProtocol.indexOf('FFF0') >= 0;
             if (isFFF0) {
                 this.bleRecordingData.push(`# Payload Format: MAC,Time,Lon,Lat,Ax,Ay,Az,Gx,Gy,Gz,Roll,Pitch,Yaw,V1,V2,V3`);
@@ -3765,9 +3946,12 @@ class RadarWebApp {
             }
             this.bleRecordingData.push(`# 原始数据开始`);
 
+            const startHR = startVitals.heartRate ?? 0;
+            const startRR = startVitals.respiratoryRate ?? 0;
             this.addBLELog(`🔴 开始录制数据 - ${timestamp}`);
-            this.addBLELog(`💓 开始时心率: ${currentHR} bpm, 呼吸率: ${currentRR} bpm`);
-            this.addBLELog('📝 实时保存到内存，结束时将下载处理后数据和原始数据文件');
+            this.addBLELog(`🐾 宠物: ${profile.name} / ${profile.breed} / ${profile.medical_condition || '无病情备注'}`);
+            this.addBLELog(`💓 开始时心率: ${startHR} bpm, 呼吸率: ${startRR} bpm`);
+            this.addBLELog('📝 实时保存到内存，结束时将下载处理后数据、原始数据与会话元数据');
 
             
         } else {
@@ -3775,16 +3959,17 @@ class RadarWebApp {
             const recordingEndTime = new Date();
             const duration = ((recordingEndTime - this.bleRecordingStartTime) / 1000).toFixed(1);
 
-            // 记录结束时的心率和呼吸率
-            const endHR = this.currentHeartRate || 0;
-            const endRR = this.currentRespiratoryRate || 0;
+            const profile = this.bleRecordingPetProfile || this._getBlePetProfile();
+            const endVitals = this._getBleVitalsSnapshot();
+            const endImu = this._getLatestImuSnapshot();
             const endTimestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
             // 在录制数据末尾添加结束信息
             this.bleRecordingData.push(`# 原始数据结束`);
             this.bleRecordingData.push(`# 录制结束时间: ${endTimestamp}`);
-            this.bleRecordingData.push(`# 结束时心率: ${endHR} bpm, 呼吸率: ${endRR} bpm`);
-            this.bleRecordingData.push(`# 录制统计: 总时长 ${duration}秒, 数据点数 ${this.bleRecordingData.filter(line => !line.startsWith('#')).length}`);
+            this._appendBleRecordingMetadataComments(profile, endVitals, endImu, 'end');
+            const dataPointCount = this.bleRecordingData.filter(line => !line.startsWith('#')).length;
+            this.bleRecordingData.push(`# 录制统计: 总时长 ${duration}秒, 数据点数 ${dataPointCount}`);
 
             // 生成文件内容 (参考main.py的数据格式)
             let fileContent = '';
@@ -3806,34 +3991,41 @@ class RadarWebApp {
             this.downloadFile(rawFileContent, rawFilename, 'text/plain');
             this.addBLELog(`📄 已保存原始数据: ${rawFilename} (${this.bleRecordingRawData.length} 行)`);
 
-            // 保存简化的录制统计（只包含最终结果,不包含详细窗口数据）
-            const simplifiedStats = {
-                startTime: this.bleRecordingStartTime.toISOString(),
-                endTime: new Date().toISOString(),
+            const sessionMeta = this._buildBleRecordingSessionMeta({
+                profile,
+                startTime: this.bleRecordingStartTime,
+                endTime: recordingEndTime,
                 durationSeconds: parseFloat(duration),
-                finalHeartRate: endHR,
-                finalRespiratoryRate: endRR,
-                dataPoints: this.bleRecordingData.filter(line => !line.startsWith('#')).length,
-                note: '心率呼吸率只保存显示的最终结果'
-            };
-            const statsJson = JSON.stringify(simplifiedStats, null, 2);
-            const statsFilename = `bluetooth_record_${timestamp}_stats.json`;
+                startVitals: this.bleRecordingStartVitals || this._getBleVitalsSnapshot(),
+                endVitals,
+                startImu: this.bleRecordingStartImu || null,
+                endImu,
+                dataPoints: dataPointCount
+            });
+            const statsJson = JSON.stringify(sessionMeta, null, 2);
+            const statsFilename = `bluetooth_record_${timestamp}_session.json`;
             this.downloadFile(statsJson, statsFilename, 'application/json');
-            this.addBLELog(`📈 已保存录制统计: ${statsFilename}`);
+            this.addBLELog(`📈 已保存会话元数据: ${statsFilename}`);
 
-            // 显示录制统计
+            const endHR = endVitals.heartRate ?? 0;
+            const endRR = endVitals.respiratoryRate ?? 0;
             this.addBLELog(`🟢 录制结束 - 时长: ${duration}秒`);
             this.addBLELog(`💓 结束时心率: ${endHR} bpm, 呼吸率: ${endRR} bpm`);
-            // 计算实际数据点数（排除注释行）
-            const dataPointCount = this.bleRecordingData.filter(line => !line.startsWith('#')).length;
+            if (endImu) {
+                this.addBLELog(`📐 结束时IMU Acc: ${endImu.acc.x.toFixed(3)}, ${endImu.acc.y.toFixed(3)}, ${endImu.acc.z.toFixed(3)} g`);
+                this.addBLELog(`📐 结束时IMU Gyr: ${endImu.gyr.x.toFixed(3)}, ${endImu.gyr.y.toFixed(3)}, ${endImu.gyr.z.toFixed(3)} deg/s`);
+            }
             this.addBLELog(`💾 已保存处理后数据: ${filename} (${dataPointCount} 数据点 + 元数据)`);
-            this.addBLELog(`📂 总共下载3个文件: 处理后数据、原始数据、统计信息`);
+            this.addBLELog(`📂 总共下载3个文件: 处理后数据、原始数据、会话元数据`);
 
             
             // 清空录制缓存
             this.bleRecordingData = [];
             this.bleRecordingRawData = [];
             this.bleRecordingStartTime = null;
+            this.bleRecordingPetProfile = null;
+            this.bleRecordingStartVitals = null;
+            this.bleRecordingStartImu = null;
         }
         
         // 更新按钮状态
