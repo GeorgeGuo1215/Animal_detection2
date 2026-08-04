@@ -3,7 +3,7 @@
     {
       "name": "web_search",
       "transport": "stdio",
-      "command": "python",
+      "command": null,
       "args": ["-m", "mcp_servers.web_search"],
       "env": {
         "TAVILY_API_KEY": "${TAVILY_API_KEY}"
@@ -13,9 +13,24 @@
     {
       "name": "nutritional_planner",
       "transport": "stdio",
-      "command": "python",
+      "command": null,
       "args": ["-m", "mcp_servers.nutritional_planner"],
       "env": {},
+      "enabled": true
+    },
+    {
+      "name": "vitals_alert",
+      "transport": "stdio",
+      "command": null,
+      "args": ["-m", "mcp_servers.vitals_alert"],
+      "env": {
+        "VITALS_DB_DSN": "${VITALS_DB_DSN}",
+        "VITALS_METRIC_TABLE": "${VITALS_METRIC_TABLE}",
+        "VITALS_PET_TABLE": "${VITALS_PET_TABLE}",
+        "VITALS_THRESHOLDS_JSON": "${VITALS_THRESHOLDS_JSON}",
+        "VITALS_ABNORMAL_RATIO": "${VITALS_ABNORMAL_RATIO}",
+        "VITALS_DB_CONNECT_TIMEOUT": "${VITALS_DB_CONNECT_TIMEOUT}"
+      },
       "enabled": true
     }
   ]

@@ -10,10 +10,6 @@ import httpx
 
 
 class QueryRewriter(Protocol):
-    """
-    Query 重写器接口：输入原始 query，输出多个候选 query（用于多路召回/扩展检索）。
-    """
-
     def rewrite(self, query: str) -> List[str]: ...
 
 
@@ -26,7 +22,6 @@ def _normalize_query(query: str) -> str:
     q0 = (query or "").strip()
     if not q0:
         return ""
-    # 去掉选择题选项行（如果用户把完整题干扔进来）
     q = q0.split("\n\n", 1)[0].strip()
     return re.sub(r"\s+", " ", q)
 
@@ -38,41 +33,117 @@ class NoRewrite(QueryRewriter):
         return [q] if q else []
 
 
+_ZH_EN_TOPIC_MAP: dict[str, str] = {
+    "食性": "diet feeding",
+    "营养": "nutrition nutritional",
+    "饲养": "husbandry feeding management",
+    "疫苗": "vaccine vaccination",
+    "免疫": "immune immunology",
+    "寄生虫": "parasite parasites",
+    "肠道": "intestinal gut",
+    "消化": "digestion digestive",
+    "繁殖": "breeding reproduction",
+    "遗传": "genetics genomics",
+    "基因": "gene genetic",
+    "行为": "behavior ethology",
+    "训练": "training obedience",
+    "手术": "surgery surgical",
+    "麻醉": "anesthesia sedation",
+    "皮肤": "dermatology skin",
+    "骨骼": "orthopedic bone",
+    "肾脏": "renal kidney",
+    "肝脏": "hepatic liver",
+    "心脏": "cardiac heart",
+    "呼吸": "respiratory pulmonary",
+    "泌尿": "urinary urological",
+    "内分泌": "endocrine hormone",
+    "肿瘤": "tumor oncology cancer",
+    "传染病": "infectious disease",
+    "中毒": "poisoning toxicology",
+    "急救": "emergency first aid",
+    "老年": "geriatric senior aging",
+    "幼犬": "puppy neonatal",
+    "幼猫": "kitten neonatal",
+}
+
+
+def _generate_en_variant(query: str) -> Optional[str]:
+    """Generate an English keyword expansion for a Chinese query by mapping
+    recognized Chinese terms to their English equivalents."""
+    q = query.lower()
+    en_parts: List[str] = []
+    for zh, en in _ZH_EN_TOPIC_MAP.items():
+        if zh in q:
+            en_parts.append(en)
+    if not en_parts:
+        return None
+    return "pet veterinary " + " ".join(en_parts[:4])
+
+
+_RE_CJK_CHAR_QR = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]")
+
+_ZH_TEMPLATES: tuple[str, ...] = (
+    "{q}",
+    "{q} 是什么",
+    "{q} 的定义",
+    "{q} 的症状",
+    "{q} 的治疗方法",
+    "{q} 的诊断",
+    "{q} 的禁忌症",
+    "{q} 的用药剂量",
+)
+
+_EN_TEMPLATES: tuple[str, ...] = (
+    "{q}",
+    "definition of {q}",
+    "what is {q}",
+    "what is the function of {q}",
+    "indications of {q}",
+    "contraindications of {q}",
+    "treatment for {q}",
+    "diagnosis of {q}",
+    "symptoms of {q}",
+    "dose of {q}",
+)
+
+
+def _is_mainly_chinese(query: str) -> bool:
+    chars = query.replace(" ", "")
+    if not chars:
+        return False
+    return len(_RE_CJK_CHAR_QR.findall(query)) / len(chars) > 0.3
+
+
 @dataclass(frozen=True)
 class TemplateRewriter(QueryRewriter):
-    """
-    简单的“模板化”重写：把一个 query 扩展成多种问法/关键词组合。
-    - 不调用 LLM，完全可复现
-    - 适合毕业设计里做“query rewrite / query expansion”的对比维度
-    """
+    """Template-based query expansion with bilingual support."""
 
-    templates: tuple[str, ...] = (
-        "{q}",
-        "definition of {q}",
-        "what is {q}",
-        "what is the function of {q}",
-        "indications of {q}",
-        "contraindications of {q}",
-        "treatment for {q}",
-        "diagnosis of {q}",
-        "symptoms of {q}",
-        "dose of {q}",
-    )
-    max_out: int = 8
+    max_out: int = 10
 
     def rewrite(self, query: str) -> List[str]:
         q = _normalize_query(query)
         if not q:
             return []
 
+        templates = _ZH_TEMPLATES if _is_mainly_chinese(q) else _EN_TEMPLATES
+
         out: List[str] = []
-        seen = set()
-        for t in self.templates:
-            cand = t.format(q=q).strip()
-            cand = re.sub(r"\s+", " ", cand)
+        seen: set[str] = set()
+
+        def _add(cand: str) -> None:
+            cand = re.sub(r"\s+", " ", (cand or "").strip())
             if cand and cand not in seen:
                 out.append(cand)
                 seen.add(cand)
+
+        _add(q)
+
+        en_variant = _generate_en_variant(q)
+        if en_variant:
+            _add(en_variant)
+
+        for t in templates:
+            _add(t.format(q=q))
             if len(out) >= int(self.max_out):
                 break
         return out
@@ -80,12 +151,7 @@ class TemplateRewriter(QueryRewriter):
 
 @dataclass(frozen=True)
 class LLMRewriter(QueryRewriter):
-    """
-    基于 OpenAI-compatible 接口的 query 重写。
-    - 保留原始 query
-    - 让 LLM 生成少量更适合检索的英文改写
-    - 失败时优雅回退到原 query
-    """
+    """LLM-based query rewriting using OpenAI-compatible API."""
 
     base_url: Optional[str] = None
     api_key: Optional[str] = None
@@ -193,7 +259,3 @@ class LLMRewriter(QueryRewriter):
             if len(out) >= int(self.max_out):
                 break
         return out
-
-
-
-

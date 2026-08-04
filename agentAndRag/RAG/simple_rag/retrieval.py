@@ -40,42 +40,55 @@ class DenseRetriever:
 
 
 EN_STOP = {
-    "the",
-    "a",
-    "an",
-    "and",
-    "or",
-    "to",
-    "of",
-    "in",
-    "on",
-    "for",
-    "with",
-    "as",
-    "is",
-    "are",
-    "was",
-    "were",
-    "be",
-    "by",
-    "that",
-    "this",
-    "it",
-    "from",
-    "at",
-    "into",
-    "during",
-    "within",
-    "without",
-    "over",
-    "under",
-    "between",
+    "the", "a", "an", "and", "or", "to", "of", "in", "on", "for", "with", "as",
+    "is", "are", "was", "were", "be", "by", "that", "this", "it", "from", "at",
+    "into", "during", "within", "without", "over", "under", "between",
 }
+
+_CJK_RANGES = (
+    "\u4e00-\u9fff"   # CJK Unified Ideographs
+    "\u3400-\u4dbf"   # CJK Extension A
+    "\uf900-\ufaff"   # CJK Compatibility Ideographs
+)
+_RE_CJK_CHAR = re.compile(f"[{_CJK_RANGES}]")
+_RE_EN_WORD = re.compile(r"[a-z][a-z0-9\-]{2,}")
+
+
+try:
+    import jieba as _jieba
+    _HAS_JIEBA = True
+except ImportError:
+    _jieba = None  # type: ignore[assignment]
+    _HAS_JIEBA = False
 
 
 def _tokenize(text: str) -> List[str]:
-    toks = re.findall(r"[a-z][a-z0-9\\-]{2,}", (text or "").lower())
-    return [t for t in toks if t not in EN_STOP]
+    """Tokenize mixed Chinese-English text for BM25.
+
+    English: standard lowercase words (3+ chars), stop-words removed.
+    Chinese: jieba cut_for_search (full words + sub-words) when available,
+    falls back to overlapping bigrams otherwise.
+    """
+    s = (text or "").lower()
+    tokens: List[str] = []
+
+    en_toks = _RE_EN_WORD.findall(s)
+    tokens.extend(t for t in en_toks if t not in EN_STOP)
+
+    if _HAS_JIEBA:
+        for w in _jieba.cut_for_search(s):
+            w = w.strip()
+            if len(w) >= 2 and _RE_CJK_CHAR.search(w):
+                tokens.append(w)
+    else:
+        cjk_chars = _RE_CJK_CHAR.findall(s)
+        if len(cjk_chars) >= 2:
+            for i in range(len(cjk_chars) - 1):
+                tokens.append(cjk_chars[i] + cjk_chars[i + 1])
+        elif len(cjk_chars) == 1:
+            tokens.append(cjk_chars[0])
+
+    return tokens
 
 
 class BM25Retriever:

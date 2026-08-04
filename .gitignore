@@ -6,29 +6,70 @@ __pycache__/
 .Python
 *.pyc
 
-# PyCharm
+# PyCharm / editor state
 .idea/
+.vscode/
+.codex/
 
 # macOS
 .DS_Store
 .AppleDouble
 .LSOverride
 
-# Build and Distribution
+# Build and distribution
 build/
 dist/
 *.egg-info/
 *.egg
 *.spec
 
-# Virtual Environment
+# Virtual environments
 venv/
 env/
 ENV/
+.venv/
 
-# Logs
+# Logs, caches and runtime output
 *.log
+.pytest_cache/
+outputs/
+**/outputs/
+docs_output/
+**/docs_output/
+**/node_modules/
 
-# Local configuration
+# Local configuration and secrets
 *.local
 .env
+**/keys.txt
+*.db
+
+# Agent migration policy: production code only
+agentAndRag/docs/
+agentAndRag/**/docs/
+agentAndRag/**/tests/
+agentAndRag/**/test/
+agentAndRag/RAG/experiments/
+agentAndRag/**/reports/
+agentAndRag/agent_api_logs/
+**/agent_api_logs/
+
+# RAG indexes, local corpora and downloaded model weights
+agentAndRag/RAG/data/
+agentAndRag/models/
+agentAndRag/1.1.0
+**/RAG/data/
+**/大熊猫/
+*.pdf
+*.docx
+agentAndRag/RAG/Untitled
+
+# Live/evaluation artifacts
+agentAndRag/agent_api/tests/**/reports/
+agentAndRag/agent_api/tests/rag/_*.json
+
+# Upstream/reference clones and generated memory reports
+git-filter-repo/
+git-filter-repo
+agentAndRag/MemoryOS-upstream/
+agentAndRag/memory_service/reports/

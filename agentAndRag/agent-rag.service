@@ -1,0 +1,34 @@
+[Unit]
+Description=PetMind Agent (agentAndRag, port 8002)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=sam
+Group=sam
+WorkingDirectory=/home/sam/Animal_Detection/Animal_detection/agentAndRag
+EnvironmentFile=/home/sam/Animal_Detection/Animal_detection/agentAndRag/.env
+Environment=PATH=/home/sam/anaconda3/envs/AnimalDetection/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=LD_LIBRARY_PATH=/usr/local/cuda/lib64
+ExecStart=/home/sam/anaconda3/envs/AnimalDetection/bin/python -m uvicorn agent_api.app.main:app --host 0.0.0.0 --port 8002
+
+Restart=always
+RestartSec=10
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=agent-rag
+
+# 给足够时间加载模型
+TimeoutStartSec=180
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+# 防止 OOM Killer 杀掉 (越小越不容易被杀, 范围 -1000~1000)
+OOMScoreAdjust=-500
+
+[Install]
+WantedBy=multi-user.target

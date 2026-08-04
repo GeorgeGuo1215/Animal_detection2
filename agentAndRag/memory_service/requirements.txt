@@ -1,0 +1,19 @@
+# 记忆服务依赖。与 agent_api/requirements.txt 的版本下限保持一致，
+# 两者共用同一个 conda 环境时不会互相顶版本。
+
+fastapi>=0.110.0
+uvicorn>=0.23.0
+pydantic>=2.6.0
+
+# PostgreSQL：pool 用于 API 与 worker 复用连接，binary 免去本地编译
+psycopg[binary,pool]>=3.1
+
+# pgvector 类型适配，让 list[float] 能直接作为查询参数传入
+pgvector>=0.2.5
+
+# OpenAI 兼容的 LLM 调用
+httpx>=0.27.0
+
+# 文本向量化（CPU 推理，与 RAG 子系统共用同一模型）
+sentence-transformers>=2.6.0
+numpy>=1.24

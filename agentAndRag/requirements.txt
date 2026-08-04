@@ -7,3 +7,5 @@ easydict
 addict 
 Pillow
 numpy
+# mcp_servers/vitals_alert: PetHealth PostgreSQL 只读查询
+psycopg[binary]>=3.1

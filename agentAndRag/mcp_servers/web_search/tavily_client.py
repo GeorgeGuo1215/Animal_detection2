@@ -1,17 +1,36 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 from typing import Any, Dict, List
 
-from mcp import ClientSession  # type: ignore[import]
-from mcp.client.streamable_http import (  # type: ignore[import]
-    streamable_http_client,
-)
+import httpx
 
 logger = logging.getLogger(__name__)
 
-_TAVILY_MCP_URL_TEMPLATE = "https://mcp.tavily.com/mcp/?tavilyApiKey={key}"
+_TAVILY_REST_URL = "https://api.tavily.com/search"
+
+_http_pool: httpx.AsyncClient | None = None
+
+
+def _get_http_pool() -> httpx.AsyncClient:
+    global _http_pool
+    if _http_pool is None or _http_pool.is_closed:
+        _http_pool = httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=5, read=30, write=5, pool=10),
+            limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+        )
+    return _http_pool
+
+
+def _normalize_result_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize a single search result dict to {title, url, content}."""
+    return {
+        "title": entry.get("title") or "",
+        "url": entry.get("url") or entry.get("link") or entry.get("source") or "",
+        "content": entry.get("content") or entry.get("snippet") or entry.get("text") or "",
+    }
 
 
 async def tavily_search(
@@ -20,63 +39,34 @@ async def tavily_search(
     search_depth: str = "basic",
 ) -> List[Dict[str, Any]]:
     """
-    调用远程 Tavily MCP Server 的 tavily_search 工具，返回统一的搜索结果结构。
+    Call the Tavily REST API directly (no MCP subprocess) and return search results.
 
-    返回格式（简化版）:
-    [
-      {
-        "title": "...",
-        "url": "...",
-        "content": "..."  # 主要文本/摘要
-      },
-      ...
-    ]
+    Returns:
+        [{"title": "...", "url": "...", "content": "..."}, ...]
     """
     api_key = os.getenv("TAVILY_API_KEY", "").strip()
     if not api_key:
         logger.warning("TAVILY_API_KEY not set, Tavily search disabled.")
         return []
 
-    url = _TAVILY_MCP_URL_TEMPLATE.format(key=api_key)
+    payload = {
+        "query": query,
+        "max_results": int(max_results),
+        "search_depth": search_depth,
+    }
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
 
     try:
-        async with streamable_http_client(url=url) as (read, write, _):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                result = await session.call_tool(
-                    "tavily_search",
-                    {
-                        "query": query,
-                        "max_results": max_results,
-                        "search_depth": search_depth,
-                    },
-                )
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Tavily MCP search failed: %s", exc)
+        client = _get_http_pool()
+        resp = await client.post(_TAVILY_REST_URL, json=payload, headers=headers)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        logger.warning("Tavily REST search failed: %s", exc)
         return []
 
-    # result.content 可能是 MCP TextContent 列表或类似结构，交给 mcp_client 规范化
-    content = getattr(result, "content", None) or getattr(result, "contents", None)
-    items: List[Dict[str, Any]] = []
-
-    if isinstance(content, list):
-        for c in content:
-            # 兼容 pydantic model / dict / 其他
-            if hasattr(c, "model_dump"):
-                data = c.model_dump()  # type: ignore[assignment]
-            elif isinstance(c, dict):
-                data = c
-            else:
-                data = {"type": getattr(c, "type", "text"), "text": str(c)}
-
-            text = data.get("text") or data.get("value") or ""
-            meta = data.get("metadata") or {}
-            items.append(
-                {
-                    "title": meta.get("title") or "",
-                    "url": meta.get("url") or meta.get("source") or "",
-                    "content": text,
-                }
-            )
-
-    return items
+    results = data.get("results") or []
+    return [_normalize_result_entry(r) for r in results if isinstance(r, dict)]

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import List
 
 
+from RAG.simple_rag.category_index import resolve_category_index_dirs
 from RAG.simple_rag.config import RagConfig, default_config
 from RAG.simple_rag.pipeline import search
 from RAG.simple_rag.query_rewrite import LLMRewriter, NoRewrite, TemplateRewriter
@@ -18,14 +19,31 @@ from RAG.simple_rag.reranker import CrossEncoderReranker
 from RAG.simple_rag.vector_store import NumpyVectorStore
 
 
-_RE_WORD = re.compile(r"[A-Za-z][A-Za-z0-9\\-]{2,}")
+_RE_WORD = re.compile(r"[A-Za-z][A-Za-z0-9\-]{2,}")
+_CJK_RANGES = "\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff"
+_RE_CJK_CHAR = re.compile(f"[{_CJK_RANGES}]")
+_EN_STOP = {
+    "the", "a", "an", "and", "or", "to", "of", "in", "on", "for", "with", "as",
+    "is", "are", "was", "were", "be", "by", "that", "this", "it", "from", "at",
+}
+
+
+def _tokenize_for_overlap(text: str) -> list[str]:
+    s = (text or "").lower()
+    tokens = [t for t in _RE_WORD.findall(s) if t not in _EN_STOP]
+    cjk_chars = _RE_CJK_CHAR.findall(s)
+    for i in range(len(cjk_chars) - 1):
+        tokens.append(cjk_chars[i] + cjk_chars[i + 1])
+    if len(cjk_chars) == 1:
+        tokens.append(cjk_chars[0])
+    return tokens
 
 
 def overlap_score(query: str, ctx: str) -> float:
-    tq = set(t.lower() for t in _RE_WORD.findall(query or ""))
+    tq = set(_tokenize_for_overlap(query))
     if not tq:
         return 0.0
-    tc = set(t.lower() for t in _RE_WORD.findall(ctx or ""))
+    tc = set(_tokenize_for_overlap(ctx))
     if not tc:
         return 0.0
     return len(tq & tc) / float(len(tq))
@@ -44,6 +62,12 @@ def main() -> None:
     parser.add_argument("query", type=str, help="你的问题/关键词")
     parser.add_argument("--raw-dir", type=str, default=None, help="原始 .mmd 目录（默认 RAG/data/raw）")
     parser.add_argument("--index-dir", type=str, default=None, help="索引目录（默认 RAG/data/rag_index）")
+    parser.add_argument(
+        "--category",
+        type=str,
+        default=None,
+        help="二级分类 id（可逗号分隔，如 pharmacy.papich 或 clinical.*）；指定后在分类子库中检索",
+    )
     parser.add_argument(
         "--embedding-model",
         type=str,
@@ -106,9 +130,11 @@ def main() -> None:
 
     repo_root = Path(__file__).resolve().parents[0].parent
     cfg0 = default_config(repo_root)
+    cat_dirs = resolve_category_index_dirs(repo_root=repo_root, category=args.category) if args.category else []
+    primary_index = cat_dirs[0] if cat_dirs else (Path(args.index_dir) if args.index_dir else cfg0.index_dir)
     cfg = RagConfig(
         raw_dir=Path(args.raw_dir) if args.raw_dir else cfg0.raw_dir,
-        index_dir=Path(args.index_dir) if args.index_dir else cfg0.index_dir,
+        index_dir=primary_index,
         embedding_model=args.embedding_model,
         chunk_words=cfg0.chunk_words,
         chunk_overlap_words=cfg0.chunk_overlap_words,
@@ -119,39 +145,61 @@ def main() -> None:
     if args.rerank:
         retrieve_k = max(retrieve_k, int(args.rerank_candidates))
 
-    if not args.multi_route:
-        hits = search(cfg, args.query, top_k=retrieve_k, device=args.device)
-    else:
-        if args.rewrite == "none":
-            rewriter = NoRewrite()
-        elif args.rewrite == "llm":
-            rewriter = LLMRewriter(
-                base_url=args.rewrite_base_url,
-                api_key=args.rewrite_api_key,
-                model=args.rewrite_model,
-                max_out=int(args.rewrite_max_out),
-                timeout_s=float(args.rewrite_timeout_s),
-            )
-        else:
-            rewriter = TemplateRewriter(max_out=int(args.rewrite_max_out))
-        mr = build_default_multiroute(
-            index_dir=str(cfg.index_dir),
+    index_targets = cat_dirs if cat_dirs else [cfg.index_dir]
+    hits: List[dict] = []
+    for idir in index_targets:
+        cfg_i = RagConfig(
+            raw_dir=cfg.raw_dir,
+            index_dir=idir,
             embedding_model=cfg.embedding_model,
-            device=args.device,
-            enable_bm25=True,
-            rewriter=rewriter,
+            chunk_words=cfg.chunk_words,
+            chunk_overlap_words=cfg.chunk_overlap_words,
+            min_chunk_words=cfg.min_chunk_words,
         )
-        hits = [
-            {
-                "score": float(h.score),
-                "source_path": h.meta.get("source_path"),
-                "chunk_index": h.meta.get("chunk_index"),
-                "n_words": h.meta.get("n_words"),
-                "text": h.meta.get("text"),
-                "chunk_id": h.meta.get("chunk_id"),
-            }
-            for h in mr.retrieve(args.query, top_k=retrieve_k)
-        ]
+        store = NumpyVectorStore(idir)
+        if not store.exists():
+            continue
+        store.load()
+        if store.size == 0:
+            continue
+        if not args.multi_route:
+            part = search(cfg_i, args.query, top_k=retrieve_k, device=args.device)
+        else:
+            if args.rewrite == "none":
+                rewriter = NoRewrite()
+            elif args.rewrite == "llm":
+                rewriter = LLMRewriter(
+                    base_url=args.rewrite_base_url,
+                    api_key=args.rewrite_api_key,
+                    model=args.rewrite_model,
+                    max_out=int(args.rewrite_max_out),
+                    timeout_s=float(args.rewrite_timeout_s),
+                )
+            else:
+                rewriter = TemplateRewriter(max_out=int(args.rewrite_max_out))
+            mr = build_default_multiroute(
+                index_dir=str(idir),
+                embedding_model=cfg.embedding_model,
+                device=args.device,
+                enable_bm25=True,
+                rewriter=rewriter,
+            )
+            part = [
+                {
+                    "score": float(h.score),
+                    "source_path": h.meta.get("source_path"),
+                    "chunk_index": h.meta.get("chunk_index"),
+                    "n_words": h.meta.get("n_words"),
+                    "text": h.meta.get("text"),
+                    "chunk_id": h.meta.get("chunk_id"),
+                }
+                for h in mr.retrieve(args.query, top_k=retrieve_k)
+            ]
+        for h in part:
+            h["category"] = idir.name if cat_dirs else None
+        hits.extend(part)
+    hits.sort(key=lambda h: float(h.get("score") or 0), reverse=True)
+    hits = hits[:retrieve_k]
 
     # 先 rerank 小块：根据 (query, chunk_text) 重新排序，然后只保留 top_k 作为“种子块”
     if args.rerank and hits:

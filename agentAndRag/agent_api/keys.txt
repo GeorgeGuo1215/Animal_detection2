@@ -1,2 +1,0 @@
-# API keys (one per line, lines starting with # are ignored)
-sk-pethealthai-default-key-2026
