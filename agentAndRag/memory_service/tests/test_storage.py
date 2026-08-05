@@ -82,6 +82,30 @@ def test_short_term_is_isolated_per_user(conn, user_id, other_user_id):
     assert short_term.count(conn, other_user_id) == 1
 
 
+def test_turn_receipt_survives_short_term_drain(conn, user_id):
+    message_id, created = short_term.append_once(
+        conn,
+        user_id=user_id,
+        user_input="去年的疫苗反应",
+        agent_response="已记录",
+        turn_id="session-a:turn-1",
+    )
+    assert created is True
+    short_term.drain_overflow(conn, user_id, keep=0)
+
+    repeated_id, repeated_created = short_term.append_once(
+        conn,
+        user_id=user_id,
+        user_input="去年的疫苗反应",
+        agent_response="已记录",
+        turn_id="session-a:turn-1",
+    )
+
+    assert repeated_id == message_id
+    assert repeated_created is False
+    assert short_term.count(conn, user_id) == 0
+
+
 # ---------------------------------------------------------------- 中期记忆
 
 

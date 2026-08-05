@@ -17,7 +17,7 @@ from fastapi import APIRouter, HTTPException
 from . import db
 from .config import MemoryConfig
 from .embedding import get_embedder
-from .memory import consolidator, long_term, mid_term, queue, retriever, short_term
+from .memory import consolidator, long_term, mid_term, queue, retriever, short_term, subjects
 from .schemas import (
     ContextIn,
     ContextOut,
@@ -26,6 +26,8 @@ from .schemas import (
     MessageOut,
     ProfileOut,
     StatsOut,
+    SubjectIn,
+    SubjectOut,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,6 +36,28 @@ logger = logging.getLogger(__name__)
 def build_router(cfg: MemoryConfig, worker_pool=None) -> APIRouter:
     router = APIRouter()
 
+    @router.post("/v1/memory/subjects/ensure", response_model=SubjectOut, tags=["memory"])
+    def ensure_subject(payload: SubjectIn) -> SubjectOut:
+        try:
+            with db.connection() as conn:
+                record = subjects.ensure(
+                    conn,
+                    user_id=payload.user_id,
+                    display_name=payload.display_name,
+                    source=payload.source,
+                    metadata=payload.metadata,
+                )
+        except db.MemoryDbError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        return SubjectOut(
+            user_id=record["id"],
+            display_name=record["displayName"],
+            source=record["source"],
+            metadata=record["metadata"] or {},
+            created_at=record["createdAt"],
+            updated_at=record["updatedAt"],
+        )
+
     @router.post("/v1/memory/messages", response_model=MessageOut, tags=["memory"])
     def write_message(payload: MessageIn) -> MessageOut:
         from datetime import datetime
@@ -41,19 +65,21 @@ def build_router(cfg: MemoryConfig, worker_pool=None) -> APIRouter:
         now = datetime.now()
         try:
             with db.connection() as conn:
-                message_id = short_term.append(
+                subjects.ensure(conn, user_id=payload.user_id)
+                message_id, created = short_term.append_once(
                     conn,
                     user_id=payload.user_id,
                     user_input=payload.user_input,
                     agent_response=payload.agent_response,
                     pet_id=payload.pet_id,
                     session_id=payload.session_id,
+                    turn_id=payload.turn_id,
                     created_at=now,
                 )
                 size = short_term.count(conn, payload.user_id)
                 # 攒够一批才派活，避免每轮对话都触发一次带 LLM 的提升流程。
                 queued = False
-                if consolidator.should_promote(size, cfg):
+                if created and consolidator.should_promote(size, cfg):
                     queued = queue.enqueue(conn, user_id=payload.user_id, now=now) is not None
         except psycopg.errors.ForeignKeyViolation as exc:
             raise HTTPException(status_code=404, detail=f"用户不存在: {payload.user_id}") from exc
@@ -61,7 +87,12 @@ def build_router(cfg: MemoryConfig, worker_pool=None) -> APIRouter:
             logger.exception("memory_service: write failed")
             raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-        return MessageOut(id=message_id, queued=queued, short_term_size=size)
+        return MessageOut(
+            id=message_id,
+            queued=queued,
+            short_term_size=size,
+            duplicate=not created,
+        )
 
     @router.post("/v1/memory/context", response_model=ContextOut, tags=["memory"])
     def read_context(payload: ContextIn) -> ContextOut:

@@ -25,9 +25,11 @@ from ..context.request_context import filter_tools_without_animal, set_request_a
 from ..concurrency import ResourceBusyError
 from ..llm.llm_client import extract_text, get_shared_async_client
 from ..llm.llm_client_stream import get_shared_async_stream_client
+from ..memory import get_memory_client
 from ..persistence.qa_store import save_qa_record
 from ..persistence.trace_store import new_trace_id, write_trace
 from ..prompts.multi_turn import DECISION_INSTRUCTIONS, DECISION_SYSTEM_PROMPT
+from ..prompts.memory import build_memory_context_injection
 from ..schemas.openai_schemas import (
     ChatCompletionChoice,
     ChatCompletionRequest,
@@ -68,6 +70,90 @@ def _needs_planner(query: str) -> bool:
     """Return True if the query likely needs multi-tool planning.
     Simple factual questions can skip the planning LLM call."""
     return bool(_TIMELINESS_HINTS.search(query) or _MULTI_TOOL_HINTS.search(query))
+
+
+def _clean_identity(value: Optional[str], max_length: int = 200) -> Optional[str]:
+    text = str(value or "").strip()
+    return text[:max_length] if text else None
+
+
+def _memory_user_id(req: ChatCompletionRequest, request: Request) -> Optional[str]:
+    return _clean_identity(
+        getattr(req, "user_id", None)
+        or getattr(req, "user", None)
+        or request.headers.get("x-user-id")
+    )
+
+
+async def _load_user_memory(
+    *,
+    user_id: Optional[str],
+    query: str,
+    pet_id: Optional[str],
+) -> tuple[str, Dict[str, Any]]:
+    client = get_memory_client()
+    if client is None:
+        return "", {"enabled": False, "reason": "memory_disabled"}
+    if not user_id:
+        return "", {"enabled": True, "loaded": False, "reason": "missing_user_id"}
+    try:
+        context = await client.context(user_id=user_id, query=query, pet_id=pet_id)
+        text = str(context.get("text") or "")
+        return build_memory_context_injection(text), {
+            "enabled": True,
+            "loaded": True,
+            "user_id": user_id,
+            "profile_version": int(context.get("profile_version") or 0),
+            "knowledge_items": len(context.get("knowledge") or []),
+            "related_pages": len(context.get("related_pages") or []),
+            "recent_turns": len(context.get("recent_dialogue") or []),
+            "context_chars": len(text),
+        }
+    except Exception as exc:  # memory is fail-open unless explicitly required
+        if client.config.required:
+            raise HTTPException(status_code=503, detail=f"required memory unavailable: {exc}") from exc
+        return "", {
+            "enabled": True,
+            "loaded": False,
+            "user_id": user_id,
+            "reason": "memory_unavailable",
+            "error": str(exc),
+        }
+
+
+async def _write_user_memory(
+    *,
+    user_id: Optional[str],
+    query: str,
+    answer: str,
+    pet_id: Optional[str],
+    session_id: Optional[str],
+    turn_id: Optional[str],
+) -> Dict[str, Any]:
+    client = get_memory_client()
+    if client is None or not user_id or not answer.strip():
+        return {"stored": False, "reason": "disabled_or_incomplete"}
+    try:
+        result = await client.write_turn(
+            user_id=user_id,
+            user_input=query,
+            agent_response=answer,
+            pet_id=pet_id,
+            session_id=session_id,
+            turn_id=turn_id,
+        )
+        return {
+            "stored": True,
+            "user_id": user_id,
+            "message_id": result.get("id"),
+            "duplicate": bool(result.get("duplicate")),
+            "queued": bool(result.get("queued")),
+            "short_term_size": int(result.get("short_term_size") or 0),
+        }
+    except Exception as exc:
+        if client.config.required:
+            raise HTTPException(status_code=503, detail=f"required memory write failed: {exc}") from exc
+        return {"stored": False, "user_id": user_id, "reason": "memory_unavailable", "error": str(exc)}
 
 DEFAULT_ALLOWED_TOOLS = [
     "rag.search",
@@ -992,6 +1078,19 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
     system_context = _build_system_context(req.messages)
     conversation_history = _build_conversation_history(req.messages)
     pethealth_server_context = _build_pethealth_server_context(req, request)
+    memory_user_id = _memory_user_id(req, request)
+    memory_pet_id = _clean_identity(
+        getattr(req, "animal_id", None) or request.headers.get("x-animal-id")
+    )
+    memory_injection, memory_load_detail = await _load_user_memory(
+        user_id=memory_user_id,
+        query=query,
+        pet_id=memory_pet_id,
+    )
+    if memory_injection:
+        system_context = "\n\n".join(part for part in (system_context, memory_injection) if part)
+    memory_session_id = _clean_identity(getattr(req, "memory_session_id", None))
+    memory_turn_id = _clean_identity(getattr(req, "memory_turn_id", None)) or request_id
 
     # 请求级 animal_id（sql.search 仅在非空时进入工具名单；由 ContextVar 供 sql_search_tool 读取）
     set_request_animal_id(
@@ -1027,6 +1126,13 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
             collected_rag_hits = 0
             collected_rag_best_score = 0.0
             collected_web_search = False
+
+            yield openai_sse_chunk(
+                request_id=request_id,
+                model=req.model,
+                status="memory_loaded" if memory_load_detail.get("loaded") else "memory_skipped",
+                detail=memory_load_detail,
+            )
 
             if use_moe:
                 source = _stream_moe_agent(
@@ -1069,6 +1175,8 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
                 )
 
             async for chunk in source:
+                if chunk == SSE_DONE:
+                    continue
                 yield chunk
                 if chunk.startswith("data: ") and chunk.strip() != "data: [DONE]":
                     try:
@@ -1092,6 +1200,22 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
                             collected_timing = detail.get("timing", [])
                     except Exception:
                         pass
+
+            memory_write_detail = await _write_user_memory(
+                user_id=memory_user_id,
+                query=query,
+                answer="".join(collected_content),
+                pet_id=memory_pet_id,
+                session_id=memory_session_id,
+                turn_id=memory_turn_id,
+            )
+            yield openai_sse_chunk(
+                request_id=request_id,
+                model=req.model,
+                status="memory_stored" if memory_write_detail.get("stored") else "memory_store_skipped",
+                detail=memory_write_detail,
+            )
+            yield SSE_DONE
 
             write_trace(
                 trace_id,
@@ -1155,6 +1279,18 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
                     )],
                     usage=UsageInfo(),
                 )
+                memory_write_detail = await _write_user_memory(
+                    user_id=memory_user_id,
+                    query=query,
+                    answer=answer or "",
+                    pet_id=memory_pet_id,
+                    session_id=memory_session_id,
+                    turn_id=memory_turn_id,
+                )
+                response.memory = {
+                    "load": memory_load_detail,
+                    "write": memory_write_detail,
+                }
                 write_trace(trace_id, tool="v1.chat.completions.moe", request=req.model_dump(), response=response.model_dump())
                 elapsed_ms = int((time.monotonic() - t0_non_stream) * 1000)
                 tool_names = [call.tool_name for call in (moe_trace.tool_calls if moe_trace else [])]
@@ -1208,6 +1344,19 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
                 tool_results=tool_results,
                 timing=_timing if _debug_timing else None,
             )
+
+            memory_write_detail = await _write_user_memory(
+                user_id=memory_user_id,
+                query=query,
+                answer=answer or "",
+                pet_id=memory_pet_id,
+                session_id=memory_session_id,
+                turn_id=memory_turn_id,
+            )
+            response.memory = {
+                "load": memory_load_detail,
+                "write": memory_write_detail,
+            }
 
             write_trace(trace_id, tool="v1.chat.completions", request=req.model_dump(), response=response.model_dump())
 

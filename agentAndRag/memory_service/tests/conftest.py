@@ -76,9 +76,9 @@ def user_id(conn) -> str:
     """建一个仅存在于本用例事务中的用户。"""
     uid = _scoped_id("test_user")
     conn.execute(
-        'INSERT INTO "User" ("id", "username", "passwordHash") VALUES (%s, %s, %s)'
+        'INSERT INTO memory_subjects ("id", "displayName", "source") VALUES (%s, %s, %s)'
         ' ON CONFLICT ("id") DO NOTHING',
-        (uid, "pytest", "x"),
+        (uid, "pytest", "test"),
     )
     return uid
 
@@ -88,9 +88,9 @@ def other_user_id(conn) -> str:
     """第二个用户，用来验证记忆不会跨用户泄漏。"""
     uid = _scoped_id("test_other")
     conn.execute(
-        'INSERT INTO "User" ("id", "username", "passwordHash") VALUES (%s, %s, %s)'
+        'INSERT INTO memory_subjects ("id", "displayName", "source") VALUES (%s, %s, %s)'
         ' ON CONFLICT ("id") DO NOTHING',
-        (uid, "pytest-other", "x"),
+        (uid, "pytest-other", "test"),
     )
     return uid
 

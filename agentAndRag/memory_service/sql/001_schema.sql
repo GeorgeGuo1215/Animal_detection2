@@ -8,6 +8,20 @@
 
 CREATE EXTENSION IF NOT EXISTS vector;
 
+-- ---------------------------------------------------------------- 记忆主体
+-- userId 是上游认证系统提供的稳定外部标识。记忆服务拥有自己的主体表，避免独立
+-- petmemory 数据库为了外键而复制 PetHealth 的 User 表；Chat-MoE 测试用户也可以
+-- 使用隔离的 chatmoe:* 标识，不污染业务账号。
+CREATE TABLE IF NOT EXISTS memory_subjects (
+    "id"          TEXT NOT NULL,
+    "displayName" TEXT,
+    "source"      TEXT NOT NULL DEFAULT 'external',
+    "metadata"    JSONB NOT NULL DEFAULT '{}'::jsonb,
+    "createdAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "memory_subjects_pkey" PRIMARY KEY ("id")
+);
+
 -- ---------------------------------------------------------------- 短期记忆
 -- 最近若干轮原始对话，先进先出。溢出的部分由 consolidator 提升为中期记忆。
 CREATE TABLE IF NOT EXISTS memory_short_term (
@@ -15,17 +29,29 @@ CREATE TABLE IF NOT EXISTS memory_short_term (
     "userId"        TEXT NOT NULL,
     "petId"         TEXT,
     "sessionId"     TEXT,
+    "turnId"        TEXT,
     "userInput"     TEXT NOT NULL,
     "agentResponse" TEXT NOT NULL,
     "createdAt"     TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "memory_short_term_pkey" PRIMARY KEY ("id"),
-    CONSTRAINT "memory_short_term_userId_fkey" FOREIGN KEY ("userId")
-        REFERENCES "User"("id") ON DELETE CASCADE
+    CONSTRAINT "memory_short_term_subject_fkey" FOREIGN KEY ("userId")
+        REFERENCES memory_subjects("id") ON DELETE CASCADE
 );
 
 -- 取队列头尾都靠这个索引；createdAt 相同时用 id 兜底保证顺序稳定。
 CREATE INDEX IF NOT EXISTS "memory_short_term_user_time_idx"
     ON memory_short_term ("userId", "createdAt", "id");
+
+-- 幂等收据独立于短期表存在；消息提升到 memory_pages 后，重试仍能被识别。
+CREATE TABLE IF NOT EXISTS memory_ingest_receipts (
+    "userId"    TEXT NOT NULL,
+    "turnId"    TEXT NOT NULL,
+    "messageId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "memory_ingest_receipts_pkey" PRIMARY KEY ("userId", "turnId"),
+    CONSTRAINT "memory_ingest_receipts_subject_fkey" FOREIGN KEY ("userId")
+        REFERENCES memory_subjects("id") ON DELETE CASCADE
+);
 
 -- ---------------------------------------------------------------- 中期记忆：话题段
 -- 热度载体。visitCount / pageCount / lastVisitAt 三个因子决定 heat，
@@ -45,8 +71,8 @@ CREATE TABLE IF NOT EXISTS memory_segments (
     "createdAt"        TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt"        TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "memory_segments_pkey" PRIMARY KEY ("id"),
-    CONSTRAINT "memory_segments_userId_fkey" FOREIGN KEY ("userId")
-        REFERENCES "User"("id") ON DELETE CASCADE
+    CONSTRAINT "memory_segments_subject_fkey" FOREIGN KEY ("userId")
+        REFERENCES memory_subjects("id") ON DELETE CASCADE
 );
 
 -- 汰换扫最冷（ASC）、提升扫最热（DESC），B-tree 双向可扫，一个索引够用。
@@ -74,8 +100,8 @@ CREATE TABLE IF NOT EXISTS memory_pages (
     CONSTRAINT "memory_pages_pkey" PRIMARY KEY ("id"),
     CONSTRAINT "memory_pages_segmentId_fkey" FOREIGN KEY ("segmentId")
         REFERENCES memory_segments("id") ON DELETE CASCADE,
-    CONSTRAINT "memory_pages_userId_fkey" FOREIGN KEY ("userId")
-        REFERENCES "User"("id") ON DELETE CASCADE
+    CONSTRAINT "memory_pages_subject_fkey" FOREIGN KEY ("userId")
+        REFERENCES memory_subjects("id") ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS "memory_pages_segment_idx"
@@ -97,8 +123,8 @@ CREATE TABLE IF NOT EXISTS memory_profiles (
     "version"   INTEGER NOT NULL DEFAULT 0,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "memory_profiles_pkey" PRIMARY KEY ("userId"),
-    CONSTRAINT "memory_profiles_userId_fkey" FOREIGN KEY ("userId")
-        REFERENCES "User"("id") ON DELETE CASCADE
+    CONSTRAINT "memory_profiles_subject_fkey" FOREIGN KEY ("userId")
+        REFERENCES memory_subjects("id") ON DELETE CASCADE
 );
 
 -- ---------------------------------------------------------------- 长期记忆：知识条目
@@ -114,8 +140,8 @@ CREATE TABLE IF NOT EXISTS memory_knowledge (
     "lastHitAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "memory_knowledge_pkey" PRIMARY KEY ("id"),
-    CONSTRAINT "memory_knowledge_userId_fkey" FOREIGN KEY ("userId")
-        REFERENCES "User"("id") ON DELETE CASCADE
+    CONSTRAINT "memory_knowledge_subject_fkey" FOREIGN KEY ("userId")
+        REFERENCES memory_subjects("id") ON DELETE CASCADE
 );
 
 -- 同一用户重复抽出同一条知识时直接命中冲突，靠它做幂等写入。
@@ -143,8 +169,8 @@ CREATE TABLE IF NOT EXISTS memory_tasks (
     "createdAt"  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt"  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "memory_tasks_pkey" PRIMARY KEY ("id"),
-    CONSTRAINT "memory_tasks_userId_fkey" FOREIGN KEY ("userId")
-        REFERENCES "User"("id") ON DELETE CASCADE
+    CONSTRAINT "memory_tasks_subject_fkey" FOREIGN KEY ("userId")
+        REFERENCES memory_subjects("id") ON DELETE CASCADE
 );
 
 -- 出队只看 pending，部分索引让队列深度不影响扫描成本。

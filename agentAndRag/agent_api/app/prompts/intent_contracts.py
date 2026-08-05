@@ -1,7 +1,6 @@
 """Doctor-side intent catalogue and output contracts for MoE.
 
-The teacher-provided D1-D8 rubric is represented once in this module.  The
-classifier, Router injection, Aggregator injection and evaluation harness all
+The classifier, Router injection, Aggregator injection and evaluation harness all
 consume this registry so adding or revising an intent does not require editing
 the orchestration code.
 """

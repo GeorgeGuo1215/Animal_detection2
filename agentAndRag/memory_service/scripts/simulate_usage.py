@@ -641,8 +641,8 @@ def main() -> int:
 
     with db.connection() as conn:
         conn.execute(
-            'INSERT INTO "User" ("id", "username", "passwordHash") VALUES (%s, %s, %s)',
-            (user_id, "simulation", "x"),
+            'INSERT INTO memory_subjects ("id", "displayName", "source") VALUES (%s, %s, %s)',
+            (user_id, "simulation", "simulation"),
         )
 
     try:
@@ -658,7 +658,7 @@ def main() -> int:
     finally:
         if not args.keep_data:
             with db.connection() as conn:
-                conn.execute('DELETE FROM "User" WHERE "id" = %s', (user_id,))
+                conn.execute('DELETE FROM memory_subjects WHERE "id" = %s', (user_id,))
         db.close_pool()
 
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)

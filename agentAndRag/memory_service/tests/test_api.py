@@ -64,18 +64,23 @@ def api_user(client) -> str:
     uid = f"apitest_{uuid.uuid4().hex[:10]}"
     with db.connection() as conn:
         conn.execute(
-            'INSERT INTO "User" ("id", "username", "passwordHash") VALUES (%s, %s, %s)',
-            (uid, "pytest-api", "x"),
+            'INSERT INTO memory_subjects ("id", "displayName", "source") VALUES (%s, %s, %s)',
+            (uid, "pytest-api", "test"),
         )
     yield uid
     with db.connection() as conn:
-        conn.execute('DELETE FROM "User" WHERE "id" = %s', (uid,))
+        conn.execute('DELETE FROM memory_subjects WHERE "id" = %s', (uid,))
 
 
-def _post_message(client, user_id, text="喂养问题", answer="回答"):
+def _post_message(client, user_id, text="喂养问题", answer="回答", turn_id=None):
     return client.post(
         "/v1/memory/messages",
-        json={"user_id": user_id, "user_input": text, "agent_response": answer},
+        json={
+            "user_id": user_id,
+            "user_input": text,
+            "agent_response": answer,
+            **({"turn_id": turn_id} if turn_id else {}),
+        },
     )
 
 
@@ -119,9 +124,49 @@ def test_repeated_overflow_merges_into_one_task(client, api_user, cfg):
     assert row["n"] == 1
 
 
-def test_unknown_user_returns_404(client):
-    response = _post_message(client, "user-that-does-not-exist")
-    assert response.status_code == 404
+def test_write_auto_registers_external_subject(client):
+    user_id = f"external_{uuid.uuid4().hex[:10]}"
+    response = _post_message(client, user_id)
+    assert response.status_code == 200
+    try:
+        with db.connection() as conn:
+            row = conn.execute(
+                'SELECT "source" FROM memory_subjects WHERE "id" = %s', (user_id,)
+            ).fetchone()
+        assert row["source"] == "external"
+    finally:
+        with db.connection() as conn:
+            conn.execute('DELETE FROM memory_subjects WHERE "id" = %s', (user_id,))
+
+
+def test_subject_ensure_is_idempotent_and_updates_display_name(client):
+    user_id = f"subject_{uuid.uuid4().hex[:10]}"
+    payload = {
+        "user_id": user_id,
+        "display_name": "测试员甲",
+        "source": "chat-moe",
+        "metadata": {"channel": "browser"},
+    }
+    first = client.post("/v1/memory/subjects/ensure", json=payload)
+    second = client.post(
+        "/v1/memory/subjects/ensure",
+        json={**payload, "display_name": "测试员乙"},
+    )
+    assert first.status_code == second.status_code == 200
+    assert second.json()["display_name"] == "测试员乙"
+    assert second.json()["metadata"] == {"channel": "browser"}
+    with db.connection() as conn:
+        conn.execute('DELETE FROM memory_subjects WHERE "id" = %s', (user_id,))
+
+
+def test_duplicate_turn_is_acknowledged_without_second_write(client, api_user):
+    first = _post_message(client, api_user, turn_id="stable-turn-1")
+    second = _post_message(client, api_user, turn_id="stable-turn-1")
+    assert first.status_code == second.status_code == 200
+    assert first.json()["duplicate"] is False
+    assert second.json()["duplicate"] is True
+    assert second.json()["id"] == first.json()["id"]
+    assert second.json()["short_term_size"] == 1
 
 
 def test_missing_required_field_is_rejected(client, api_user):
@@ -168,6 +213,7 @@ def test_context_returns_all_three_layers(client, api_user, cfg):
     assert body["related_pages"]
     assert body["recent_dialogue"]
     assert body["text"]
+    assert "【近期对话】" in body["text"]
 
 
 def test_context_can_skip_the_rendered_text(client, api_user):

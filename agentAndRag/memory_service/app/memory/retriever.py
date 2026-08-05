@@ -114,6 +114,16 @@ def format_context(context: Dict[str, Any]) -> str:
             )
         )
 
+    recent = context.get("recent_dialogue") or []
+    if recent:
+        blocks.append(
+            "【近期对话】\n"
+            + "\n".join(
+                f"- 用户: {item['user_input']}\n  助手: {item['agent_response']}"
+                for item in recent
+            )
+        )
+
     return "\n\n".join(blocks)
 
 

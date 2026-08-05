@@ -64,13 +64,13 @@ def users(pool) -> List[str]:
     with db.connection() as conn:
         for uid in ids:
             conn.execute(
-                'INSERT INTO "User" ("id", "username", "passwordHash")'
+                'INSERT INTO memory_subjects ("id", "displayName", "source")'
                 ' VALUES (%s, %s, %s)',
-                (uid, "pytest-queue", "x"),
+                (uid, "pytest-queue", "test"),
             )
     yield ids
     with db.connection() as conn:
-        conn.execute('DELETE FROM "User" WHERE "id" = ANY(%s)', (ids,))
+        conn.execute('DELETE FROM memory_subjects WHERE "id" = ANY(%s)', (ids,))
 
 
 # ---------------------------------------------------------------- 入队

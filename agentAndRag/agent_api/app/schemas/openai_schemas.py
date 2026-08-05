@@ -52,6 +52,21 @@ class ChatCompletionRequest(BaseModel):
     frequency_penalty: Optional[float] = 0
     logit_bias: Optional[Dict[str, float]] = None
     user: Optional[str] = None  # End user identifier
+
+    # User-level cross-session memory. ``user`` remains the OpenAI-standard
+    # end-user field; user_id is an explicit alias for internal/PetHealth callers.
+    user_id: Optional[str] = Field(
+        default=None,
+        description="Stable authenticated user id used to isolate cross-session memory.",
+    )
+    memory_session_id: Optional[str] = Field(
+        default=None,
+        description="Optional upstream chat session id stored with the memory turn.",
+    )
+    memory_turn_id: Optional[str] = Field(
+        default=None,
+        description="Stable idempotency key for this completed user/assistant turn.",
+    )
     
     # Extension fields (OpenAI-compatible tool calling)
     tools: Optional[List[Dict[str, Any]]] = None  # Available tools list
@@ -102,6 +117,10 @@ class ChatCompletionResponse(BaseModel):
     plan: Optional[List[Dict[str, Any]]] = None
     tool_results: Optional[List[Dict[str, Any]]] = None
     timing: Optional[List[Dict[str, Any]]] = None
+    memory: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Agent memory retrieval/write metadata; memory content itself is not echoed.",
+    )
 
 
 # Streaming response types

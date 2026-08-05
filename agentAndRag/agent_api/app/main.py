@@ -27,6 +27,7 @@ from .lifecycle_tasks.session_cleanup import (
 )
 from .middleware.auth import APIKeyAuthMiddleware, load_api_keys
 from .middleware.rate_limit import RateLimitMiddleware
+from .memory import close_memory_client, memory_status, start_memory_client
 from .persistence.qa_store import (
     get_feedback_stats, get_knowledge_gaps, get_qa_stats,
     init_db as _init_qa_db, query_qa_history, submit_feedback,
@@ -240,6 +241,7 @@ async def _startup() -> None:
     configure_resource_limits()
     load_api_keys()
     _init_qa_db()
+    await start_memory_client()
 
     reg = get_registry()
     if reg.get("rag.search") is None:
@@ -262,6 +264,7 @@ async def _startup() -> None:
 @app.on_event("shutdown")
 async def _shutdown() -> None:
     await stop_session_cleanup_task()
+    await close_memory_client()
     # Release the shared LLM httpx connection pools.
     await aclose_shared_async_client()
     await aclose_shared_async_stream_client()
@@ -290,6 +293,7 @@ def ready() -> JSONResponse:
             "ready": _READY,
             "warmup": _WARMUP_INFO,
             "resource_limits": get_resource_limits().snapshot(),
+            "memory": memory_status(),
         },
     )
 

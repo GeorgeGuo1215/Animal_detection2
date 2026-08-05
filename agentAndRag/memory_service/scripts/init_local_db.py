@@ -96,6 +96,8 @@ def _verify(dsn: str) -> None:
         print(f"记忆表 {len(names)} 张: {', '.join(names)}")
 
         expected = {
+            "memory_subjects",
+            "memory_ingest_receipts",
             "memory_short_term",
             "memory_segments",
             "memory_pages",
@@ -135,6 +137,14 @@ def _seed(dsn: str) -> None:
             """,
             (SEED_PET_ID, "咪咪", "CAT", SEED_USER_ID),
         )
+        conn.execute(
+            """
+            INSERT INTO memory_subjects ("id", "displayName", "source")
+            VALUES (%s, %s, 'pethealth')
+            ON CONFLICT ("id") DO UPDATE SET "displayName" = EXCLUDED."displayName"
+            """,
+            (SEED_USER_ID, "本地调试用户"),
+        )
     print(f"已写入调试数据: user={SEED_USER_ID}, pet={SEED_PET_ID}")
 
 
@@ -151,7 +161,11 @@ def main() -> int:
     print(f"目标数据库: {dbname}")
     _create_database(admin_dsn, dbname, drop=args.drop)
 
-    for name in ("000_petserver_fixture.sql", "001_schema.sql"):
+    for name in (
+        "000_petserver_fixture.sql",
+        "001_schema.sql",
+        "002_memory_subjects_migration.sql",
+    ):
         _run_sql_file(dsn, SQL_DIR / name)
 
     _verify(dsn)

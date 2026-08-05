@@ -70,12 +70,12 @@ def two_users(pool):
     with db.connection() as conn:
         for uid in ids:
             conn.execute(
-                'INSERT INTO "User" ("id", "username", "passwordHash") VALUES (%s, %s, %s)',
-                (uid, "pytest-sim", "x"),
+                'INSERT INTO memory_subjects ("id", "displayName", "source") VALUES (%s, %s, %s)',
+                (uid, "pytest-sim", "test"),
             )
     yield ids
     with db.connection() as conn:
-        conn.execute('DELETE FROM "User" WHERE "id" = ANY(%s)', (ids,))
+        conn.execute('DELETE FROM memory_subjects WHERE "id" = ANY(%s)', (ids,))
 
 
 @pytest.fixture(scope="module")

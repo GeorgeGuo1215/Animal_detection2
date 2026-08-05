@@ -16,8 +16,8 @@ from ..db import new_id
 
 _INSERT = """
 INSERT INTO memory_short_term
-    ("id", "userId", "petId", "sessionId", "userInput", "agentResponse", "createdAt")
-VALUES (%(id)s, %(user_id)s, %(pet_id)s, %(session_id)s, %(user_input)s,
+    ("id", "userId", "petId", "sessionId", "turnId", "userInput", "agentResponse", "createdAt")
+VALUES (%(id)s, %(user_id)s, %(pet_id)s, %(session_id)s, %(turn_id)s, %(user_input)s,
         %(agent_response)s, COALESCE(%(created_at)s, CURRENT_TIMESTAMP))
 RETURNING "id"
 """
@@ -57,21 +57,72 @@ def append(
     agent_response: str,
     pet_id: Optional[str] = None,
     session_id: Optional[str] = None,
+    turn_id: Optional[str] = None,
     created_at: Optional[datetime] = None,
 ) -> str:
+    message_id, _ = append_once(
+        conn,
+        user_id=user_id,
+        user_input=user_input,
+        agent_response=agent_response,
+        pet_id=pet_id,
+        session_id=session_id,
+        turn_id=turn_id,
+        created_at=created_at,
+    )
+    return message_id
+
+
+def append_once(
+    conn: psycopg.Connection,
+    *,
+    user_id: str,
+    user_input: str,
+    agent_response: str,
+    pet_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    turn_id: Optional[str] = None,
+    created_at: Optional[datetime] = None,
+) -> tuple[str, bool]:
+    """Append a turn and return ``(message_id, created)``.
+
+    The receipt survives short-to-mid promotion, so an old request retry is
+    idempotent even after its short-term row moved to ``memory_pages``.
+    """
+    message_id = new_id()
+    normalized_turn_id = (turn_id or "").strip() or None
+    if normalized_turn_id:
+        receipt = conn.execute(
+            """
+            INSERT INTO memory_ingest_receipts ("userId", "turnId", "messageId", "createdAt")
+            VALUES (%s, %s, %s, COALESCE(%s, CURRENT_TIMESTAMP))
+            ON CONFLICT ("userId", "turnId") DO NOTHING
+            RETURNING "messageId"
+            """,
+            (user_id, normalized_turn_id, message_id, created_at),
+        ).fetchone()
+        if receipt is None:
+            existing = conn.execute(
+                'SELECT "messageId" FROM memory_ingest_receipts '
+                'WHERE "userId" = %s AND "turnId" = %s',
+                (user_id, normalized_turn_id),
+            ).fetchone()
+            return str(existing["messageId"]), False
+
     row = conn.execute(
         _INSERT,
         {
-            "id": new_id(),
+            "id": message_id,
             "user_id": user_id,
             "pet_id": pet_id,
             "session_id": session_id,
+            "turn_id": normalized_turn_id,
             "user_input": user_input,
             "agent_response": agent_response,
             "created_at": created_at,
         },
     ).fetchone()
-    return row["id"]
+    return row["id"], True
 
 
 def count(conn: psycopg.Connection, user_id: str) -> int:
