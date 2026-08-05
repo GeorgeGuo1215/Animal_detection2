@@ -1,6 +1,6 @@
 # PetMind Agent / RAG / Memory 维护交接文档
 
-> 最后核对：2026-08-05
+> 最后核对：2026-08-06
 > 目标仓库：`C:\Users\ROG\Animal_detection2`
 > 目标分支：`test-agent`
 > 核对基线：`9659682 feat(agent): migrate production agent stack`
@@ -14,10 +14,10 @@
 3. 本机索引、模型、密钥和 `.env` 是忽略文件，不在 Git 中；换机器或重新 clone 后必须单独恢复。
 4. Windows CPU 启动只设置 `AGENT_WARMUP_DEVICE=cpu`，**绝对不要设置 `CUDA_VISIBLE_DEVICES=-1`**。
 5. 先看 `/health` 判断进程存活，再看 `/ready` 判断 RAG 预热及工具注册状态。
-6. 生产接口 `/v1/chat/completions` 是无状态的；调用方必须保存并在下一次请求中重发完整 `messages`。
+6. 生产接口 `/v1/chat/completions` 的会话历史仍由调用方重发；`user_id` 只用于补充同一用户的跨会话记忆，不能替代完整 `messages`。
 7. 只有内置测试页 `/chat-moe` 使用 Agent 侧 SQLite 会话缓存，不可把它误当成生产会话服务。
 8. MoE 内 `rag.search` 的 `query` 必须是英语；用户输入和最终回答仍可使用中文。
-9. `memory_service` 是独立的 PostgreSQL + pgvector 服务，当前没有自动注入 Agent 提示词。
+9. `memory_service` 使用独立 PostgreSQL + pgvector；Agent 按 `user_id` 在推理前读取、成功回答后写入，默认 fail-open，统一启动时可设为 required。
 10. 修改后至少验证三种模型、RAG、MCP、会话恢复和无关话题门禁。
 
 ## 2. 总体架构
@@ -50,7 +50,9 @@ flowchart TD
     EXPERTS --> CRITIC["Critic"]
     CRITIC --> AGG["Aggregator 流式终答"]
 
-    API -. "尚未直接接入" .-> MEMORY["Memory Service :8300"]
+    OPENAI --> MEMCLIENT["用户级记忆读写"]
+    CHAT --> MEMCLIENT
+    MEMCLIENT --> MEMORY["Memory Service :8300"]
     MEMORY --> PG["PostgreSQL + pgvector"]
     MEMORY --> WORKERS["异步记忆整理 Worker"]
 ```
@@ -61,7 +63,8 @@ flowchart TD
 - RAG 是本地只读检索层，不是病例数据库；检索结果是医学证据，不是当前患者事实。
 - MCP 通过 stdio 启动子进程，提供网络搜索、营养计算和生命体征告警。
 - PetMind MySQL 工具只读业务数据，并依赖请求中的 `animal_id`。
-- Memory Service 管理跨会话长期记忆，但目前与 Agent API 解耦，接入前不能声称 Agent 已具备生产长期记忆。
+- Memory Service 管理跨会话记忆。生产身份来自 PetHealth JWT `User.id`；`/chat-moe` 将规范化用户名映射成稳定的 `chatmoe:<sha256>` 主体，二者互不混用。
+- 记忆文本属于不可信历史数据，提示词明确禁止执行其中的命令；当前消息、工具返回和医疗安全规则优先。
 
 ## 3. 目录与职责
 
@@ -76,6 +79,8 @@ agentAndRag/
 |   |-- app/main.py                      # FastAPI 生命周期、工具注册、RAG 预热
 |   |-- app/routers/routes_openai.py     # OpenAI-compatible API
 |   |-- app/routers/routes_chat_ui.py    # /chat-moe 测试页与测试会话接口
+|   |-- app/memory/                      # 记忆客户端、身份映射与共享读写集成层
+|   |-- app/static/chat_moe.html         # 科技风逐轮轨迹与可展开专家详情页面
 |   |-- app/services/agent_execution.py  # 三种架构的统一分派
 |   |-- app/services/moe/                # Router、Experts、Broker、Critic、Aggregator
 |   |-- app/prompts/                     # 三种架构全部 LLM 提示词、MoE 各阶段与请求级动态注入
@@ -86,6 +91,7 @@ agentAndRag/
 |   |-- app/sql_search/                  # PetMind MySQL 只读工具
 |   |-- tests/                           # Agent 单元、集成和真实链路测试源码
 |   |-- scripts/run_cpu_rag_server.py    # Windows CPU 安全启动辅助脚本
+|   |-- scripts/run_agent_stack.py       # Memory -> ready -> Agent 统一生命周期
 |   |-- scripts/*test*.py                # API smoke / integration 测试入口
 |   |-- mcp_servers.json                 # MCP 服务注册配置
 |   `-- keys.txt                         # 本地 API key，禁止提交
@@ -494,7 +500,7 @@ foreach ($model in $models) {
 - 同 session 的第二轮能引用第一轮用户事实；
 - 专家意见、RAG 和 Web Search 记录进入 `expert_contexts/tool_results`；
 - 重启后端后，用原 session id 仍能继续；
-- 页面刷新会创建新 session id；
+- 页面要求输入测试用户名；新 session id 只恢复同名用户的 PostgreSQL 记忆，不复用其他 SQLite 会话历史；
 - 与既有兽医上下文相关的简短查询可通过门禁；
 - 明确转向无关编程问题应被拒绝；
 - 调用生产 `/v1/chat/completions` 不应修改测试 session。
@@ -503,13 +509,21 @@ foreach ($model in $models) {
 
 ### 12.1 当前定位
 
-Memory Service 是独立服务，入口 `memory_service/app/main.py`，默认端口 8300。搜索当前代码没有发现 Agent API 主链路调用它，因此它的 profile、knowledge 或 context **不会自动进入 Router/Experts/Critic/Aggregator**。后续接入需明确用户/宠物身份、读取时机、事实可信度和隐私边界。
+Memory Service 保持独立进程和数据库，入口 `memory_service/app/main.py`，默认端口 8300。Agent 在每次推理前检索用户记忆并作为“非指令数据”加入 system context，成功生成后以稳定 `turn_id` 写回。该上下文可被三种 `/v1` 架构及 `/chat-moe` 的 Router、Experts、Critic、Aggregator 使用。
+
+身份规则：
+
+- PetHealth 生产调用：认证 `User.id` 同时放入 body `user_id` 和 `X-User-Id`；业务 `sessionId/userMessageId` 分别映射为 `memory_session_id/memory_turn_id`。
+- Chat-MoE 测试页：用户名经 NFKC、空白归一化和 casefold 后计算 SHA-256，生成 `chatmoe:<32 hex>`；明文用户名仅作为显示信息。
+- 同一用户跨 session 共用 PostgreSQL 记忆；SQLite 仍保存每个测试 session 的原始轮次、工具和专家上下文。
 
 ### 12.2 数据模型
 
 PostgreSQL + pgvector 表：
 
 - `memory_short_term`：快速写入的短期消息；
+- `memory_subjects`：独立于 PetHealth 业务表的用户主体；
+- `memory_ingest_receipts`：`userId + turnId` 持久幂等收据，短期消息提升后仍能防重；
 - `memory_segments`：中期分段与摘要；
 - `memory_pages`：分段内页面及向量；
 - `memory_profiles`：用户/宠物结构化画像；
@@ -520,15 +534,15 @@ PostgreSQL + pgvector 表：
 
 ### 12.3 初始化和启动
 
-默认 DSN：`postgresql://postgres:postgres@127.0.0.1:5432/petmemory_dev`。先安装 PostgreSQL 的 pgvector 扩展，再执行：
+默认 DSN：`postgresql://postgres:postgres@127.0.0.1:5432/petmemory_dev`。先安装 PostgreSQL 的 pgvector 扩展，部署迁移阶段执行：
 
 ```powershell
 cd C:\Users\ROG\Animal_detection2\agentAndRag
-C:\Users\ROG\anaconda3\envs\RAG\python.exe -m memory_service.scripts.init_local_db --seed
-C:\Users\ROG\anaconda3\envs\RAG\python.exe -m memory_service.app.main
+C:\Users\ROG\anaconda3\envs\RAG\python.exe -m memory_service.scripts.init_local_db
+C:\Users\ROG\anaconda3\envs\RAG\python.exe -m agent_api.scripts.run_agent_stack --agent-host 127.0.0.1 --agent-port 8000
 ```
 
-独立 worker：
+普通初始化不再创建或依赖 PetHealth `User/Pet` 表；只有本地调试显式加 `--seed` 才创建旧版夹具。统一启动器会预热 Memory embedding，等 `/health` 真正可服务后才启动 Agent，并在任一子进程退出时回收另一方。独立 worker：
 
 ```powershell
 C:\Users\ROG\anaconda3\envs\RAG\python.exe memory_service\scripts\run_worker.py --workers 4
@@ -538,11 +552,14 @@ C:\Users\ROG\anaconda3\envs\RAG\python.exe memory_service\scripts\run_worker.py 
 
 - `POST /v1/memory/messages`
 - `POST /v1/memory/context`
+- `POST /v1/memory/subjects/ensure`
 - `GET /v1/memory/profile/{user_id}`
 - `GET /v1/memory/stats/{user_id}`
 - `GET /health`
 
-默认 `MEMORY_WORKER_CONCURRENCY=2`，embedding 默认 CPU。数据库 schema 使用 `vector(384)`，更换 embedding 模型时必须同时迁移向量列与索引，否则写入会维度不匹配。
+默认 `MEMORY_WORKER_CONCURRENCY=2`，embedding 默认 CPU 并在 startup 预热。数据库 schema 使用 `vector(384)`，更换 embedding 模型时必须同时迁移向量列与索引，否则写入会维度不匹配。
+
+已知约束：worker 为保证“LLM 失败时短期对话不丢失”，当前在一次提升事务内完成读取、LLM 整理和写入；这会占用一条连接较长时间。现有默认两 worker、八连接池可控，但高并发部署应进一步改为快照/计算/条件提交三阶段，不能简单改成 autocommit（否则 LLM 失败会丢待提升对话）。
 
 ## 13. 日志、Trace 与性能定位
 

@@ -1,7 +1,7 @@
 """建本地调试库并建表。
 
-复刻 pet-server 里记忆系统依赖的最小结构（User / Pet / ChatSession），再叠加记忆表。
-默认建独立的 petmemory_dev 库，不碰 pet-server 的开发库。
+默认只创建独立的 memory_subjects 与记忆表，不依赖 PetHealth 的业务表。
+只有显式传入 --seed 时才创建旧版 User / Pet 调试夹具。
 
     python -m memory_service.scripts.init_local_db            # 建库建表
     python -m memory_service.scripts.init_local_db --drop     # 先删库再重建
@@ -74,6 +74,13 @@ def _run_sql_file(dsn: str, path: Path) -> None:
     with psycopg.connect(dsn, autocommit=True) as conn:
         conn.execute(statements)
     print(f"已执行 {path.name}")
+
+
+def schema_file_names(*, include_fixture: bool) -> list[str]:
+    names = ["001_schema.sql", "002_memory_subjects_migration.sql"]
+    if include_fixture:
+        names.insert(0, "000_petserver_fixture.sql")
+    return names
 
 
 def _verify(dsn: str) -> None:
@@ -161,11 +168,7 @@ def main() -> int:
     print(f"目标数据库: {dbname}")
     _create_database(admin_dsn, dbname, drop=args.drop)
 
-    for name in (
-        "000_petserver_fixture.sql",
-        "001_schema.sql",
-        "002_memory_subjects_migration.sql",
-    ):
+    for name in schema_file_names(include_fixture=args.seed):
         _run_sql_file(dsn, SQL_DIR / name)
 
     _verify(dsn)

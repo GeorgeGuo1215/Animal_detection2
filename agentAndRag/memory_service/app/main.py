@@ -9,6 +9,7 @@ SKIP LOCKED 与咨询锁保证多实例不重复处理。只想跑 API 不想带
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -21,6 +22,12 @@ from .routers import build_router
 from .worker import WorkerPool
 
 logger = logging.getLogger(__name__)
+
+
+def _warmup_embedding_enabled() -> bool:
+    return os.getenv("MEMORY_WARMUP_EMBEDDING", "1").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
 
 
 def create_app(cfg: MemoryConfig | None = None, *, with_workers: bool = True) -> FastAPI:
@@ -36,6 +43,12 @@ def create_app(cfg: MemoryConfig | None = None, *, with_workers: bool = True) ->
             "memory_service: embedding=%s device=%s dim=%s",
             config.embedding_model, config.embedding_device, config.embedding_dim,
         )
+        # `/health` must mean the service can serve a context request, not merely
+        # that PostgreSQL is reachable.  Lazy model loading otherwise makes the
+        # first required-memory request time out after the stack reports ready.
+        if _warmup_embedding_enabled():
+            embedder.embed_query("memory service readiness warmup")
+            logger.info("memory_service: embedding warmup complete")
         if pool:
             pool.start()
         try:

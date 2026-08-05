@@ -25,11 +25,10 @@ from ..context.request_context import filter_tools_without_animal, set_request_a
 from ..concurrency import ResourceBusyError
 from ..llm.llm_client import extract_text, get_shared_async_client
 from ..llm.llm_client_stream import get_shared_async_stream_client
-from ..memory import get_memory_client
+from ..memory import load_user_memory, write_user_memory
 from ..persistence.qa_store import save_qa_record
 from ..persistence.trace_store import new_trace_id, write_trace
 from ..prompts.multi_turn import DECISION_INSTRUCTIONS, DECISION_SYSTEM_PROMPT
-from ..prompts.memory import build_memory_context_injection
 from ..schemas.openai_schemas import (
     ChatCompletionChoice,
     ChatCompletionRequest,
@@ -84,76 +83,6 @@ def _memory_user_id(req: ChatCompletionRequest, request: Request) -> Optional[st
         or request.headers.get("x-user-id")
     )
 
-
-async def _load_user_memory(
-    *,
-    user_id: Optional[str],
-    query: str,
-    pet_id: Optional[str],
-) -> tuple[str, Dict[str, Any]]:
-    client = get_memory_client()
-    if client is None:
-        return "", {"enabled": False, "reason": "memory_disabled"}
-    if not user_id:
-        return "", {"enabled": True, "loaded": False, "reason": "missing_user_id"}
-    try:
-        context = await client.context(user_id=user_id, query=query, pet_id=pet_id)
-        text = str(context.get("text") or "")
-        return build_memory_context_injection(text), {
-            "enabled": True,
-            "loaded": True,
-            "user_id": user_id,
-            "profile_version": int(context.get("profile_version") or 0),
-            "knowledge_items": len(context.get("knowledge") or []),
-            "related_pages": len(context.get("related_pages") or []),
-            "recent_turns": len(context.get("recent_dialogue") or []),
-            "context_chars": len(text),
-        }
-    except Exception as exc:  # memory is fail-open unless explicitly required
-        if client.config.required:
-            raise HTTPException(status_code=503, detail=f"required memory unavailable: {exc}") from exc
-        return "", {
-            "enabled": True,
-            "loaded": False,
-            "user_id": user_id,
-            "reason": "memory_unavailable",
-            "error": str(exc),
-        }
-
-
-async def _write_user_memory(
-    *,
-    user_id: Optional[str],
-    query: str,
-    answer: str,
-    pet_id: Optional[str],
-    session_id: Optional[str],
-    turn_id: Optional[str],
-) -> Dict[str, Any]:
-    client = get_memory_client()
-    if client is None or not user_id or not answer.strip():
-        return {"stored": False, "reason": "disabled_or_incomplete"}
-    try:
-        result = await client.write_turn(
-            user_id=user_id,
-            user_input=query,
-            agent_response=answer,
-            pet_id=pet_id,
-            session_id=session_id,
-            turn_id=turn_id,
-        )
-        return {
-            "stored": True,
-            "user_id": user_id,
-            "message_id": result.get("id"),
-            "duplicate": bool(result.get("duplicate")),
-            "queued": bool(result.get("queued")),
-            "short_term_size": int(result.get("short_term_size") or 0),
-        }
-    except Exception as exc:
-        if client.config.required:
-            raise HTTPException(status_code=503, detail=f"required memory write failed: {exc}") from exc
-        return {"stored": False, "user_id": user_id, "reason": "memory_unavailable", "error": str(exc)}
 
 DEFAULT_ALLOWED_TOOLS = [
     "rag.search",
@@ -1082,7 +1011,7 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
     memory_pet_id = _clean_identity(
         getattr(req, "animal_id", None) or request.headers.get("x-animal-id")
     )
-    memory_injection, memory_load_detail = await _load_user_memory(
+    memory_injection, memory_load_detail = await load_user_memory(
         user_id=memory_user_id,
         query=query,
         pet_id=memory_pet_id,
@@ -1201,7 +1130,7 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
                     except Exception:
                         pass
 
-            memory_write_detail = await _write_user_memory(
+            memory_write_detail = await write_user_memory(
                 user_id=memory_user_id,
                 query=query,
                 answer="".join(collected_content),
@@ -1279,7 +1208,7 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
                     )],
                     usage=UsageInfo(),
                 )
-                memory_write_detail = await _write_user_memory(
+                memory_write_detail = await write_user_memory(
                     user_id=memory_user_id,
                     query=query,
                     answer=answer or "",
@@ -1345,7 +1274,7 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
                 timing=_timing if _debug_timing else None,
             )
 
-            memory_write_detail = await _write_user_memory(
+            memory_write_detail = await write_user_memory(
                 user_id=memory_user_id,
                 query=query,
                 answer=answer or "",

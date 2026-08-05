@@ -1,14 +1,25 @@
 """Schemas for the stateful browser-only MoE test interface."""
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Any, Dict, Literal, Optional
 
 from pydantic import BaseModel, Field
+
+
+class ChatMoeSessionRequest(BaseModel):
+    username: str = Field(
+        min_length=1,
+        max_length=80,
+        description="Tester name used to isolate and restore cross-session memory.",
+    )
 
 
 class ChatMoeSessionResponse(BaseModel):
     ok: bool = True
     session_id: str
+    username: str
+    memory_user_id: str
+    memory: Dict[str, Any] = Field(default_factory=dict)
 
 
 class ChatMoeCompletionRequest(BaseModel):

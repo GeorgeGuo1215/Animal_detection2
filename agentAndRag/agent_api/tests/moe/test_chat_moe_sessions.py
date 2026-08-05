@@ -8,8 +8,10 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from app.persistence.session_manager import SessionManager
+from app.prompts.moe_router import build_router_system_prompt
 from app.routers import routes_chat_ui
-from app.schemas.chat_moe import ChatMoeCompletionRequest
+from app.memory.identity import chat_moe_memory_user_id, normalize_test_username
+from app.schemas.chat_moe import ChatMoeCompletionRequest, ChatMoeSessionRequest
 
 
 class _Registry:
@@ -83,11 +85,96 @@ def test_chat_moe_uses_backend_history_and_persists_expert_context(tmp_path, mon
     asyncio.run(scenario())
 
 
+def test_chat_moe_username_identity_is_stable_and_not_plaintext():
+    assert normalize_test_username("  Test   User  ") == "Test User"
+    first = chat_moe_memory_user_id("Ｔｅｓｔ User")
+    second = chat_moe_memory_user_id("test   user")
+    assert first == second
+    assert first.startswith("chatmoe:")
+    assert "test" not in first
+
+
+def test_router_treats_pet_identity_memory_as_health_followup_context():
+    prompt = build_router_system_prompt("clinical")
+    assert "宠物身份与照护档案" in prompt
+    assert "不属于闲聊" in prompt
+    assert "clinical" in prompt
+
+
+def test_chat_moe_shares_memory_across_sessions_but_not_users(tmp_path, monkeypatch):
+    async def scenario():
+        manager = SessionManager(db_path=tmp_path / "cross_session.db")
+        calls = []
+        stored = {}
+
+        async def ensure_subject(**kwargs):
+            return {"enabled": True, "ensured": True, "user_id": kwargs["user_id"]}
+
+        async def load_memory(*, user_id, query, pet_id):
+            del query, pet_id
+            prior = stored.get(user_id)
+            return (
+                (f"CROSS_SESSION_MEMORY={prior}" if prior else ""),
+                {"enabled": True, "loaded": True, "user_id": user_id, "context_chars": len(prior or "")},
+            )
+
+        async def write_memory(*, user_id, query, answer, **kwargs):
+            del query, kwargs
+            stored[user_id] = answer
+            return {"stored": True, "user_id": user_id, "message_id": "memory-1"}
+
+        monkeypatch.setattr(routes_chat_ui, "get_session_manager", lambda: manager)
+        monkeypatch.setattr(routes_chat_ui, "get_registry", lambda: _Registry())
+        monkeypatch.setattr(routes_chat_ui, "ensure_memory_subject", ensure_subject)
+        monkeypatch.setattr(routes_chat_ui, "load_user_memory", load_memory)
+        monkeypatch.setattr(routes_chat_ui, "write_user_memory", write_memory)
+        monkeypatch.setattr(
+            routes_chat_ui, "build_moe_orchestrator", lambda **kwargs: _FakeOrchestrator(calls)
+        )
+
+        first_session = await routes_chat_ui.create_chat_moe_session(
+            ChatMoeSessionRequest(username="Alice")
+        )
+        first = await routes_chat_ui.chat_moe_public_completions(_request({
+            "session_id": first_session.session_id, "message": "记住猫叫团团",
+        }))
+        assert "后端回答1" in await _consume(first)
+
+        second_session = await routes_chat_ui.create_chat_moe_session(
+            ChatMoeSessionRequest(username=" alice ")
+        )
+        second = await routes_chat_ui.chat_moe_public_completions(_request({
+            "session_id": second_session.session_id, "message": "它叫什么？",
+        }))
+        await _consume(second)
+        assert calls[1]["conversation_history"] == []
+        assert "CROSS_SESSION_MEMORY=后端回答1" in calls[1]["system_context"]
+        assert first_session.memory_user_id == second_session.memory_user_id
+
+        other_session = await routes_chat_ui.create_chat_moe_session(
+            ChatMoeSessionRequest(username="Bob")
+        )
+        third = await routes_chat_ui.chat_moe_public_completions(_request({
+            "session_id": other_session.session_id, "message": "它叫什么？",
+        }))
+        await _consume(third)
+        assert "CROSS_SESSION_MEMORY=" not in calls[2]["system_context"]
+        assert other_session.memory_user_id != first_session.memory_user_id
+
+    asyncio.run(scenario())
+
+
 def test_browser_pages_do_not_store_or_slice_message_history():
     assert "const messages" not in routes_chat_ui._MOE_TEST_HTML
     assert "messages.push" not in routes_chat_ui._MOE_TEST_HTML
     assert "messages.slice" not in routes_chat_ui._MOE_TEST_HTML
     assert "session_id" in routes_chat_ui._MOE_TEST_HTML
+    assert "username" in routes_chat_ui._MOE_TEST_HTML
+    assert "const turns=new Map()" in routes_chat_ui._MOE_TEST_HTML
+    assert "turn.root.querySelector" in routes_chat_ui._MOE_TEST_HTML
+    assert "expert-card" in routes_chat_ui._MOE_TEST_HTML
+    assert "crypto.randomUUID" in routes_chat_ui._MOE_TEST_HTML
+    assert "Date.now()" not in routes_chat_ui._MOE_TEST_HTML
 
     assert "const messages = []" in routes_chat_ui._CHAT_HTML
     assert "[...messages, { role: 'user', content: text }].slice(-11)" in routes_chat_ui._CHAT_HTML

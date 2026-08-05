@@ -4,11 +4,13 @@
 JSONB 合并这些东西，用假连接 mock 掉等于什么都没验证。每个用例包在一个事务里，
 结束时回滚，互不干扰也不留垃圾。
 
-数据库不可用时整体跳过而非失败，这样没起库的环境仍能跑纯函数层测试。
+数据库不可用时本地默认跳过；CI/验收设置 MEMORY_TEST_REQUIRE_DB=1 后会直接失败，
+避免把大批 skip 误报成“回归通过”。
 """
 
 from __future__ import annotations
 
+import os
 import sys
 import uuid
 from pathlib import Path
@@ -36,7 +38,11 @@ def _db_available(dsn: str) -> bool:
         with psycopg.connect(dsn, connect_timeout=3) as conn:
             conn.execute("SELECT 1")
         return True
-    except Exception:  # noqa: BLE001 - 连不上的原因都一样处理
+    except Exception as exc:  # noqa: BLE001 - 连不上的原因都一样处理
+        if os.getenv("MEMORY_TEST_REQUIRE_DB", "").strip().lower() in {
+            "1", "true", "yes", "on",
+        }:
+            pytest.fail(f"required PostgreSQL test database is unavailable: {exc}", pytrace=False)
         return False
 
 

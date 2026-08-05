@@ -7,6 +7,8 @@ from .client import (
     memory_status,
     start_memory_client,
 )
+from .identity import chat_moe_memory_user_id, normalize_test_username
+from .integration import ensure_memory_subject, load_user_memory, write_user_memory
 
 __all__ = [
     "MemoryClient",
@@ -14,4 +16,9 @@ __all__ = [
     "get_memory_client",
     "memory_status",
     "start_memory_client",
+    "chat_moe_memory_user_id",
+    "normalize_test_username",
+    "ensure_memory_subject",
+    "load_user_memory",
+    "write_user_memory",
 ]

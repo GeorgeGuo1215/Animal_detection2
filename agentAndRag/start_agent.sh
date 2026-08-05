@@ -34,6 +34,8 @@ if [ ! -f "$CONDA_PYTHON" ]; then
     exit 1
 fi
 
-"$CONDA_PYTHON" -m uvicorn agent_api.app.main:app \
-    --host "${AGENT_HOST:-0.0.0.0}" \
-    --port "${AGENT_PORT:-8000}"
+"$CONDA_PYTHON" -m agent_api.scripts.run_agent_stack \
+    --agent-host "${AGENT_HOST:-0.0.0.0}" \
+    --agent-port "${AGENT_PORT:-8000}" \
+    --memory-host "${MEMORY_HOST:-127.0.0.1}" \
+    --memory-port "${MEMORY_PORT:-8300}"

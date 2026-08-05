@@ -90,7 +90,7 @@ if _cors_on:
             allow_origins=["*"],
             allow_credentials=False,
             allow_methods=["*"],
-            allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With", "X-Animal-Id"],
+            allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With", "X-Animal-Id", "X-User-Id"],
         )
     else:
         _parts = _env_cors_origins.split(",") if _env_cors_origins else _CORS_DEFAULT_ORIGINS.split()
@@ -101,7 +101,7 @@ if _cors_on:
             allow_origin_regex=_CORS_LOCAL_ORIGIN_REGEX,
             allow_credentials=True,
             allow_methods=["*"],
-            allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With", "X-Animal-Id"],
+            allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With", "X-Animal-Id", "X-User-Id"],
         )
 
 

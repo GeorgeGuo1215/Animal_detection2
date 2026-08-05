@@ -7,7 +7,7 @@ from __future__ import annotations
 import sys
 import uuid
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
@@ -18,9 +18,20 @@ if str(_REPO_ROOT) not in sys.path:
 
 from shared.chat_feedback_widget import FEEDBACK_WIDGET_JS, render_feedback_widget_css
 
+from ..memory import (
+    chat_moe_memory_user_id,
+    ensure_memory_subject,
+    load_user_memory,
+    normalize_test_username,
+    write_user_memory,
+)
 from ..services.agent_execution import build_moe_orchestrator, public_moe_allowed_tools
 from ..persistence.session_manager import get_session_manager
-from ..schemas.chat_moe import ChatMoeCompletionRequest, ChatMoeSessionResponse
+from ..schemas.chat_moe import (
+    ChatMoeCompletionRequest,
+    ChatMoeSessionRequest,
+    ChatMoeSessionResponse,
+)
 from ..tools.tool_registry import get_registry
 from .sse import SSE_DONE, SSE_RESPONSE_HEADERS, openai_sse_chunk
 
@@ -528,6 +539,13 @@ sendBtn.addEventListener('click',send);inputEl.addEventListener('keydown',e=>{if
 </body>
 </html>"""
 
+# The maintained Chat-MoE console lives in a standalone asset.  Keep the
+# historical inline value above only as an import-time fallback for unusual
+# source-only packaging; normal deployments and tests use the file below.
+_MOE_TEST_HTML_PATH = Path(__file__).resolve().parents[1] / "static" / "chat_moe.html"
+if _MOE_TEST_HTML_PATH.exists():
+    _MOE_TEST_HTML = _MOE_TEST_HTML_PATH.read_text(encoding="utf-8")
+
 
 @router.get("/chat-moe", response_class=HTMLResponse)
 async def chat_moe_test_ui():
@@ -541,20 +559,41 @@ async def chat_moe_test_ui():
     tags=["Chat MoE test UI"],
     summary="Create a browser-only MoE test session",
 )
-async def create_chat_moe_session() -> ChatMoeSessionResponse:
-    """Create test-page state. This session is not used by `/v1/chat/completions`."""
-    session = await get_session_manager().create({"channel": "chat-moe"})
-    return ChatMoeSessionResponse(session_id=session.session_id)
+async def create_chat_moe_session(body: ChatMoeSessionRequest) -> ChatMoeSessionResponse:
+    """Create test-page state and bind it to a stable test-memory subject."""
+    username = normalize_test_username(body.username)
+    if not username:
+        raise HTTPException(status_code=400, detail="username is required")
+    memory_user_id = chat_moe_memory_user_id(username)
+    memory_detail = await ensure_memory_subject(
+        user_id=memory_user_id,
+        display_name=username,
+        source="chat-moe",
+        metadata={"channel": "chat-moe", "identity_kind": "tester_username"},
+    )
+    session = await get_session_manager().create({
+        "channel": "chat-moe",
+        "username": username,
+        "memory_user_id": memory_user_id,
+    })
+    return ChatMoeSessionResponse(
+        session_id=session.session_id,
+        username=username,
+        memory_user_id=memory_user_id,
+        memory=memory_detail,
+    )
 
 
 def _moe_request_id() -> str:
     return f"chatcmpl-{uuid.uuid4().hex[:24]}"
 
 
-def _moe_system_context(response_lang: str) -> str:
+def _moe_system_context(response_lang: str, memory_injection: Optional[str] = None) -> str:
     parts: List[str] = []
     if response_lang in {"zh", "en"}:
         parts.append("请使用中文回答。" if response_lang == "zh" else "Please answer in English.")
+    if memory_injection:
+        parts.append(memory_injection)
     return "\n".join(parts)
 
 
@@ -573,8 +612,10 @@ async def chat_moe_public_completions(body: ChatMoeCompletionRequest):
     if not query:
         raise HTTPException(status_code=400, detail="message is required")
     manager = get_session_manager()
-    if await manager.get(session_id, touch=False) is None:
+    session = await manager.get(session_id, touch=False)
+    if session is None:
         raise HTTPException(status_code=404, detail="session not found or expired")
+    memory_user_id = str(session.metadata.get("memory_user_id") or "").strip() or None
     user_role = body.user_role
     response_lang = body.response_lang
     request_id = _moe_request_id()
@@ -582,6 +623,11 @@ async def chat_moe_public_completions(body: ChatMoeCompletionRequest):
     async def event_generator():
         async with manager.session_lock(session_id):
             conversation_history, expert_context_history = await manager.context(session_id)
+            memory_injection, memory_load_detail = await load_user_memory(
+                user_id=memory_user_id,
+                query=query,
+                pet_id=None,
+            )
             prior_experts = sorted({
                 str(opinion.get("expert"))
                 for context in expert_context_history
@@ -627,6 +673,12 @@ async def chat_moe_public_completions(body: ChatMoeCompletionRequest):
                     "prior_evidence_items": prior_evidence_items,
                 },
             )
+            yield openai_sse_chunk(
+                request_id=request_id,
+                model="agent-moe",
+                status="memory_context_loaded" if memory_load_detail.get("loaded") else "memory_context_skipped",
+                detail=memory_load_detail,
+            )
             registry = get_registry()
             allowed_tools = public_moe_allowed_tools(tool.name for tool in registry.list_tools())
             orch = build_moe_orchestrator(
@@ -642,7 +694,7 @@ async def chat_moe_public_completions(body: ChatMoeCompletionRequest):
                 emitted_finish = False
                 async for event in orch.stream(
                     query=query,
-                    system_context=_moe_system_context(response_lang),
+                    system_context=_moe_system_context(response_lang, memory_injection),
                     conversation_history=conversation_history,
                     expert_context_history=expert_context_history,
                 ):
@@ -676,13 +728,33 @@ async def chat_moe_public_completions(body: ChatMoeCompletionRequest):
                     for result in (opinion.get("tool_results") or [])
                     if isinstance(result, dict)
                 ]
-                await manager.commit_turn(
+                committed = await manager.commit_turn(
                     session_id,
                     user_message=query,
                     assistant_message="".join(final_parts),
                     expert_context=orch.last_run_context,
                     tool_results=tool_results,
                 )
+                if committed is not None:
+                    turn_index = len(committed.messages) // 2
+                    memory_write_detail = await write_user_memory(
+                        user_id=memory_user_id,
+                        query=query,
+                        answer="".join(final_parts),
+                        pet_id=None,
+                        session_id=session_id,
+                        turn_id=f"chat-moe:{session_id}:{turn_index}",
+                    )
+                    yield openai_sse_chunk(
+                        request_id=request_id,
+                        model="agent-moe",
+                        status=(
+                            "memory_stored"
+                            if memory_write_detail.get("stored")
+                            else "memory_store_skipped"
+                        ),
+                        detail=memory_write_detail,
+                    )
             yield SSE_DONE
 
     return StreamingResponse(

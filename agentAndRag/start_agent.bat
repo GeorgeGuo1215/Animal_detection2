@@ -16,4 +16,4 @@ echo [Config] TAVILY_API_KEY=%TAVILY_API_KEY:~0,10%...
 echo.
 
 cd /d "%~dp0"
-python -m uvicorn agent_api.app.main:app --host 127.0.0.1 --port 8000
+python -m agent_api.scripts.run_agent_stack --agent-host 127.0.0.1 --agent-port 8000
