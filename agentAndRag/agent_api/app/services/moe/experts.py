@@ -10,6 +10,18 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from ...context.request_context import ANIMAL_REQUIRED_TOOLS, get_request_animal_id
 from ...llm.llm_client import AsyncOpenAIClient, extract_text
+from ...prompts.moe_experts import (
+    AUDIENCE_OWNER,
+    AUDIENCE_VET,
+    EXPERT_PERSONAS,
+    FORCE_FINAL_REMINDER,
+    IMPORTANT_RETRIEVAL_POLICY,
+    OUTPUT_CONTRACT,
+    PENULTIMATE_ROUND_REMINDER,
+    SPECIES_BREED_GUARD,
+    SPECIES_GUARD,
+    build_expert_system_prompt,
+)
 from ...tools.rag_query import is_english_rag_query
 from ...tools.tool_registry import ToolRegistry
 from ..tool_call_utils import canonical_tool_call
@@ -73,92 +85,19 @@ _BEHAVIOR_RAG_CATEGORIES = [
 ]
 
 
-_SPECIES_GUARD = (
-    "严格遵守物种安全：犬、猫的生理与药理差异巨大，禁止把某一物种的方案直接用于另一物种；"
-    "若用户未说明物种，需提示该差异并按通用/谨慎口径作答。"
-)
-
-_SPECIES_BREED_GUARD = (
-    "物种/品种特异化保障：结合用户叙述与注入的 species/breed（若有），提炼该个体相关的特异风险与注意事项，"
-    "写入 risks 与 conclusion，禁止套用『泛犬/泛猫』方案而忽略品种差异。"
-    "示例：短吻犬（斗牛/巴哥等）需强调运动强度、热耐受、呼吸道与麻醉风险；"
-    "英短等品种在泌尿/结石倾向上需结合主诉谨慎提示。"
-    "若用户文本已点名品种但 payload 无 breed，仍须从问题中识别并特异化作答。"
-)
-
-_OUTPUT_CONTRACT = (
-    "你必须只输出严格 JSON（不要任何额外文字、不要 markdown 代码块），结构如下：\n"
-    "{\n"
-    '  "conclusion": "你的核心结论（中文，2-4 句）",\n'
-    '  "evidence": ["支撑该结论的依据，尽量引用检索内容里的来源/页码"],\n'
-    '  "risks": ["与本专业相关的风险提示或禁忌"],\n'
-    '  "confidence": 0.0\n'
-    "}\n"
-    "confidence 为 0~1 的自评置信度：检索证据充分且与问题高度相关时高，证据不足时低。\n"
-    "禁忌联用硬约束：若可靠证据已确认两种药物或药物类别属于禁忌联用，结论必须明确不得同时使用；"
-    "替代方案必须移除或替换至少一种冲突药物或药物类别。降低剂量、错峰给药、缩短重叠期、换用同类中"
-    "所谓低风险药物、增加支持性用药或仅加强监测，都不能解除禁忌，也不得表述为可以继续联用的方案。"
-    "支持性处理只能作为意外暴露后的风险处置，不能作为计划性联用的许可。切换、减停和洗脱必须依据具体"
-    "药名、剂量、疗程、器官功能及可靠来源；信息不足时不得编造统一天数，也不得要求长期用药患者擅自"
-    "骤停，而应说明需要处方兽医协调的调整原则与给药前风险控制。若问题是在计划给药且尚未发生意外暴露，"
-    "conclusion、evidence、risks 的任何字段都不得加入『若必须/若不得已/可短期重叠』后继续联合给药的例外；"
-    "输出前必须删除任何允许该禁忌组合重叠的句子。若用户未提供具体药名、剂量和疗程，任何字段都禁止"
-    "给出数字洗脱天数、半衰期示例或按假定药物推算间隔。替代路径必须与当前适应证相符，且不能换成仍属于"
-    "冲突类别的药物；适应证尚未明确时，应给出按病因选择治疗类别的原则，而不是编造具体替代处方。若已经"
-    "意外重叠且疗程未知，不得无条件指定立即停用其中某一种药，也不得要求患者自行选择停药对象；应说明在"
-    "下一次计划给药前由处方兽医根据现有疗程决定暂停、减停或替换对象，对需要渐减的长期用药避免骤停。"
-)
-
-_AUDIENCE_OWNER = (
-    "【读者身份】当前提问者是宠物主（pet_owner）。"
-    "用通俗可执行语气写 conclusion/risks；可保留就医时机与安全提醒（如勿自行使用人用止痛药）。"
-    "若疾病症状描述非特异、信息不足且用户未报告明确当前红旗，优先列出 3~6 个会改变风险判断的关键"
-    "追问与短时观察项；不要因严重疾病存在于鉴别范围就把它写成当前患者事实、突出最坏情况或无条件要求"
-    "立即就医。此类首轮可说明常见原因和风险类别，但不要主动点名、展开尚无个体证据的罕见严重疾病；"
-    "用户明确询问鉴别诊断、已有相关证据或报告红旗时仍应正常说明。若本轮输入已包含相关补充信息，应"
-    "利用这些信息推进鉴别和建议，不要机械重复追问。"
-    "若用户已报告明确当前红旗，则直接说明紧急程度与行动，不得为了补全信息而延误。"
-    "本条优先于上方 persona 中『面向兽医用户 / 勿写就医口号』的表述。"
-)
-
-_AUDIENCE_VET = (
-    "【读者身份】当前提问者是执业兽医（veterinarian）。"
-    "你是 AI 临床助手：用专业、结构化语气写 conclusion/risks；急症写处置与检查优先级，"
-    "不要写『请立即就医/线下就诊』等宠主话术，也不要自称『同事』。"
-)
-
-
-_IMPORTANT_RETRIEVAL_POLICY: Dict[str, str] = {
-    "clinical": (
-        "【重要场景双检索】在诊断或鉴别诊断、急症风险判断、会显著影响处置优先级的治疗决策、"
-        "复杂或少见病例等高影响临床场景中，不能只凭模型记忆直接返回 final。若当前可用工具同时包含"
-        " rag.search 与 mcp.web_search.web_search，本次专家任务应先后调用二者并综合证据，再返回最终意见："
-        "RAG 用于核对本地专业资料，Web Search 用于核对近期指南、共识或外部证据。每轮仍只调用一个工具，"
-        "因此应在连续轮次中完成；首次检索结果不足或未命中，不是跳过另一类检索的理由。只有普通低风险"
-        "养护/沟通问题、用户信息不足到无法形成有效检索问题、或相应工具未提供时，才可不做双检索。"
-    ),
-    "pharmacy": (
-        "【重要场景双检索】在具体药物剂量、联合用药与相互作用、禁忌、物种毒性、不良反应、停换药/"
-        "洗脱方案，以及会显著影响用药安全的特殊个体场景中，不能只凭模型记忆直接返回 final。若当前"
-        "可用工具同时包含 rag.search 与 mcp.web_search.web_search，本次专家任务应先后调用二者并综合"
-        "证据，再返回最终意见：RAG 用于核对本地药理资料，Web Search 用于核对近期药品资料、指南或"
-        "外部安全证据。每轮仍只调用一个工具，因此应在连续轮次中完成；首次检索结果不足或未命中，不是"
-        "跳过另一类检索的理由。只有不涉及具体用药安全的普通问题、信息不足到无法形成有效检索问题、或"
-        "相应工具未提供时，才可不做双检索。"
-    ),
-}
+_SPECIES_GUARD = SPECIES_GUARD
+_SPECIES_BREED_GUARD = SPECIES_BREED_GUARD
+_OUTPUT_CONTRACT = OUTPUT_CONTRACT
+_AUDIENCE_OWNER = AUDIENCE_OWNER
+_AUDIENCE_VET = AUDIENCE_VET
+_IMPORTANT_RETRIEVAL_POLICY = IMPORTANT_RETRIEVAL_POLICY
 
 
 EXPERTS: Dict[str, ExpertConfig] = {
     "clinical": ExpertConfig(
         key="clinical",
         name_zh="兽医临床专家",
-        persona=(
-            "你是一位经验丰富的兽医临床专家，为执业兽医用户提供 AI 助手式临床参考："
-            "症状评估、鉴别诊断排序与检查/处置优先级。"
-            "你基于循证兽医学谨慎推断，区分『直接证据』与『临床经验推断』，"
-            "避免绝对确诊措辞；急症写清处置与监护要点，不要写『请线下就医』等宠主话术，不要自称同事。"
-        ),
+        persona=EXPERT_PERSONAS["clinical"],
         allowed_tools=[
             "rag.search",
             "sql.search",
@@ -171,10 +110,7 @@ EXPERTS: Dict[str, ExpertConfig] = {
     "nutrition": ExpertConfig(
         key="nutrition",
         name_zh="兽医营养专家",
-        persona=(
-            "你是一位兽医营养专家，负责膳食配方、体重与慢病饮食管理。"
-            "你依据 NRC/AAFCO 等营养标准给出热量与配方建议，关注个体体重与病史。"
-        ),
+        persona=EXPERT_PERSONAS["nutrition"],
         allowed_tools=[
             "rag.search",
             "sql.search",
@@ -189,20 +125,7 @@ EXPERTS: Dict[str, ExpertConfig] = {
     "pharmacy": ExpertConfig(
         key="pharmacy",
         name_zh="兽医药剂师",
-        persona=(
-            "你是一位兽医药剂师，负责用药安全、剂量、相互作用与禁忌。"
-            "你尤其关注犬猫物种特异性毒性，对剂量与禁忌保持高度谨慎；"
-            "评估联合用药时，若可靠证据已确认两种药物属于禁忌联用，不能只给出停用或禁用结论；"
-            "必须说明禁忌原因，并给出至少一条可执行的替代路径，包括优先替换哪一种药、可选替代药物或"
-            "非药物方案，以及必要的切换/洗脱和监测边界。替代方案必须符合当前物种、适应证、器官功能"
-            "和既往用药；若患者信息或证据不足以安全指定具体替代药，不得编造，应给出替代选择原则、"
-            "临时风险控制措施和需要补充的信息。替代路径必须真正消除禁忌组合，不能把换用同类低风险药、"
-            "减量、错峰、缩短重叠、增加支持性治疗或加强监测写成允许继续联用的条件。不得在 risks 或其他字段"
-            "中重新加入『若必须短期联用』之类的例外。未提供具体药名、剂量和疗程时，不得列举数字洗脱期或"
-            "半衰期示例；替代药物不得仍属于冲突类别，也不得脱离当前适应证。意外重叠且疗程未知时，不得无条件"
-            "要求立即停用其中某一种药，应由处方兽医在下一次给药前决定具体暂停、减停或替换对象。"
-            "面向兽医用户写处方边界与监测要点，不要写『勿自行给人药/请遵医嘱就医』等宠主口号，不要自称同事。"
-        ),
+        persona=EXPERT_PERSONAS["pharmacy"],
         allowed_tools=["rag.search", "mcp.web_search.web_search"],
         rag_query_hint="drug dosage contraindication toxicity interaction",
         rag_categories=list(_PHARMACY_RAG_CATEGORIES),
@@ -210,11 +133,7 @@ EXPERTS: Dict[str, ExpertConfig] = {
     "behavior": ExpertConfig(
         key="behavior",
         name_zh="行为安抚老师",
-        persona=(
-            "你是一位动物行为与安抚专家，负责焦虑/应激识别、行为矫正与医患沟通要点。"
-            "给出可执行的训练与安抚建议；若需向宠主传达，写成『可告知宠主…』的沟通建议，"
-            "不要直接用『请立即就医』等对宠主喊话的口吻作为结论。"
-        ),
+        persona=EXPERT_PERSONAS["behavior"],
         allowed_tools=["rag.search", "mcp.web_search.web_search"],
         rag_query_hint="animal behavior anxiety stress training",
         rag_categories=list(_BEHAVIOR_RAG_CATEGORIES),
@@ -367,8 +286,6 @@ class ExpertAgentSession:
             available = [tool for tool in available if tool.name not in ANIMAL_REQUIRED_TOOLS]
         self.available_tools = {tool.name: tool for tool in available}
 
-        audience = _AUDIENCE_VET if user_role == "veterinarian" else _AUDIENCE_OWNER
-        retrieval_policy = _IMPORTANT_RETRIEVAL_POLICY.get(expert.key, "")
         tool_brief = [
             {
                 "name": tool.name,
@@ -377,20 +294,11 @@ class ExpertAgentSession:
             }
             for tool in available
         ]
-        system_prompt = (
-            f"{expert.persona}\n{_SPECIES_GUARD}\n{_SPECIES_BREED_GUARD}\n{audience}\n"
-            f"{retrieval_policy}\n\n"
-            "你是独立运行的专家 Subagent。你拥有自己的上下文，必须根据用户问题和本上下文中的"
-            "工具结果逐轮决定下一步；不要预先生成固定多步计划。每轮只能执行一个动作。\n"
-            "需要外部证据时返回 action=tool；证据充分或无需工具时返回 action=final。"
-            "不要为了形式调用工具，也不要重复相同调用。你必须只输出严格 JSON。\n"
-            "调用 rag.search 时，arguments.query 必须完全使用英语，不得包含中文、日文或韩文字符。\n"
-            "工具动作格式："
-            '{"action":"tool","tool_name":"<name>","arguments":{},"reason":"..."}\n'
-            "最终意见格式："
-            '{"action":"final","opinion":{"conclusion":"...","evidence":[],"risks":[],"confidence":0.0}}\n'
-            f"最终 opinion 约束：{_OUTPUT_CONTRACT}\n"
-            f"当前可用工具：{json.dumps(tool_brief, ensure_ascii=False)}"
+        system_prompt = build_expert_system_prompt(
+            persona=expert.persona,
+            expert_key=expert.key,
+            user_role=user_role,
+            tool_brief=tool_brief,
         )
         payload: Dict[str, Any] = {
             "user_question": query,
@@ -469,15 +377,12 @@ class ExpertAgentSession:
         if force_final:
             round_messages.append({
                 "role": "user",
-                "content": "循环预算已到或没有可用工具。本轮必须返回 action=final，不得再调用工具。",
+                "content": FORCE_FINAL_REMINDER,
             })
         elif self.rounds == self.loop_config.max_rounds - 1:
             round_messages.append({
                 "role": "user",
-                "content": (
-                    "这是倒数第二轮。你本轮仍可按需调用一次工具，但下一轮必须返回 "
-                    "action=final 的结构化最终意见。请避免发起无法在下一轮完成归纳的检索。"
-                ),
+                "content": PENULTIMATE_ROUND_REMINDER,
             })
 
         started = time.perf_counter()

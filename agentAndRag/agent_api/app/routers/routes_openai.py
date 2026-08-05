@@ -27,6 +27,7 @@ from ..llm.llm_client import extract_text, get_shared_async_client
 from ..llm.llm_client_stream import get_shared_async_stream_client
 from ..persistence.qa_store import save_qa_record
 from ..persistence.trace_store import new_trace_id, write_trace
+from ..prompts.multi_turn import DECISION_INSTRUCTIONS, DECISION_SYSTEM_PROMPT
 from ..schemas.openai_schemas import (
     ChatCompletionChoice,
     ChatCompletionRequest,
@@ -72,6 +73,7 @@ DEFAULT_ALLOWED_TOOLS = [
     "rag.search",
     "sql.search",
     "vitals.summary",
+    "mcp.vitals_alert.check_vitals",
     "mcp.web_search.web_search",
     "mcp.web_search.ingredient_check",
     "mcp.nutritional_planner.calculate_meal_plan",
@@ -104,6 +106,10 @@ def _resolve_request_allowed_tools(
 _TOOL_DESCRIPTIONS = {
     "rag.search": "Search the veterinary knowledge base for medical/health information.",
     "vitals.summary": "Aggregated HR/RR/temperature stats for the request-scoped pet (collar time-series).",
+    "mcp.vitals_alert.check_vitals": (
+        "Check PetHealth PostgreSQL heart-rate and respiratory-rate samples for one pet_id, "
+        "returning thresholds, abnormal samples, and alert_level."
+    ),
     "sql.search": (
         "Read-only query on PetMind whitelist tables: daily_reports (daily summaries), "
         "animals (pet profile incl. species/breed/age/weight), sensor_events (collar upload windows). "
@@ -153,6 +159,27 @@ def _build_conversation_history(messages: List[ChatMessage]) -> List[Dict[str, s
     return history
 
 
+def _build_pethealth_server_context(
+    req: ChatCompletionRequest,
+    request: Request,
+) -> Optional[Dict[str, Any]]:
+    ctx = req.pethealth_server
+    if ctx is None or not bool(ctx.heart_rate_abnormal):
+        return None
+    animal_id = (
+        str(ctx.animal_id).strip()
+        if ctx.animal_id is not None and str(ctx.animal_id).strip()
+        else str(getattr(req, "animal_id", "") or request.headers.get("x-animal-id") or "").strip()
+    )
+    if not animal_id:
+        return None
+    return {
+        "animal_id": animal_id,
+        "heart_rate_abnormal": True,
+        "vitals_window_hours": int(ctx.vitals_window_hours or 24),
+    }
+
+
 def _make_decide_prompt(
     query: str,
     tool_results: List[Dict[str, Any]],
@@ -163,19 +190,7 @@ def _make_decide_prompt(
     ]
     return json.dumps({
         "task": "决定下一步行动",
-        "instructions": (
-            "你是一个智能 Agent。根据用户问题和已有的工具调用结果，决定是否需要继续调用工具获取更多信息，还是已经可以生成最终回答。\n"
-            "如果信息不足，选择调用工具；如果信息足够，选择生成最终回答。\n"
-            "工具选择指南：\n"
-            "- 健康/医学/临床类问题：若同时有 rag.search 与 mcp.web_search.web_search，"
-            "应同轮调用二者并综合（rag 英文 query；web 中文 query）\n"
-            "- 当前请求带 animal_id 且要查该宠物的日报 daily_reports → sql.search（仅该表）\n"
-            "- 实时网络信息 / 产品信息 / 价格线索 → mcp.web_search.web_search\n"
-            "- 产品成分安全性检查 → mcp.web_search.ingredient_check\n"
-            "- 喂食量/热量计算 → mcp.nutritional_planner.calculate_meal_plan\n"
-            "- 运动计划建议 → mcp.nutritional_planner.generate_exercise_plan\n"
-            "你必须输出严格 JSON，不要输出任何额外文字。"
-        ),
+        "instructions": DECISION_INSTRUCTIONS,
         "user_query": query,
         "tool_results_so_far": [
             {
@@ -426,7 +441,7 @@ async def _stream_multi_turn_agent(
         try:
             decide_resp = await llm.chat(
                 messages=[
-                    {"role": "system", "content": "你是一个智能决策 Agent。输出严格 JSON。"},
+                    {"role": "system", "content": DECISION_SYSTEM_PROMPT},
                     {"role": "user", "content": decide_prompt},
                 ],
                 temperature=0.1,
@@ -891,6 +906,7 @@ async def _stream_moe_agent(
     allowed_tools: Optional[List[str]],
     user_role: str = "pet_owner",
     debug_timing: bool = False,
+    pethealth_server: Optional[Dict[str, Any]] = None,
 ) -> AsyncGenerator[str, None]:
     """MoE 流式：包装 MoEOrchestrator.stream 为 OpenAI 兼容 SSE chunk。"""
     created = _now_ts()
@@ -900,6 +916,7 @@ async def _stream_moe_agent(
     orch = build_moe_orchestrator(
         registry=get_registry(), temperature=temperature, max_tokens=max_tokens,
         user_role=user_role, allowed_tools=allowed_tools,
+        pethealth_server=pethealth_server,
     )
     recorder = MoETrace(question=query, user_role=user_role) if debug_timing else None
 
@@ -974,6 +991,7 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
     query = _extract_user_query(req.messages)
     system_context = _build_system_context(req.messages)
     conversation_history = _build_conversation_history(req.messages)
+    pethealth_server_context = _build_pethealth_server_context(req, request)
 
     # 请求级 animal_id（sql.search 仅在非空时进入工具名单；由 ContextVar 供 sql_search_tool 读取）
     set_request_animal_id(
@@ -1022,6 +1040,7 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
                     allowed_tools=allowed_tools,
                     user_role=user_role,
                     debug_timing=_debug_timing,
+                    pethealth_server=pethealth_server_context,
                 )
             elif use_multi_turn:
                 source = _stream_multi_turn_agent(
@@ -1117,6 +1136,7 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
                     registry=get_registry(), temperature=req.temperature or 0.3,
                     max_tokens=req.max_tokens, user_role=user_role,
                     allowed_tools=allowed_tools,
+                    pethealth_server=pethealth_server_context,
                 )
                 moe_trace = MoETrace(question=query, user_role=user_role)
                 answer, moe_trace = await orch.run(

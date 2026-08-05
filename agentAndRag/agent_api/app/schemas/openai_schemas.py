@@ -17,6 +17,25 @@ class ChatMessage(BaseModel):
     tool_call_id: Optional[str] = None
 
 
+class PetHealthServerContext(BaseModel):
+    """Request-scoped signals supplied by PetHealth_Server."""
+
+    animal_id: Optional[str] = Field(
+        default=None,
+        description="PetHealth Pet.id / PetHealthMetric.petId used by mcp.vitals_alert.check_vitals.",
+    )
+    heart_rate_abnormal: bool = Field(
+        default=False,
+        description="True when PetHealth_Server has detected an abnormal heart-rate signal.",
+    )
+    vitals_window_hours: int = Field(
+        default=24,
+        ge=1,
+        le=720,
+        description="Look-back window for PetHealth vitals verification.",
+    )
+
+
 class ChatCompletionRequest(BaseModel):
     """Stateless request; the caller supplies all conversation history in messages."""
     model: str = Field(default="agent-plan-solve", description="Model name (agent-plan-solve for this agent)")
@@ -50,6 +69,10 @@ class ChatCompletionRequest(BaseModel):
         default=None,
         description="When set, exposes sql.search to the agent; must match the pet whose daily_reports are queried.",
     )
+
+    # PetHealth_Server: external monitoring signal. Only MoE consumes this; it
+    # never makes the flag a patient fact without checking the MCP vitals tool.
+    pethealth_server: Optional[PetHealthServerContext] = None
 
 
 class ChatCompletionChoice(BaseModel):

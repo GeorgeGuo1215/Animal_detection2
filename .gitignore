@@ -44,12 +44,9 @@ docs_output/
 **/keys.txt
 *.db
 
-# Agent migration policy: production code only
+# Agent migration policy: track production and test/evaluation source code
 agentAndRag/docs/
 agentAndRag/**/docs/
-agentAndRag/**/tests/
-agentAndRag/**/test/
-agentAndRag/RAG/experiments/
 agentAndRag/**/reports/
 agentAndRag/agent_api_logs/
 **/agent_api_logs/
@@ -64,7 +61,7 @@ agentAndRag/1.1.0
 *.docx
 agentAndRag/RAG/Untitled
 
-# Live/evaluation artifacts
+# Live/evaluation artifacts (test source code remains tracked)
 agentAndRag/agent_api/tests/**/reports/
 agentAndRag/agent_api/tests/rag/_*.json
 

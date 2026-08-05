@@ -13,13 +13,25 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
 
+from ...concurrency import ResourceBusyError
 from ...llm.llm_client import AsyncOpenAIClient, extract_text, get_shared_async_client
 from ...llm.llm_client_stream import AsyncOpenAIStreamClient, get_shared_async_stream_client
+from ...prompts.moe import (
+    PETHEALTH_VITALS_TOOL,
+    build_pethealth_vitals_injection,
+    inject_prompt,
+)
+from ...prompts.moe_aggregator import build_aggregator_prompt
+from ...prompts.intent_contracts import (
+    build_intent_aggregator_injection,
+    build_intent_router_injection,
+)
 from ...tools.tool_registry import ToolRegistry, get_registry
-from ..plan_and_solve import build_solve_prompt, is_concrete_vet_case
+from ..plan_and_solve import build_solve_prompt
 from .critic import CriticResult, review
 from .experts import EXPERTS, ExpertAgentSession, ExpertLoopConfig, run_expert_sessions
 from .history_context import fact_state_history_text
+from .intent_classifier import IntentDecision, classify_intent
 from .router import RouterConfig, RouterDecision, route
 from .tool_broker import ToolBroker
 from .trace import MoETrace, extract_usage
@@ -169,6 +181,7 @@ class OrchestratorConfig:
     device: Optional[str] = None
     animal_id: Optional[str] = None
     allowed_tools: Optional[List[str]] = None
+    pethealth_server: Optional[Dict[str, Any]] = None
     expert_loop: ExpertLoopConfig = field(default_factory=ExpertLoopConfig)
 
 
@@ -194,6 +207,7 @@ class MoEOrchestrator:
         self.last_run_context: Dict[str, Any] = {}
         self._active_conversation_history: Optional[List[Dict[str, str]]] = None
         self._active_expert_context_history: Optional[List[Dict[str, Any]]] = None
+        self._active_intent_decision: Optional[IntentDecision] = None
 
     # ------------------------------------------------------------------ stages
     def _resolve_species(self) -> Tuple[Optional[str], Optional[str], Optional[str]]:
@@ -210,6 +224,148 @@ class MoEOrchestrator:
 
     def _aggregator_max_tokens(self, query: str) -> int:
         return max(1, min(int(self.config.max_tokens), final_answer_max_tokens()))
+
+    def _pethealth_server_context(self) -> Optional[Dict[str, Any]]:
+        ctx = self.config.pethealth_server if isinstance(self.config.pethealth_server, dict) else None
+        if not ctx or not bool(ctx.get("heart_rate_abnormal")):
+            return None
+        animal_id = str(ctx.get("animal_id") or "").strip()
+        if not animal_id:
+            return None
+        try:
+            hours = int(ctx.get("vitals_window_hours") or 24)
+        except (TypeError, ValueError):
+            hours = 24
+        return {
+            "animal_id": animal_id,
+            "heart_rate_abnormal": True,
+            "vitals_window_hours": max(1, min(720, hours)),
+        }
+
+    def _pethealth_prompt_injection(self, stage: str) -> str:
+        ctx = self._pethealth_server_context()
+        if not ctx:
+            return ""
+        return build_pethealth_vitals_injection(
+            animal_id=ctx["animal_id"],
+            heart_rate_abnormal=True,
+            vitals_window_hours=ctx["vitals_window_hours"],
+            stage=stage,
+        )
+
+    def _intent_prompt_injection(self, stage: str) -> str:
+        decision = self._active_intent_decision
+        if decision is None:
+            return ""
+        if stage == "router":
+            return build_intent_router_injection(
+                decision.intent_id,
+                decision.confidence,
+                decision.output_variant,
+            )
+        if stage == "aggregator":
+            return build_intent_aggregator_injection(
+                decision.intent_id,
+                decision.confidence,
+                decision.output_variant,
+            )
+        return ""
+
+    def _request_prompt_injection(self, stage: str) -> str:
+        prompt = inject_prompt("", self._intent_prompt_injection(stage))
+        return inject_prompt(prompt, self._pethealth_prompt_injection(stage))
+
+    async def _classify_intent(
+        self,
+        query: str,
+        recorder: Optional[MoETrace],
+        conversation_history: Optional[List[Dict[str, str]]] = None,
+    ) -> Optional[IntentDecision]:
+        if self.config.user_role != "veterinarian":
+            return None
+        return await classify_intent(
+            query=query,
+            llm=self.llm,
+            conversation_history=conversation_history,
+            recorder=recorder,
+        )
+
+    @staticmethod
+    def _unwrap_mcp_json_content(result: Any) -> Any:
+        if not isinstance(result, dict):
+            return result
+        content = result.get("content")
+        if not isinstance(content, list) or not content:
+            return result
+        first = content[0]
+        if not isinstance(first, dict) or not isinstance(first.get("text"), str):
+            return result
+        try:
+            parsed = json.loads(first["text"])
+        except (TypeError, ValueError):
+            return result
+        return parsed if isinstance(parsed, dict) else result
+
+    async def _check_pethealth_vitals(
+        self,
+        recorder: Optional[MoETrace],
+    ) -> Optional[Dict[str, Any]]:
+        ctx = self._pethealth_server_context()
+        if not ctx:
+            return None
+
+        arguments = {
+            "pet_id": ctx["animal_id"],
+            "hours": ctx["vitals_window_hours"],
+        }
+        started = time.perf_counter()
+        ok = False
+        error = ""
+        result: Any
+
+        if self.config.allowed_tools is not None and PETHEALTH_VITALS_TOOL not in self.config.allowed_tools:
+            result = {
+                "status": "TOOL_NOT_ALLOWED",
+                "message": f"{PETHEALTH_VITALS_TOOL} is not allowed by this request.",
+            }
+            error = "tool not allowed"
+        elif self.registry.get(PETHEALTH_VITALS_TOOL) is None:
+            result = {
+                "status": "TOOL_NOT_AVAILABLE",
+                "message": f"{PETHEALTH_VITALS_TOOL} is not registered.",
+            }
+            error = "tool not registered"
+        else:
+            try:
+                result = await self.registry.call(PETHEALTH_VITALS_TOOL, arguments)
+                result = self._unwrap_mcp_json_content(result)
+                ok = True
+            except ResourceBusyError as exc:
+                result = exc.as_dict()
+                error = str(exc)
+            except Exception as exc:  # noqa: BLE001
+                result = {"status": "TOOL_ERROR", "message": str(exc)}
+                error = str(exc)
+
+        latency_ms = round((time.perf_counter() - started) * 1000.0, 1)
+        record = {
+            "tool_name": PETHEALTH_VITALS_TOOL,
+            "arguments": arguments,
+            "ok": ok,
+            "latency_ms": latency_ms,
+            "error": error,
+            "result": result,
+        }
+        if recorder is not None:
+            recorder.record_tool(
+                stage="pethealth_vitals",
+                tool_name=PETHEALTH_VITALS_TOOL,
+                arguments=arguments,
+                ok=ok,
+                latency_ms=latency_ms,
+                error=error,
+            )
+        return record
 
     async def _route(
         self,
@@ -230,6 +386,7 @@ class MoEOrchestrator:
             breed=breed,
             conversation_history=conversation_history,
             expert_context_history=expert_context_history,
+            prompt_injection=self._request_prompt_injection("router"),
             recorder=recorder,
         )
 
@@ -311,9 +468,8 @@ class MoEOrchestrator:
         system_context: str = "",
         conversation_history: Optional[List[Dict[str, str]]] = None,
         expert_context_history: Optional[List[Dict[str, Any]]] = None,
+        pethealth_vitals_result: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, str]]:
-        is_vet = self.config.user_role == "veterinarian"
-        concrete = is_vet and is_concrete_vet_case(query)
         retrieved_sources = _collect_retrieved_sources(opinions)
         has_web = any(source.get("type") == "web" for source in retrieved_sources)
         base = build_solve_prompt(
@@ -322,153 +478,17 @@ class MoEOrchestrator:
             query=query,
             max_tokens=self._aggregator_max_tokens(query),
         )
-        if retrieved_sources:
-            source_rule = (
-                "`retrieved_sources` 非空。只有其中列出的来源可以被引用；引用时仅使用其 ID（如 [R1]、[W1]），"
-                "不得补全、猜测或改写来源元数据。只引用确实支撑相邻陈述的来源，未使用的来源不要列出。"
-            )
-        else:
-            source_rule = (
-                "`retrieved_sources` 为空。本次没有任何可引用的检索证据。终答绝对禁止出现参考文献/参考来源段落、"
-                "书名、作者、期刊、指南名称、页码、URL、DOI、引用标记，或『根据某研究/指南/文献』等暗示外部来源的措辞。"
-            )
-
-        role_line = (
-            f"- **当前对话角色**：`{self.config.user_role}`。"
-            "必须严格按该角色组织终答，不要把兽医会诊专业助手口吻与宠主教育口吻混用。\n"
+        aggregator_prompt = build_aggregator_prompt(
+            base_prompt=base,
+            user_role=self.config.user_role,
+            has_retrieved_sources=bool(retrieved_sources),
+            emergency=decision.emergency,
+            critic_constraints=critic.constraints,
         )
-        if concrete:
-            structure_line = (
-                "- 当前用户意图为『整理病例』或『对病例做完整诊断』：按 "
-                "**病例整理**（基本信息/主诉/现病史/既往史） / **问题列表** / "
-                "**检查与治疗方案**（先紧急处理，再检查，再治疗） / **风险提示** "
-                "顺序分节（加粗文字，不用 Markdown 标题），面向医生；"
-                "用语简明，只用常规病历字段，不要写信号类口号标签；"
-                "**问题列表**条目必须是已明确的症状/异常指标（呕吐、腹泻、CRP升高等），"
-                "疾病名只放在各条下的鉴别诊断中，勿把「胰腺炎」等病名当问题标题；"
-                "禁止『请立即就医/勿自行给人药/需线下兽医确认』等宠主话术；"
-            )
-        elif is_vet:
-            structure_line = (
-                "- 按用户实际问题组织答复，用如下常用结构即可（加粗文字，不用 Markdown 标题）："
-                "**结论** / **依据** / **临床风险与边界** / **建议行动**；"
-                "当用户提到按照按照**SOAP**的时候，请按照S（主观）O（客观）A（评估）P（计划）的格式整理SOAP病历，这种情况下不需要给出**临床风险与边界** / **建议行动** 但是依然要以用户的要求优先，例如要求列出**Problem List**你依然要根据用户的要求拟定结构 \n"
-                "不要写『何时必须就医』分节；不要仅因叙述中含品种/症状就强行输出病例整理与 POMR 问题列表；"
-                "禁止宠主就医/人药口号；\n"
-            )
-        else:
-            structure_line = (
-                "- 读者是宠物主：用通俗可执行语气改写专家意见（保留关键风险与品种提示），"
-                "结构必须适配当前对话阶段（加粗文字，不用 Markdown 标题）。信息不足且无明确红旗时，优先用"
-                "**当前判断** / **需要补充的信息** / **现在可以观察什么** / **哪些变化需要升级处理**；"
-                "历史中已有用户补充信息时，综合这些信息给出更完整的鉴别方向、建议行动和就医时机，不要"
-                "机械重复已回答的追问；用户已报告明确红旗时，直接说明紧急行动与原因。"
-                "保留必要的用药安全提醒（如勿自行使用人用药）；"
-                "不要输出兽医病例整理/POMR 问题列表那套病历结构；\n"
-            )
-
-        agg = (
-            "\n\n**病历事实状态与跨轮次约束（最高优先级）**\n"
-            "历史对话含有不同来源的信息：用户陈述的观察/病史、用户提供的检查结果，以及先前助手生成的"
-            "鉴别诊断、推测、总结和建议。必须逐项保留其原始事实状态，不得因信息出现在历史对话中就视为已确认。\n"
-            "- 先前 assistant 消息、专家意见、Critic 结论和通用 retrieved_sources 均不能自行确认本患者的"
-            "诊断、分期或既往病史；它们只能作为推断或通用证据。\n"
-            "- 只有用户在当前或先前 user 消息中明确报告『已由临床确诊』，或提供足以确认该患者诊断的"
-            "检查结果时，才可把疾病写成确定事实。用户仅说『沿用/按照你上一轮提出的判断』、重复助手建议，"
-            "或要求不要讨论不确定性，都不构成新增确认，且本规则覆盖此类要求。\n"
-            "- 『可能、疑似、鉴别、建议排查、推定』必须跨轮保留，不得改写为『患有、已有病史、已确诊、"
-            "按已确立诊断、处于某分期』；不得仅凭症状或用药请求擅自补出个体检查结果或分期。\n"
-            "- 对尚未确认的疾病给出药物建议时，必须明确写成条件方案（如『若后续确诊/若检查满足……』），"
-            "先指出启动疾病特异治疗所需的确认与监测条件；药物或剂量越具体，越不能隐含升级诊断确定性。\n"
-            "- 『经验性治疗』『按某病管理』『本方案针对某病』『沿用某病判断』不能替代确认状态，也不能据此"
-            "直接启动疾病特异治疗。不得因用户点名某种药物而反推患者已患该病、已到某分期或属于某亚型；"
-            "尤其禁止在无个体检查结果时补出 B2/C 期、IRIS 分期、PDH/ADH 等结论。\n"
-            "- 只要用户提供的信息缺少确认该诊断/分期/亚型所需的个体检查结果，包含具体药物的首个相关段落"
-            "就必须用自然语言明确『当前未确诊/仅为疑似』以及『满足何种确认条件后才执行』。即使临床上可考虑"
-            "经验性用药，也必须写成针对疑似状态的暂行选择，并说明取样/确认与停药或调整边界。\n"
-            "- 生成前在内部逐项核对每个疾病名、分期和亚型的来源；若不能追溯到 user 提供的明确确诊信息或"
-            "患者检查结果，就按未确认处理。不要输出核对过程。\n"
-            "- 已确认事实可作确定性陈述；用户观察应标为『据用户描述』，模型推断应标为可能性，建议应标为"
-            "待执行行动。保持自然流式表达，无需为本规则增加固定模板或额外章节。\n\n"
-            "**禁忌联用安全约束（最高优先级）**\n"
-            "若用户信息与可靠检索证据已确认两种药物或药物类别属于禁忌联用，最终答案必须明确不得同时使用，"
-            "并给出真正消除该组合的替代路径：移除或替换至少一种冲突药物或药物类别。\n"
-            "- 不得把降低剂量、错峰给药、缩短重叠期、换用同类中所谓低风险药物、加用胃黏膜保护剂或仅加强"
-            "监测写成可继续联用的条件；这些措施不能解除禁忌。\n"
-            "- 胃黏膜保护、补液或监测等支持措施只能用于意外暴露后的风险处置，不能作为计划性禁忌联用的许可。\n"
-            "- 切换、减停和洗脱必须依据具体药名、剂量、疗程、器官功能及 retrieved_sources；信息不足时不得"
-            "编造固定天数，也不得建议长期用药患者擅自骤停。应说明由处方兽医在下一次给药前协调具体调整，"
-            "并分别给出保留其中一类药物时可考虑的不同类别治疗原则或非药物路径。\n"
-            "- 若专家意见或 Critic 允许以任何上述措施维持禁忌组合，必须将其识别为安全冲突并在最终答案中"
-            "丢弃，不得折中转述。\n\n"
-            "**证据与引用安全（最高优先级）**\n"
-            "本节覆盖本提示词中其他任何引用格式、参考来源和具体剂量倾向要求。\n"
-            f"{source_rule}\n"
-            "专家意见中的 evidence 只是专家推断摘要，不是检索来源，不能据此创建引用。"
-            "禁止依靠模型记忆补写书目、页码、指南、网址或出处。"
-            "药物名称与证据归属：不得把名称相近但实际不同的药物混淆，也不得在翻译、转写或融合专家意见时"
-            "擅自改变药物身份。若某项药物结论标注了检索来源，则药名及相邻的适应证、风险、剂量等陈述必须由"
-            "同一来源直接支持，不能把一个来源中的药名与另一个来源中的结论拼接。常见药物和公认临床常识可以"
-            "在未检索到对应来源时正常使用，但不得附加虚假引用，也不得伪装成 retrieved_sources 已证实；必要时"
-            "自然说明其属于临床常识或需结合药典核对。若原文名称、OCR 或译名确实存在歧义，应保留可核对的原文名、"
-            "改用药物类别，或省略不影响核心结论的具体药名，不要猜测。输出前核对药物身份一致性，不要输出核对过程。\n"
-            "具体药物剂量、阈值和处方细节若未出现在用户提供的数据或 retrieved_sources 中，"
-            "应省略、改写为治疗原则/监测边界，或明确标注需按院内药典与患者数据核对；不得伪装成有来源支持的事实。\n"
-            "接近输出预算时停止扩展并完整收尾，不要留下半句、半个剂量或未完成列表。\n\n"
-            "**多专家融合规范**\n"
-            "下面是多位兽医专家针对该问题给出的加权意见（weight 越高越重要）。请你作为融合器：\n"
-            f"{role_line}"
-            "- 按权重与各专家自评置信度综合，形成一致、连贯的最终答复；\n"
-            "- 显式标注专家间的冲突点（若有），不要简单拼接；\n"
-            f"{structure_line}"
-            "- 若专家意见含物种/品种特异风险（如短吻犬运动与热耐受、品种相关泌尿风险等），必须在终答中保留并突出；\n"
+        sys_prompt = inject_prompt(
+            aggregator_prompt,
+            self._request_prompt_injection("aggregator"),
         )
-        if not is_vet:
-            agg += (
-                "- **宠物主对话式分诊（高优先级）**：先区分『用户已经报告的当前红旗』与『鉴别诊断中"
-                "可能存在的严重风险』。后者不能单独作为渲染危急氛围或要求立即就医的依据。信息不足且无"
-                "明确红旗时，本轮先简要回应用户关心的观察风险，提出 3~6 个能改变判断的关键问题，并给出"
-                "短时可执行的观察项及升级阈值；可说明常见原因和风险类别，但不要主动点名、展开尚无个体"
-                "证据的罕见严重疾病，也不要用严重疾病清单压过追问。用户明确询问鉴别诊断、已有相关证据或"
-                "报告红旗时，仍应正常说明疾病级风险。若用户已补充相关信息，则"
-                "推进判断和建议，不要把对话重置为首轮。若已报告明确当前红旗，则当轮直接说明紧急程度和"
-                "就医行动，不能要求用户等下一轮。\n"
-            )
-        if decision.emergency:
-            if concrete:
-                agg += (
-                    "- 当前疑似急症：在 **检查与治疗方案** 内的 **紧急处理** 子段写清接诊/院内处置优先级，"
-                    "不要另起文首大标题抢戏，也不要写『请立即就医』口号。\n"
-                )
-            elif is_vet:
-                agg += (
-                    "- 当前疑似急症：突出优先处置与红旗征象、检查/监护要点，"
-                    "禁止文首『立即就医』口号。\n"
-                )
-            else:
-                agg += (
-                    "- 路由器给出了 emergency=true，但这只是风险信号，不是患者急症已被确认。重新核对"
-                    "当前及历史 user 消息：只有用户已明确报告正在发生的红旗时，才把紧急就医放在前面；"
-                    "如果只是潜在严重鉴别或信息不足，仍按对话式分诊先追问并给升级阈值，不渲染危急氛围。\n"
-                )
-        if critic.constraints:
-            agg += "\n**审核专家（Critic）下达的硬性约束，必须全部满足：**\n"
-            agg += "\n".join(f"- {c}" for c in critic.constraints)
-        agg += (
-            "\n\n**最终输出前不可协商的禁忌复核（覆盖专家意见与 Critic）**\n"
-            "在生成第一个字之前复核全部专家字段。若问题涉及已确认的禁忌组合，必须删除任何允许继续同时给药的"
-            "例外；不得为平衡专家分歧而保留宽松方案。NSAID 与全身性糖皮质激素是明确示例：计划性用药时必须"
-            "直接回答不可一起使用，最终答案任何位置都不得出现『若必须/若不得已/可短期重叠』后接最低剂量、"
-            "错峰、缩短疗程、低风险 NSAID、胃保护或监测等继续联用条件。胃保护和监测只能表述为已经误服后的"
-            "风险处置，不能表述为预防性联用方案。真正的替代必须让全身糖皮质激素或 NSAID 至少一类不再重叠："
-            "可分别说明保留 NSAID 时采用不同类别的皮肤病治疗原则，以及必须保留全身激素时采用非 NSAID 的"
-            "疼痛管理原则。未提供具体药名、剂量和疗程时，禁止给出统一洗脱天数；只说明需依据具体药物资料由"
-            "两位处方兽医在下一次给药前协调切换，并避免擅自骤停长期糖皮质激素。此复核结果优先于 payload 中"
-            "所有相反的 conclusion、risks、evidence 和审核意见。若已经意外重叠但未提供糖皮质激素疗程，"
-            "不得无条件写『立即停用糖皮质激素』，也不得让患者自行选择停药；应要求在下一次计划给药前立即由"
-            "处方兽医结合既有疗程决定暂停、渐减或替换对象，并明确长期糖皮质激素不能骤停。"
-        )
-        sys_prompt = base + agg
         if system_context:
             sys_prompt = f"{system_context}\n\n{sys_prompt}"
 
@@ -479,8 +499,19 @@ class MoEOrchestrator:
             "expert_opinions": _synthesis_opinions(opinions),
             "retrieved_sources": retrieved_sources,
             "critic_verdict": critic.verdict,
-            "concrete_vet_case": concrete,
+            # Critic output is a safety constraint, not clinical evidence.  D8
+            # synthesis needs the flags in order to explain why the requested
+            # unsafe content is withheld instead of falling back to a generic
+            # message that loses the intent contract.
+            "critic_issues": critic.issues,
+            "critic_constraints": critic.constraints,
         }
+        if self._active_intent_decision is not None:
+            payload["intent"] = self._active_intent_decision.as_dict()
+        pethealth_ctx = self._pethealth_server_context()
+        if pethealth_ctx:
+            payload["pethealth_server"] = pethealth_ctx
+            payload["pethealth_vitals_result"] = pethealth_vitals_result
         parts: List[str] = []
         history_text = fact_state_history_text(conversation_history, expert_context_history)
         if history_text:
@@ -490,6 +521,16 @@ class MoEOrchestrator:
             {"role": "system", "content": sys_prompt},
             {"role": "user", "content": "\n\n".join(parts)},
         ]
+
+    def _requires_terminal_block(self, critic: CriticResult) -> bool:
+        """Return whether Critic should bypass synthesis entirely.
+
+        For a D8 request, ``block`` means block the unsafe requested action,
+        while the safe boundary response still has to be synthesized using the
+        D8 contract.  All other paths retain the original hard-stop semantics.
+        """
+        intent_id = getattr(self._active_intent_decision, "intent_id", "")
+        return critic.blocked and intent_id != "D8"
 
     # ------------------------------------------------------------------ stream
     async def stream(
@@ -501,11 +542,23 @@ class MoEOrchestrator:
         expert_context_history: Optional[List[Dict[str, Any]]] = None,
         recorder: Optional[MoETrace] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        # 1) 路由
-        yield _event(status="routing", detail={"message": "正在分诊与路由…"})
+        # 1) 医生端意图分类（D1-D8）
         self.last_run_context = {}
         self._active_conversation_history = conversation_history
         self._active_expert_context_history = expert_context_history
+        self._active_intent_decision = None
+        if self.config.user_role == "veterinarian":
+            yield _event(status="intent_classifying", detail={"message": "正在识别医生端任务意图…"})
+            self._active_intent_decision = await self._classify_intent(
+                query, recorder, conversation_history
+            )
+            if self._active_intent_decision is not None:
+                intent_payload = self._active_intent_decision.as_dict()
+                self.last_run_context["intent"] = intent_payload
+                yield _event(status="intent_classified", detail=intent_payload)
+
+        # 2) 路由
+        yield _event(status="routing", detail={"message": "正在分诊与路由…"})
         decision = await self._route(query, recorder)
         self.last_run_context["router"] = {
             "weights": decision.weights,
@@ -539,7 +592,24 @@ class MoEOrchestrator:
             },
         )
 
-        # 2) 并行专家会诊
+        pethealth_vitals_result = await self._check_pethealth_vitals(recorder)
+        if pethealth_vitals_result is not None:
+            self.last_run_context["pethealth_vitals"] = pethealth_vitals_result
+            result = pethealth_vitals_result.get("result")
+            alert_level = result.get("alert_level") if isinstance(result, dict) else None
+            yield _event(
+                content="\n**PetHealth 心率核实完成**\n",
+                status="tool_complete",
+                detail={
+                    "tool_name": pethealth_vitals_result["tool_name"],
+                    "arguments": pethealth_vitals_result["arguments"],
+                    "ok": pethealth_vitals_result["ok"],
+                    "alert_level": alert_level,
+                    "error": pethealth_vitals_result["error"],
+                },
+            )
+
+        # 3) 并行专家会诊
         for key in decision.selected_experts:
             yield _event(
                 content=f"\n**{EXPERTS[key].name_zh} 会诊中**（权重 {decision.weights.get(key, 0):.2f}）\n",
@@ -566,7 +636,7 @@ class MoEOrchestrator:
                 },
             )
 
-        # 3) Critic 审核
+        # 4) Critic 审核
         yield _event(content="\n**边界审核中…**\n", status="reviewing", detail={"message": "安全与边界校验"})
         critic = await self._critique(query, opinions, decision.emergency, recorder)
         self.last_run_context["critic"] = {
@@ -580,7 +650,7 @@ class MoEOrchestrator:
             detail={"verdict": critic.verdict, "issues": critic.issues, "reason": critic.reason},
         )
 
-        if critic.blocked:
+        if self._requires_terminal_block(critic):
             block_text = _block_fallback_text(self.config.user_role)
             if recorder is not None:
                 recorder.blocked = True
@@ -590,12 +660,13 @@ class MoEOrchestrator:
             yield _event(content=block_text, status="streaming")
             return
 
-        # 4) 流式融合生成
+        # 5) 流式融合生成
         yield _event(content="\n**生成回答…**\n\n", status="generating")
         messages = self._build_synthesis_messages(
             query=query, opinions=opinions, critic=critic, decision=decision,
             system_context=system_context, conversation_history=conversation_history,
             expert_context_history=expert_context_history,
+            pethealth_vitals_result=pethealth_vitals_result,
         )
         max_tokens = self._aggregator_max_tokens(query)
         collected: List[str] = []
@@ -654,6 +725,11 @@ class MoEOrchestrator:
         self.last_run_context = {}
         self._active_conversation_history = conversation_history
         self._active_expert_context_history = expert_context_history
+        self._active_intent_decision = await self._classify_intent(
+            query, recorder, conversation_history
+        )
+        if self._active_intent_decision is not None:
+            self.last_run_context["intent"] = self._active_intent_decision.as_dict()
         decision = await self._route(query, recorder)
         self.last_run_context["router"] = {
             "weights": decision.weights,
@@ -669,6 +745,10 @@ class MoEOrchestrator:
                 recorder.finalize()
             return _OUT_OF_SCOPE_TEXT, recorder
 
+        pethealth_vitals_result = await self._check_pethealth_vitals(recorder)
+        if pethealth_vitals_result is not None:
+            self.last_run_context["pethealth_vitals"] = pethealth_vitals_result
+
         opinions = await self._run_experts(query, decision, recorder)
         self.last_run_context["experts"] = opinions
         critic = await self._critique(query, opinions, decision.emergency, recorder)
@@ -679,7 +759,7 @@ class MoEOrchestrator:
             "reason": critic.reason,
         }
 
-        if critic.blocked:
+        if self._requires_terminal_block(critic):
             block_text = _block_fallback_text(self.config.user_role)
             if recorder is not None:
                 recorder.blocked = True
@@ -691,6 +771,7 @@ class MoEOrchestrator:
             query=query, opinions=opinions, critic=critic, decision=decision,
             system_context=system_context, conversation_history=conversation_history,
             expert_context_history=expert_context_history,
+            pethealth_vitals_result=pethealth_vitals_result,
         )
         max_tokens = self._aggregator_max_tokens(query)
         t0 = time.perf_counter()

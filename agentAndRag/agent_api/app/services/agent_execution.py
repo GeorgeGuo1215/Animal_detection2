@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from enum import Enum
-from typing import Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 from ..tools.tool_registry import ToolRegistry, get_registry
 from .moe import MoEOrchestrator, OrchestratorConfig, RouterConfig, final_answer_max_tokens
@@ -35,6 +35,7 @@ def build_moe_orchestrator(
     max_tokens: Optional[int] = None,
     user_role: str = "pet_owner",
     allowed_tools: Optional[List[str]] = None,
+    pethealth_server: Optional[Dict[str, Any]] = None,
 ) -> MoEOrchestrator:
     budget = final_answer_max_tokens()
     requested = budget if max_tokens is None else int(max_tokens)
@@ -46,6 +47,7 @@ def build_moe_orchestrator(
             max_tokens=min(max(1, requested), budget),
             user_role=user_role,
             allowed_tools=allowed_tools,
+            pethealth_server=pethealth_server,
         ),
     )
 
