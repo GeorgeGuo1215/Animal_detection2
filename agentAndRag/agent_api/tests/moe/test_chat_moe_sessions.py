@@ -149,6 +149,7 @@ def test_chat_moe_shares_memory_across_sessions_but_not_users(tmp_path, monkeypa
         await _consume(second)
         assert calls[1]["conversation_history"] == []
         assert "CROSS_SESSION_MEMORY=后端回答1" in calls[1]["system_context"]
+        assert "CROSS_SESSION_MEMORY=后端回答1" in calls[1]["user_memory"]
         assert first_session.memory_user_id == second_session.memory_user_id
 
         other_session = await routes_chat_ui.create_chat_moe_session(

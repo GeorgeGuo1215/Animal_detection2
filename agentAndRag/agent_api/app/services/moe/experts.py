@@ -249,6 +249,7 @@ class ExpertAgentSession:
         user_role: str = "pet_owner",
         conversation_history: Optional[List[Dict[str, str]]] = None,
         expert_context_history: Optional[List[Dict[str, Any]]] = None,
+        user_memory: Optional[str] = None,
         recorder: Optional[MoETrace] = None,
         loop_config: Optional[ExpertLoopConfig] = None,
     ) -> None:
@@ -308,7 +309,11 @@ class ExpertAgentSession:
             payload["species"] = species_zh
         if breed:
             payload["breed"] = breed
-        history_context = build_fact_state_history(conversation_history, expert_context_history)
+        history_context = build_fact_state_history(
+            conversation_history,
+            expert_context_history,
+            user_memory=user_memory,
+        )
         if history_context:
             payload["history_context"] = history_context
         self.messages: List[Dict[str, Any]] = [
@@ -600,6 +605,7 @@ async def run_expert(
     user_role: str = "pet_owner",
     conversation_history: Optional[List[Dict[str, str]]] = None,
     expert_context_history: Optional[List[Dict[str, Any]]] = None,
+    user_memory: Optional[str] = None,
     recorder: Optional[MoETrace] = None,
     request_allowed_tools: Optional[Sequence[str]] = None,
     loop_config: Optional[ExpertLoopConfig] = None,
@@ -619,6 +625,7 @@ async def run_expert(
         user_role=user_role,
         conversation_history=conversation_history,
         expert_context_history=expert_context_history,
+        user_memory=user_memory,
         recorder=recorder,
         loop_config=loop_config,
     )

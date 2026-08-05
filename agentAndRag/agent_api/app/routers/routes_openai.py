@@ -922,6 +922,7 @@ async def _stream_moe_agent(
     user_role: str = "pet_owner",
     debug_timing: bool = False,
     pethealth_server: Optional[Dict[str, Any]] = None,
+    user_memory: str = "",
 ) -> AsyncGenerator[str, None]:
     """MoE 流式：包装 MoEOrchestrator.stream 为 OpenAI 兼容 SSE chunk。"""
     created = _now_ts()
@@ -941,6 +942,7 @@ async def _stream_moe_agent(
             query=query,
             system_context=system_context,
             conversation_history=conversation_history,
+            user_memory=user_memory,
             recorder=recorder,
         ):
             finish = ev.get("finish")
@@ -1076,6 +1078,7 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
                     user_role=user_role,
                     debug_timing=_debug_timing,
                     pethealth_server=pethealth_server_context,
+                    user_memory=memory_injection,
                 )
             elif use_multi_turn:
                 source = _stream_multi_turn_agent(
@@ -1196,6 +1199,7 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
                     query=query,
                     system_context=system_context,
                     conversation_history=conversation_history,
+                    user_memory=memory_injection,
                     recorder=moe_trace,
                 )
                 response = ChatCompletionResponse(

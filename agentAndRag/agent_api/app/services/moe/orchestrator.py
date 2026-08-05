@@ -207,6 +207,7 @@ class MoEOrchestrator:
         self.last_run_context: Dict[str, Any] = {}
         self._active_conversation_history: Optional[List[Dict[str, str]]] = None
         self._active_expert_context_history: Optional[List[Dict[str, Any]]] = None
+        self._active_user_memory: str = ""
         self._active_intent_decision: Optional[IntentDecision] = None
 
     # ------------------------------------------------------------------ stages
@@ -373,9 +374,11 @@ class MoEOrchestrator:
         recorder: Optional[MoETrace],
         conversation_history: Optional[List[Dict[str, str]]] = None,
         expert_context_history: Optional[List[Dict[str, Any]]] = None,
+        user_memory: Optional[str] = None,
     ) -> RouterDecision:
         conversation_history = conversation_history or self._active_conversation_history
         expert_context_history = expert_context_history or self._active_expert_context_history
+        memory_text = self._active_user_memory if user_memory is None else user_memory
         _, species_zh, breed = self._resolve_species()
         return await route(
             query=query,
@@ -387,6 +390,7 @@ class MoEOrchestrator:
             conversation_history=conversation_history,
             expert_context_history=expert_context_history,
             prompt_injection=self._request_prompt_injection("router"),
+            user_memory=memory_text,
             recorder=recorder,
         )
 
@@ -397,9 +401,11 @@ class MoEOrchestrator:
         recorder: Optional[MoETrace],
         conversation_history: Optional[List[Dict[str, str]]] = None,
         expert_context_history: Optional[List[Dict[str, Any]]] = None,
+        user_memory: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         conversation_history = conversation_history or self._active_conversation_history
         expert_context_history = expert_context_history or self._active_expert_context_history
+        memory_text = self._active_user_memory if user_memory is None else user_memory
         species_en, species_zh, breed = self._resolve_species()
         sessions: List[ExpertAgentSession] = []
         for key in decision.selected_experts:
@@ -423,6 +429,7 @@ class MoEOrchestrator:
                     user_role=self.config.user_role,
                     conversation_history=conversation_history,
                     expert_context_history=expert_context_history,
+                    user_memory=memory_text,
                     recorder=recorder,
                     loop_config=self.config.expert_loop,
                 )
@@ -444,9 +451,11 @@ class MoEOrchestrator:
         recorder: Optional[MoETrace],
         conversation_history: Optional[List[Dict[str, str]]] = None,
         expert_context_history: Optional[List[Dict[str, Any]]] = None,
+        user_memory: Optional[str] = None,
     ) -> CriticResult:
         conversation_history = conversation_history or self._active_conversation_history
         expert_context_history = expert_context_history or self._active_expert_context_history
+        memory_text = self._active_user_memory if user_memory is None else user_memory
         return await review(
             query=query,
             expert_opinions=opinions,
@@ -455,6 +464,7 @@ class MoEOrchestrator:
             user_role=self.config.user_role,
             conversation_history=conversation_history,
             expert_context_history=expert_context_history,
+            user_memory=memory_text,
             recorder=recorder,
         )
 
@@ -468,6 +478,7 @@ class MoEOrchestrator:
         system_context: str = "",
         conversation_history: Optional[List[Dict[str, str]]] = None,
         expert_context_history: Optional[List[Dict[str, Any]]] = None,
+        user_memory: Optional[str] = None,
         pethealth_vitals_result: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, str]]:
         retrieved_sources = _collect_retrieved_sources(opinions)
@@ -513,7 +524,12 @@ class MoEOrchestrator:
             payload["pethealth_server"] = pethealth_ctx
             payload["pethealth_vitals_result"] = pethealth_vitals_result
         parts: List[str] = []
-        history_text = fact_state_history_text(conversation_history, expert_context_history)
+        memory_text = self._active_user_memory if user_memory is None else user_memory
+        history_text = fact_state_history_text(
+            conversation_history,
+            expert_context_history,
+            user_memory=memory_text,
+        )
         if history_text:
             parts.append(history_text)
         parts.append(json.dumps(payload, ensure_ascii=False))
@@ -540,12 +556,14 @@ class MoEOrchestrator:
         system_context: str = "",
         conversation_history: Optional[List[Dict[str, str]]] = None,
         expert_context_history: Optional[List[Dict[str, Any]]] = None,
+        user_memory: str = "",
         recorder: Optional[MoETrace] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         # 1) 医生端意图分类（D1-D8）
         self.last_run_context = {}
         self._active_conversation_history = conversation_history
         self._active_expert_context_history = expert_context_history
+        self._active_user_memory = str(user_memory or "").strip()
         self._active_intent_decision = None
         if self.config.user_role == "veterinarian":
             yield _event(status="intent_classifying", detail={"message": "正在识别医生端任务意图…"})
@@ -720,11 +738,13 @@ class MoEOrchestrator:
         system_context: str = "",
         conversation_history: Optional[List[Dict[str, str]]] = None,
         expert_context_history: Optional[List[Dict[str, Any]]] = None,
+        user_memory: str = "",
         recorder: Optional[MoETrace] = None,
     ) -> Tuple[str, Optional[MoETrace]]:
         self.last_run_context = {}
         self._active_conversation_history = conversation_history
         self._active_expert_context_history = expert_context_history
+        self._active_user_memory = str(user_memory or "").strip()
         self._active_intent_decision = await self._classify_intent(
             query, recorder, conversation_history
         )

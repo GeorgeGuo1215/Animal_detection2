@@ -52,6 +52,7 @@ async def review(
     user_role: str = "pet_owner",
     conversation_history: Optional[List[Dict[str, str]]] = None,
     expert_context_history: Optional[List[Dict[str, Any]]] = None,
+    user_memory: Optional[str] = None,
     recorder: Optional[MoETrace] = None,
 ) -> CriticResult:
     opinions_brief = [
@@ -70,7 +71,11 @@ async def review(
         "emergency": emergency,
         "expert_opinions": opinions_brief,
     }
-    history_context = build_fact_state_history(conversation_history, expert_context_history)
+    history_context = build_fact_state_history(
+        conversation_history,
+        expert_context_history,
+        user_memory=user_memory,
+    )
     if history_context:
         payload["history_context"] = history_context
     user_payload = json.dumps(payload, ensure_ascii=False)

@@ -1,33 +1,32 @@
 [Unit]
-Description=PetMind Agent (agentAndRag, port 8002)
-After=network-online.target
-Wants=network-online.target
+Description=PetMind Agent + Memory (Animal_detection2, 8002/8300)
+After=network-online.target petmemory-postgres.service
+Wants=network-online.target petmemory-postgres.service
 StartLimitIntervalSec=300
 StartLimitBurst=5
 
 [Service]
-Type=simple
 User=sam
 Group=sam
-WorkingDirectory=/home/sam/Animal_Detection/Animal_detection/agentAndRag
-EnvironmentFile=/home/sam/Animal_Detection/Animal_detection/agentAndRag/.env
+Type=simple
+WorkingDirectory=/home/sam/Animal_detection2/agentAndRag
+EnvironmentFile=/home/sam/Animal_detection2/agentAndRag/.env
 Environment=PATH=/home/sam/anaconda3/envs/AnimalDetection/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=LD_LIBRARY_PATH=/usr/local/cuda/lib64
+Environment=AGENT_HOST=0.0.0.0
+Environment=AGENT_PORT=8002
+Environment=MEMORY_HOST=127.0.0.1
+Environment=MEMORY_PORT=8300
+Environment=AGENT_MEMORY_REQUIRED=1
 ExecStart=/home/sam/anaconda3/envs/AnimalDetection/bin/python -m agent_api.scripts.run_agent_stack --agent-host 0.0.0.0 --agent-port 8002 --memory-host 127.0.0.1 --memory-port 8300
-
 Restart=always
 RestartSec=10
-
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=agent-rag
-
-# 给足够时间加载模型
-TimeoutStartSec=180
-TimeoutStopSec=30
+TimeoutStartSec=300
+TimeoutStopSec=60
 KillSignal=SIGTERM
-
-# 防止 OOM Killer 杀掉 (越小越不容易被杀, 范围 -1000~1000)
 OOMScoreAdjust=-500
 
 [Install]

@@ -1,0 +1,21 @@
+[Unit]
+Description=PetMind Memory PostgreSQL (user-local pgvector)
+After=network.target
+
+[Service]
+User=sam
+Group=sam
+Type=forking
+Environment=PGDATA=/home/sam/pgdata_petmemory
+PIDFile=/home/sam/pgdata_petmemory/postmaster.pid
+ExecStartPre=/bin/bash -c 'if [ -f "$PGDATA/postmaster.pid" ]; then pid=$(head -1 "$PGDATA/postmaster.pid"); if kill -0 "$pid" 2>/dev/null; then exit 0; else rm -f "$PGDATA/postmaster.pid"; fi; fi'
+ExecStart=/home/sam/anaconda3/envs/AnimalDetection/bin/pg_ctl -D /home/sam/pgdata_petmemory -l /home/sam/pgdata_petmemory/pg.log start -w -t 30
+ExecStop=/home/sam/anaconda3/envs/AnimalDetection/bin/pg_ctl -D /home/sam/pgdata_petmemory stop -m fast -w -t 30
+ExecReload=/home/sam/anaconda3/envs/AnimalDetection/bin/pg_ctl -D /home/sam/pgdata_petmemory reload
+TimeoutStartSec=60
+TimeoutStopSec=60
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

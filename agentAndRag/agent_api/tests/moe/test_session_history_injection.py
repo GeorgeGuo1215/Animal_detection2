@@ -117,6 +117,41 @@ def test_fact_state_history_reaches_router_expert_critic_and_aggregator():
     _assert_history(synthesis[-1]["content"])
 
 
+def test_cross_session_memory_reaches_router_expert_critic_without_local_history():
+    memory = "【近期对话】\n- 用户: 我的狗叫球鼠，昨晚呕吐\n  助手: SOAP摘要"
+
+    router_messages = _build_router_messages(
+        "你还记得球鼠吗",
+        "pet_owner",
+        user_memory=memory,
+    )
+    router_payload = router_messages[-1]["content"]
+    assert "cross_session_memory" in router_payload
+    assert "球鼠" in router_payload
+    assert "user_memory" in router_payload
+
+    expert = ExpertAgentSession(
+        expert=EXPERTS["clinical"],
+        query="你还记得球鼠吗",
+        weight=1.0,
+        registry=ToolRegistry(),
+        llm=_CaptureLLM(),
+        user_memory=memory,
+    )
+    assert "球鼠" in expert.messages[-1]["content"]
+    assert "cross_session_memory" in expert.messages[-1]["content"]
+
+    critic_llm = _CaptureLLM()
+    asyncio.run(review(
+        query="你还记得球鼠吗",
+        expert_opinions=[],
+        emergency=False,
+        llm=critic_llm,
+        user_memory=memory,
+    ))
+    assert "球鼠" in critic_llm.messages[0][-1]["content"]
+
+
 def test_router_prompt_defines_history_aware_scope_without_upgrading_facts():
     messages = _build_router_messages(
         "这个为什么？", "pet_owner", conversation_history=_history(),
@@ -178,5 +213,22 @@ def test_router_does_not_use_history_without_contextual_followup_signal():
         )
 
         assert decision.out_of_scope
+
+    asyncio.run(scenario())
+
+
+def test_router_keeps_memory_recall_in_scope_with_cross_session_memory():
+    async def scenario():
+        decision = await route(
+            query="你还记得我的宠物叫什么吗",
+            user_role="pet_owner",
+            llm=_RouterLLM({key: 1 for key in EXPERTS}),
+            config=RouterConfig(min_relevance=3.0),
+            user_memory="【近期对话】\n- 用户: 我的狗叫球鼠",
+        )
+
+        assert not decision.out_of_scope
+        assert "clinical" in decision.selected_experts
+        assert "跨会话用户记忆" in decision.reason
 
     asyncio.run(scenario())

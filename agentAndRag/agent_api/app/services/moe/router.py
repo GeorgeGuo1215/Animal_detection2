@@ -43,6 +43,11 @@ _CONTEXTUAL_FOLLOWUP_RE = re.compile(
     r"explain|more|mechanism|prognosis|alternative|monitor)\b)",
     re.IGNORECASE,
 )
+_MEMORY_RECALL_RE = re.compile(
+    r"(记得|记住|还记得|回忆|之前|以前|上次|叫什么|名字|病情|既往|调出|"
+    r"\b(?:remember|recall|previously|last\s+time|what(?:'s|\s+is)\s+(?:its|my\s+pet'?s)?\s*name)\b)",
+    re.IGNORECASE,
+)
 _EXPLICIT_TOPIC_SHIFT_RE = re.compile(
     r"(编程|代码|算法|股票|基金|彩票|天气|娱乐新闻|写诗|写小说|"
     r"\b(?:python|javascript|programming|source\s+code|stock\s+price|weather|"
@@ -114,6 +119,18 @@ def _contextual_followup_experts(
     return []
 
 
+def _memory_followup_experts(query: str, user_memory: Optional[str]) -> List[str]:
+    """Keep clinical active when the same username has prior memory to recall."""
+    if not str(user_memory or "").strip():
+        return []
+    text = (query or "").strip()
+    if not text or len(text) > 240 or _EXPLICIT_TOPIC_SHIFT_RE.search(text):
+        return []
+    if _MEMORY_RECALL_RE.search(text) or _CONTEXTUAL_FOLLOWUP_RE.search(text):
+        return ["clinical"]
+    return []
+
+
 def _build_router_messages(
     query: str,
     user_role: str,
@@ -122,6 +139,7 @@ def _build_router_messages(
     conversation_history: Optional[List[Dict[str, str]]] = None,
     expert_context_history: Optional[List[Dict[str, Any]]] = None,
     prompt_injection: str = "",
+    user_memory: Optional[str] = None,
 ) -> List[Dict[str, str]]:
     expert_desc = "\n".join(f"- {k} ({c.name_zh})" for k, c in EXPERTS.items())
     sys = build_router_system_prompt(expert_desc, prompt_injection)
@@ -130,7 +148,11 @@ def _build_router_messages(
         payload["species"] = species_zh
     if breed:
         payload["breed"] = breed
-    history_context = build_fact_state_history(conversation_history, expert_context_history)
+    history_context = build_fact_state_history(
+        conversation_history,
+        expert_context_history,
+        user_memory=user_memory,
+    )
     if history_context:
         payload["history_context"] = history_context
     user = json.dumps(payload, ensure_ascii=False)
@@ -151,6 +173,7 @@ async def route(
     conversation_history: Optional[List[Dict[str, str]]] = None,
     expert_context_history: Optional[List[Dict[str, Any]]] = None,
     prompt_injection: str = "",
+    user_memory: Optional[str] = None,
     recorder: Optional[MoETrace] = None,
 ) -> RouterDecision:
     cfg = config or RouterConfig()
@@ -166,6 +189,7 @@ async def route(
         conversation_history,
         expert_context_history,
         prompt_injection,
+        user_memory=user_memory,
     )
     scores: Dict[str, float] = {k: 0.0 for k in expert_keys}
     emergency_llm = False
@@ -228,12 +252,15 @@ async def route(
     contextual_experts: List[str] = []
     if max_score < cfg.min_relevance and not emergency:
         contextual_experts = _contextual_followup_experts(query, expert_context_history)
+        restore_suffix = "历史兽医话题中的上下文追问，保留上一轮相关专家"
+        if not contextual_experts:
+            contextual_experts = _memory_followup_experts(query, user_memory)
+            restore_suffix = "跨会话用户记忆中的身份/病情追问，激活临床专家"
         if contextual_experts:
             restored_score = max(cfg.min_relevance, 6.0)
             for key in contextual_experts:
                 scores[key] = max(scores[key], restored_score)
-            suffix = "历史兽医话题中的上下文追问，保留上一轮相关专家"
-            reason = f"{reason}；{suffix}" if reason else suffix
+            reason = f"{reason}；{restore_suffix}" if reason else restore_suffix
 
     raw_weights = _softmax(scores, cfg.softmax_temp)
     max_score = max(scores.values()) if scores else 0.0

@@ -34,6 +34,7 @@ def _compact_expert(expert: Dict[str, Any]) -> Dict[str, Any]:
 def build_fact_state_history(
     conversation_history: Optional[Sequence[Dict[str, str]]] = None,
     expert_context_history: Optional[Sequence[Dict[str, Any]]] = None,
+    user_memory: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """Build one structured history payload consumed by all MoE stages."""
     entries: List[Dict[str, Any]] = []
@@ -66,20 +67,36 @@ def build_fact_state_history(
             "critic": context.get("critic"),
         })
 
-    if not entries and not expert_entries:
+    memory_text = str(user_memory or "").strip()
+    if not entries and not expert_entries and not memory_text:
         return None
-    return {
+    payload: Dict[str, Any] = {
         "fact_state_rules": _HISTORY_RULES,
         "conversation": entries,
         "prior_subagent_context": expert_entries,
     }
+    if memory_text:
+        payload["cross_session_memory"] = {
+            "state": "user_memory",
+            "role_label": (
+                "同一用户名绑定的跨会话记忆；用户陈述可用于身份/病情随访，"
+                "助手回复仍需核实，不得因新会话为空而忽略"
+            ),
+            "content": memory_text,
+        }
+    return payload
 
 
 def fact_state_history_text(
     conversation_history: Optional[Sequence[Dict[str, str]]] = None,
     expert_context_history: Optional[Sequence[Dict[str, Any]]] = None,
+    user_memory: Optional[str] = None,
 ) -> str:
-    payload = build_fact_state_history(conversation_history, expert_context_history)
+    payload = build_fact_state_history(
+        conversation_history,
+        expert_context_history,
+        user_memory=user_memory,
+    )
     if payload is None:
         return ""
     return (

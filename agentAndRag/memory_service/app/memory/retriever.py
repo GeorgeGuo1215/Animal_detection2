@@ -119,12 +119,20 @@ def format_context(context: Dict[str, Any]) -> str:
         blocks.append(
             "【近期对话】\n"
             + "\n".join(
-                f"- 用户: {item['user_input']}\n  助手: {item['agent_response']}"
+                f"- 用户: {_clip(item.get('user_input'), 800)}\n"
+                f"  助手: {_clip(item.get('agent_response'), 420)}"
                 for item in recent
             )
         )
 
     return "\n\n".join(blocks)
+
+
+def _clip(value: Any, limit: int) -> str:
+    text = str(value or "").strip()
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 1)].rstrip() + "…"
 
 
 def _render(value: Any) -> str:

@@ -697,6 +697,7 @@ async def chat_moe_public_completions(body: ChatMoeCompletionRequest):
                     system_context=_moe_system_context(response_lang, memory_injection),
                     conversation_history=conversation_history,
                     expert_context_history=expert_context_history,
+                    user_memory=memory_injection,
                 ):
                     finish = event.get("finish")
                     emitted_finish = emitted_finish or bool(finish)
