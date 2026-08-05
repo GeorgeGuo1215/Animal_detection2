@@ -1,0 +1,1492 @@
+[
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Toxoplasmosis in people can be prevented by any ONE of the following methods with the EXCEPTION of:*\n\na) emptying the cat’s litterbox weekly\nb) covering the children’s sandbox\nc) washing hands thoroughly before eating\nd) cooking all meats thoroughly before eating",
+    "output": "正确答案是 A) emptying the cat’s litterbox weekly"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Concerning viruses, which statement is LEAST accurate?*\n\na) Viruses do not grow on artificial media and require living cells to grow\nb) Viruses do not have cellular organelles for metabolism\nc) Viruses contain both DNA and RNA\nd) Viruses do not contain ribosomes ---",
+    "output": "正确答案是 C) Viruses contain both DNA and RNA"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The incubation period of a disease is:\n\na) at the height of the illness\nb) before the animal shows clinical signs\nc) once the animal has recovered\nd) once the animal has shown clinical signs",
+    "output": "正确答案是 B) before the animal shows clinical signs"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following diseases is zoonotic:\n\na) canine parvovirus\nb) canine distemper\nc) canine hepatitis\nd) leptospirosis",
+    "output": "正确答案是 D) leptospirosis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "An example of a pathogenic yeast is:\n\na) Aspergillus sp\nb) Trichophyton\nc) Candida\nd) Microsporum canis",
+    "output": "正确答案是 C) Candida"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What size (roughly) are viruses?\n\na) Nanometres, nm (1 × 10\\(^9\\)m)\nb) Micrometres, μm (1 × 10\\(^6\\)m)\nc) Picometres, pm (1 × 10\\(^12\\)m)\nd) Millimetres, mm (1 × 10\\(^3\\)m) ---",
+    "output": "正确答案是 A) Nanometres, nm (1 × 10\\(^9\\)m)"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Rubarth's disease is:*\n\na) an early term for fits\nb) an inherited blood clotting disorder\nc) canine distemper\nd) infectious canine hepatitis",
+    "output": "正确答案是 D) infectious canine hepatitis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Cigar-shaped mites in a skin scraping from a dog are most likely of the genus:*\n\na) Sarcoptes\nb) Notoedres\nc) Otodectes\nd) Demodex",
+    "output": "正确答案是 D) Demodex"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*In dogs, a Wood's lamp can sometimes be used to diagnose infection with:*\n\na) Microsporum canis\nb) Trichophyton mentagrophytes\nc) Sarcoptes scabiei\nd) Trichophyton verrucosum",
+    "output": "正确答案是 A) Microsporum canis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Mites in the ear of a dog are typically:*\n\na) Sarcoptes scabiei\nb) Notoedres cati\nc) Otodectes cyanotis\nd) Trixacarus caviae ---",
+    "output": "正确答案是 C) Otodectes cyanotis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Small, dandruff-like flakes on the hair of a dog appear to move. Examination of the apparent dandruff reveals it to be comprised of mites. This 'walking dandruff' is associated with infestation by:\n\na) Sarcoptes scabiei\nb) Otodectes cyanotis\nc) Cheyletiella yasguri\nd) Trixacarus caviae",
+    "output": "正确答案是 C) Cheyletiella yasguri"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Dogs typically acquire Demodex infestations from:\n\na) the bitch as pups while nursing\nb) wild rodents\nc) birds\nd) contact with infested people",
+    "output": "正确答案是 A) the bitch as pups while nursing"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "How do children get toxocariasis?\n\na) By ingestion of raw meat\nb) By direct contact with dogs infected with roundworms\nc) By ingestion of roundworm eggs in dog faeces\nd) By inhaling aerosol from infected animals",
+    "output": "正确答案是 C) By ingestion of roundworm eggs in dog faeces"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Visceral larval migrants in people is caused by:\n\na) Toxoplasma\nb) Toxocara\nc) Ancylostoma\nd) Echinococcus ---",
+    "output": "正确答案是 B) Toxocara"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "An example of an ectoparasite found in the guinea pig is:\n\na) Cheyletiella yasguri\nb) Otodectes cyanotis\nc) Sarcoptes scabiei\nd) Trixacarus caviae",
+    "output": "正确答案是 D) Trixacarus caviae"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is described as being host specific?\n\na) Flea (Ctenocephalides)\nb) Harvest mite (Neotrombicula)\nc) Louse (Trichodectes)\nd) Tick (Ixodes)",
+    "output": "正确答案是 C) Louse (Trichodectes)"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following endoparasites is responsible for hydatidosis?\n\na) Dipylidium caninum\nb) Echinococcus granulosus\nc) Toxocara canis\nd) Trichuris vulpis",
+    "output": "正确答案是 B) Echinococcus granulosus"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The mite Demodex canis appears under thermicoscope as:\n\na) cigar-shaped with long legs\nb) cigar-shaped with short legs\nc) round with short legs\nd) round with long legs ---",
+    "output": "正确答案是 B) cigar-shaped with short legs"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Bacteria that are spherical in shape and arranged in groups are known as:\n\na) bacilli\nb) spirochaetes\nc) staphylococci\nd) streptococci",
+    "output": "正确答案是 C) staphylococci"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following bottles should be used for storing large volumes of a solution?\n\na) Reagent bottle\nb) Winchester bottle\nc) Dropping bottle\nd) McCartney bottle",
+    "output": "正确答案是 B) Winchester bottle"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The cause of feline infectious anaemia is:\n\na) feline leukaemia virus\nb) coronavirus\nc) parvovirus\nd) Haemobartonella felis",
+    "output": "正确答案是 D) Haemobartonella felis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is a burrowing mite?\n\na) Cheyletiella Spp\nb) Octodectes cyanotis\nc) Demodex canis\nd) Trichodectes canis ---",
+    "output": "正确答案是 C) Demodex canis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is a sucking louse?\n\na) Felicola subrostratus\nb) Sarcoptes scabiei\nc) Linognathus setosus\nd) Ctenocephalides felis",
+    "output": "正确答案是 C) Linognathus setosus"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "In which of the following bodily fluids might you find leptospira organisms, in an infected animal?\n\na) Gut secretions and faeces\nb) Blood\nc) Urine\nd) Both blood and urine",
+    "output": "正确答案是 D) Both blood and urine"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Chlamydia infection in a cat can be diagnosed using which diagnostic technique?\n\na) Cite test\nb) Microscopy of conjunctival swab\nc) Haematology\nd) Microscopic examination of lacrimal fluid ---",
+    "output": "正确答案是 B) Microscopy of conjunctival swab"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What is a fomite?\n\na) Another host that carries an organism and in which the organism passes part of its life cycle\nb) An inanimate object, contaminated by an infected animal, that comes into contact with a non-infected animal\nc) Another host that carries the organism and can shed it at any time\nd) Another host that carries the organism and has to be eaten to pass on the infection",
+    "output": "正确答案是 B) An inanimate object, contaminated by an infected animal, that comes into contact with a non-infected animal"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which part of the urine stream is used in bacteriological investigations?\n\na) the first part of the sample\nb) the middle part of the sample\nc) the last part of the sample\nd) any of the above",
+    "output": "正确答案是 B) the middle part of the sample"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "How soon after collection should urine be examined, if no preservatives are used?\n\na) Within 24 hours\nb) Within 6 hours\nc) Within 2 hours\nd) Within 30 minutes ---",
+    "output": "正确答案是 D) Within 30 minutes ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*If urine is refrigerated, how long can it be kept for?*\n\na) Up to 24 hours\nb) Up to 6 hours\nc) Up to 2 hours\nd) Up to 30 minutes",
+    "output": "正确答案是 A) Up to 24 hours"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The specific gravity range for dog urine is:*\n\na) 1:010–1:050\nb) 1:020–1:040\nc) 1:018–1:045\nd) 1:025–1:065",
+    "output": "正确答案是 C) 1:018–1:045"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The specific gravity range for cat urine is:*\n\na) 1:010–1:050\nb) 1;020–1:040\nc) 1:018–1:045\nd) *1:025–1:065*",
+    "output": "正确答案是 B) 1;020–1:040"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*An increased specific gravity may be due to:*\n\na) polydipsia\nb) Diabetes Insipidus\nc) pyometra\nd) dehydration ---",
+    "output": "正确答案是 D) dehydration ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following crystals is found in alkaline urine?\n\na) Urates\nb) Oxalates\nc) Cystine\nd) Phosphates",
+    "output": "正确答案是 D) Phosphates"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "In which type of poisoning may calcium oxalate crystals occur?\n\na) Warfarin\nb) Ethylene glycol\nc) Metaldehyde\nd) Paraquat",
+    "output": "正确答案是 B) Ethylene glycol"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Uroliths are:\n\na) stones formed within a body cavity\nb) stones formed from urine crystals\nc) stones formed from cells\nd) stones formed from casts ---",
+    "output": "正确答案是 B) stones formed from urine crystals"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Bacteria called cocci are:*\n\na) rod-shaped\nb) spiral in shape\nc) square in shape\nd) round in shape",
+    "output": "正确答案是 D) round in shape"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Bacteria called bacilli are:*\n\na) rod-shaped\nb) spiral in shape\nc) square in shape\nd) round in shape",
+    "output": "正确答案是 A) rod-shaped"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*To examine the morphology of bacteria, which stain should be used?*\n\na) Leishman’s stain\nb) Methylene blue stain\nc) Gram stain\nd) Sudan III",
+    "output": "正确答案是 B) Methylene blue stain"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*A cultural medium used to grow ringworm is:*\n\na) nutrient agar\nb) McConkey agar\nc) chocolate agar\nd) Sabouraud’s agar ---",
+    "output": "正确答案是 D) Sabouraud’s agar ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The mordant in a Gram stain is the:*\n\na) distilled water\nb) acetone\nc) Lugol’s iodine\nd) crystal violet",
+    "output": "正确答案是 C) Lugol’s iodine"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Gram negative bacteria stain:*\n\na) blue\nb) green\nc) orange\nd) red",
+    "output": "正确答案是 D) red"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Gram positive bacteria stain:*\n\na) blue\nb) green\nc) orange\nd) red",
+    "output": "正确答案是 A) blue"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The stain used to detect acid fast bacteria is:*\n\na) methylene blue\nb) Ziehl-Neelsen stain\nc) Gram stain\nd) Leishman’s stain ---",
+    "output": "正确答案是 B) Ziehl-Neelsen stain"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What colour do non acid fast organisms stain?\n\na) Red\nb) Blue\nc) Orange\nd) Green",
+    "output": "正确答案是 A) Red"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "At what temperature should inoculated bacteriology plates be incubated?\n\na) 34°C\nb) 36°C\nc) 37°C\nd) 40°C",
+    "output": "正确答案是 C) 37°C"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which medium is used for growing salmonellae?\n\na) Blood agar\nb) Chocolate agar\nc) McConkey agar\nd) Deoxycholate citrate agar",
+    "output": "正确答案是 D) Deoxycholate citrate agar"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "How long should inoculated plates be left in the incubator for?\n\na) 6–12 hours\nb) 12–24 hours\nc) 24–36 hours\nd) 48 hours or more ---",
+    "output": "正确答案是 B) 12–24 hours"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Haemobartonella felis is thought to be carried by fleas; which term BEST describes the way the fleas act as carriers?\n\na) As biological vectors\nb) As intermediate hosts\nc) As transport hosts\nd) As paratenic hosts",
+    "output": "正确答案是 C) As transport hosts"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What is a saprophyte?\n\na) An organism that lives on a larger organism and causes disease\nb) An organism that lives on dead or decaying organic matter\nc) An organism that benefits its host\nd) An organism that causes no harm nor good to its host",
+    "output": "正确答案是 B) An organism that lives on dead or decaying organic matter"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Viral diseases can be positively diagnosed in the live animal using which of the following methods?\n\na) histology\nb) clinical signs\nc) rising antibody titre\nd) a single measurement of serum antibody levels ---",
+    "output": "正确答案是 C) rising antibody titre"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "For barrier nursing, all of the following statements are true EXCEPT:\n\na) nurses should wear waterproof aprons, gloves and boots\nb) they should treat isolated patients before the remainder of the inpatients\nc) animals in isolation should have their own sets of food bowls, cleaning utensils, grooming equipment and bedding\nd) animals with the same disease can be placed together in an isolation ward",
+    "output": "正确答案是 B) they should treat isolated patients before the remainder of the inpatients"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is a suitable disinfectant for cleaning a parvovirus contaminated area?\n\na) cetrimide\nb) chlorhexidine\nc) hypochlorite\nd) pine oil disinfectant",
+    "output": "正确答案是 C) hypochlorite"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Cerebellar hypoplasia in kittens may be caused by infection while in utero by:\n\na) FeLV\nb) FCA\nc) FIA\nd) FIE ---",
+    "output": "正确答案是 D) FIE ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "For which ONE of the following organisms that cause respiratory disease is no vaccine currently available?\n\na) Bordetella bronchoscptica\nb) Canine adenovirus\nc) Canine herpes virus\nd) Canine parainfluenza virus",
+    "output": "正确答案是 C) Canine herpes virus"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The drug group of choice in the treatment of feline pneumonitis and feline infectious anaemia is:\n\na) the cephalosporins\nb) the penicillins\nc) the tetracyclines\nd) tyloson",
+    "output": "正确答案是 C) the tetracyclines"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following ectoparasites commonly acts as a vector for a viral disease?\n\na) Cheyletiella\nb) Demodex canis\nc) Sarcoptes scabiei\nd) Spilopsyllus cuniculi",
+    "output": "正确答案是 D) Spilopsyllus cuniculi"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is an example of an adjuvant?\n\na) Aluminium hydroxide\nb) Ferrous sulphate\nc) Sodium chloride\nd) Sterile water ---",
+    "output": "正确答案是 A) Aluminium hydroxide"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "In what year was the Health and Safety At Work Act introduced?\n\na) 1965\nb) 1974\nc) 1985\nd) 1995",
+    "output": "正确答案是 B) 1974"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "For how long do accident books have to be kept?\n\na) 2 years\nb) 3 years\nc) 4 years\nd) 5 years",
+    "output": "正确答案是 A) 2 years"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which part of the microscope allows us to record a reference for re-location of an object on a slide?\n\na) The axis\nb) The mechanical stage\nc) The objective stage\nd) The vernier scale",
+    "output": "正确答案是 D) The vernier scale"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "When posting an individual pathological sample, the size of the container must NOT exceed:\n\na) 100 ml\nb) 75 ml\nc) 50 ml\nd) 25 ml ---",
+    "output": "正确答案是 C) 50 ml"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "When preserving tissue samples for toxicology, the best preservative is:\n\na) 10% normal saline\nb) toluene\nc) boric acid\nd) 95% ethanol",
+    "output": "正确答案是 D) 95% ethanol"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Containers for dispatch of tissue samples SHOULD be:\n\na) narrow-necked\nb) wide-necked\nc) snap-on top\nd) made of aluminium",
+    "output": "正确答案是 B) wide-necked"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Synovial fluid is collected via:\n\na) pericardiocentesis\nb) thoracocentesis\nc) paracentesis\nd) arthrocentesis",
+    "output": "正确答案是 D) arthrocentesis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "For which ONE of the following is AUTOLYSIS the best description?\n\na) Digestion of tissue by its own enzymes\nb) Destruction of red blood cells\nc) Destruction of white blood cells\nd) Digestion of platelets ---",
+    "output": "正确答案是 A) Digestion of tissue by its own enzymes"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is NOT considered to be zoonotic?\n\na) Ixodes\nb) Notoedres\nc) Demodex\nd) Ctenocephalides",
+    "output": "正确答案是 C) Demodex"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "How SHOULD used culture plates be disposed of?\n\na) Put into a clinical waste bag\nb) Disinfected and put in a clinical waste bag\nc) Autoclaved and put in a black bag\nd) Autoclaved and put in a clinical waste bag",
+    "output": "正确答案是 D) Autoclaved and put in a clinical waste bag"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What is a microhaematocrit centrifuge used for?\n\na) To obtain a serum sample\nb) To measure packed cell volume\nc) To obtain deposit from a urine sample\nd) To perform a worm egg count",
+    "output": "正确答案是 B) To measure packed cell volume"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What is the thoma pipette used for?\n\na) Urinalysis\nb) Bacteriology\nc) Red blood cell and white blood cell counts\nd) As a dropping pipette ---",
+    "output": "正确答案是 C) Red blood cell and white blood cell counts"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What is the function of the vernier scale?\n\na) Controls the amount of light\nb) Adjusts the eyepieces\nc) Relocates the object\nd) Moves the slide",
+    "output": "正确答案是 C) Relocates the object"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What does a DECREASE in PCV indicate?\n\na) Anaemia\nb) Dehydration\nc) Leucopenia\nd) Increase in basophils",
+    "output": "正确答案是 A) Anaemia"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What is Leishman's stain used for?\n\na) To identify gram + ve bacteria\nb) To stain a blood smear for identifying white blood cells\nc) To stain haemoparasites\nd) To identify the shape of bacteria",
+    "output": "正确答案是 B) To stain a blood smear for identifying white blood cells"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following may cause a neutrophilia?\n\na) Bone marrow suppression\nb) Allergy\nc) Leukaemia\nd) Acute blood infection ---",
+    "output": "正确答案是 D) Acute blood infection ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What is boric acid used for?\n\na) As a urine preservative\nb) An anticoagulant\nc) As a preservative for tumours\nd) As a purgative",
+    "output": "正确答案是 A) As a urine preservative"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Are triple phosphate crystals most commonly formed in:\n\na) alkaline urine\nb) acid urine\nc) neutral urine\nd) acid or alkaline urine",
+    "output": "正确答案是 A) alkaline urine"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "How would you microscopically identify starch granules in a faecal sample?\n\na) As striations\nb) As clear bubbles\nc) As black dots\nd) As red dots",
+    "output": "正确答案是 C) As black dots"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What is the first stain used in a Gram stain?\n\na) Methylene blue\nb) Grams iodine\nc) Giemsa stain\nd) Crystal violet stain ---",
+    "output": "正确答案是 D) Crystal violet stain ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What type of urine crystals are MOST commonly found in cats?\n\na) Calcium oxalate crystals\nb) Uric acid crystals\nc) Struvite crystals\nd) Cystine crystals",
+    "output": "正确答案是 C) Struvite crystals"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What is the normal packed cell volume (PCV) range of the dog?\n\na) 25–45%\nb) 37–55%\nc) 40–58%\nd) 45–62%",
+    "output": "正确答案是 B) 37–55%"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is NOT a Zoonoses?\n\na) Ctenocephalides canis\nb) Otodectes cyanotis\nc) Cheyletiella Spp\nd) Sarcoptes Scabiei",
+    "output": "正确答案是 B) Otodectes cyanotis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which colour container does the anti-coagulant EDTA usually come in?\n\na) Green\nb) Grey\nc) Yellow\nd) Pink ---",
+    "output": "正确答案是 D) Pink ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following worm eggs are identified under a microscope as being lemon-shaped, with a thick wall and polar caps?\n\na) Toxocara canis\nb) Dipylidium caninum\nc) Coccidia\nd) Trichuris vulpis",
+    "output": "正确答案是 D) Trichuris vulpis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Looking at a faeces sample under the microscope, what shows up as black dots?\n\na) Muscle fibres\nb) Fat globules\nc) Starch granules\nd) Worm eggs",
+    "output": "正确答案是 C) Starch granules"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "A refractometer measures urine:\n\na) pH\nb) protein\nc) blood\nd) specific gravity",
+    "output": "正确答案是 D) specific gravity"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is a cestode?\n\na) Toxocara canis\nb) Toxocara leonina\nc) Dipylidium caninum\nd) Trichuris vulpis ---",
+    "output": "正确答案是 C) Dipylidium caninum"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following preserves urine without interfering with bacteriology and routine urinalysis?\n\na) Formalin\nb) Toluene\nc) Thymol\nd) Boric acid",
+    "output": "正确答案是 D) Boric acid"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which parasite has eight legs, is oval in shape and has trumpets on the end of its legs?\n\na) Otodectes\nb) Cheyletiella\nc) Sarcoptes\nd) Trichodectes",
+    "output": "正确答案是 A) Otodectes"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following parasites is a vector for Lyme disease?\n\na) Ctenocephalides felis\nb) Trombicula autumnalis\nc) Notoedres cati\nd) Ixodes",
+    "output": "正确答案是 D) Ixodes"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Catheterization is essential if a urine sample is to be examined for:\n\na) protein\nb) bacteria\nc) blood\nd) glucose ---",
+    "output": "正确答案是 B) bacteria"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "A spectrophotometer is used to:\n\na) measure enzyme levels in the blood\nb) measure glucose levels in the blood\nc) perform a red blood cell count\nd) culture ringworm",
+    "output": "正确答案是 A) measure enzyme levels in the blood"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Disintegration caused by blood being stored at too high a temperature is called:\n\na) desiccation\nb) haemolysis\nc) autolysis\nd) coagulation",
+    "output": "正确答案是 A) desiccation"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "When preserving pathological specimens, the volume of formalin SHOULD:\n\na) exceed 10 times formalin to tissue\nb) exceed 20 times formalin to tissue\nc) exceed 3 times formalin to tissue\nd) exceed 5 times formalin to tissue",
+    "output": "正确答案是 A) exceed 10 times formalin to tissue"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following preservatives is particularly toxic to humans?\n\na) Boric acid\nb) Acid citrate dextrose\nc) Normal saline\nd) Toluene ---",
+    "output": "正确答案是 D) Toluene ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Serological examination of the blood is of:\n\na) the appearance, size and numbers of blood cells in the blood\nb) poisons in the blood\nc) levels of antibodies in the blood\nd) the presence of Haemobartonella felis in the blood",
+    "output": "正确答案是 C) levels of antibodies in the blood"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following methods is NOT used to diagnose ringworm?\n\na) Skin scrape\nb) Coat brushing\nc) Wood’s lamp\nd) Culture",
+    "output": "正确答案是 B) Coat brushing"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What is an antihelminthic?\n\na) A drug used to neutralise the activity of gastric juice\nb) A drug which prevents blood clotting\nc) A drug which neutralises the effect of histamines\nd) A drug which expels or destroys internal parasites",
+    "output": "正确答案是 D) A drug which expels or destroys internal parasites"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is not a nematode?\n\na) Unciniaria stenocephala\nb) Dipylidium caninum\nc) Oclerus osleri\nd) Toxocara canis ---",
+    "output": "正确答案是 B) Dipylidium caninum"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Name TWO cestodes found in the dog and cat:\n\na) Dipylidium caninum and Trichuris vulpis\nb) Dipylidium caninum and Taenia taeniaeformis\nc) Trichuris vulpis and Toxocara canis\nd) Uncinaria stenocephala and Taenia taeniaeformis",
+    "output": "正确答案是 B) Dipylidium caninum and Taenia taeniaeformis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What animal is Trichuris vulpis MOST likely to be found in?\n\na) pet rabbits\nb) kennelled dogs\nc) domesticated cats\nd) farm animals",
+    "output": "正确答案是 B) kennelled dogs"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The formation of renal calculi may be enhanced by:\n\na) antibiotics\nb) cytotoxic drugs\nc) diuretic drugs\nd) corticosteroids",
+    "output": "正确答案是 C) diuretic drugs"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What are rouleaux?\n\na) A stain used to detect blood parasites\nb) Grouping of red blood cells in stacks\nc) Nuclear remnants in a cell\nd) Red blood cells showing irregular margins and prickly edges ---",
+    "output": "正确答案是 B) Grouping of red blood cells in stacks"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which reagents are necessary for performing a Gram stain?\n\na) Carbol fuschin, acid alcohol, methylene blue\nb) Carbol fuschin, Lugol’s iodine, methylene blue and acetone\nc) Crystal violet, Lugol’s iodine, acetone and safframine\nd) Crystal violet, methylene blue, acetone and safframine",
+    "output": "正确答案是 C) Crystal violet, Lugol’s iodine, acetone and safframine"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What does ELISA stand for?\n\na) Enzyme-leukaemia immunosorbent assay\nb) Enzyme-leukaemia assay\nc) Enzyme-linked immune assay\nd) Enzyme-linked immunosorbent assay",
+    "output": "正确答案是 D) Enzyme-linked immunosorbent assay"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Into which anticoagulant would you collect dog or cat blood for routine haematological examination?\n\na) EDTA\nb) Heparin\nc) Sodium citrate\nd) Sodium fluoride",
+    "output": "正确答案是 A) EDTA"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Leishman’s stain is commonly used for:\n\na) bacterial staining\nb) differential white cell count\nc) total red cell count\nd) urinalysis ---",
+    "output": "正确答案是 B) differential white cell count"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Polycythemia is:*\n\na) an increase in the number of blood platelets\nb) an increase in the number of red blood cells\nc) an increase in the number of white blood cells\nd) variable size of red blood cells",
+    "output": "正确答案是 B) an increase in the number of red blood cells"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*How long can a serum sample be stored in a refrigerator without deterioration?*\n\na) A few hours only\nb) 3 days\nc) 7 days\nd) 28 days",
+    "output": "正确答案是 A) A few hours only"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*What type of light is produced by a Wood's lamp?*\n\na) Infrared\nb) Infrared and ultraviolet\nc) Ultraviolet\nd) Ultraviolet and visible light",
+    "output": "正确答案是 C) Ultraviolet"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Sudan III is used in the laboratory to estimate the quantity of which ONE of the following?*\n\na) Faecal fat\nb) Protein in urine\nc) Reticulocytes in peripheral blood\nd) Serum bicarbonate ---",
+    "output": "正确答案是 A) Faecal fat"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following parasites can NOT be diagnosed by a skin scraping or brushing?\n\na) Cheyletiella\nb) Dipylidium caninum\nc) Helminth dermatoses\nd) Sarcoptes scabiei",
+    "output": "正确答案是 B) Dipylidium caninum"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "A laboratory test shows an increase in serum protein. Which ONE of the following is a possible cause?\n\na) Anaemia\nb) Dehydration\nc) Over hydration\nd) Renal failure",
+    "output": "正确答案是 B) Dehydration"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following media would NOT be used for growing Salmonella?\n\na) Nutrient agar\nb) Deoxycholate citrate\nc) MacConkey’s agar\nd) Selenite broth",
+    "output": "正确答案是 A) Nutrient agar"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following parasites is found living within hair follicles?\n\na) Cnemidocoptes\nb) Demodex\nc) Notoedres\nd) Sarcoptes ---",
+    "output": "正确答案是 B) Demodex"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following statements is NOT true?\n\na) Adult ticks have four pairs of legs\nb) All mites that affect cats are permanent parasites\nc) Juvenile ticks have only three pairs of legs\nd) Only the immature form of Trombicula autumnalis is parasitic",
+    "output": "正确答案是 D) Only the immature form of Trombicula autumnalis is parasitic"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following may cause haemolysis in  \n    a blood sample?\n\na) Leaving the plasma unseparated in transit\nb) The use of too fine a needle to collect the sample\nc) Water on the needle or syringe\nd) All of the above",
+    "output": "正确答案是 D) All of the above"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following statements is NOT true?\n\na) A lymphopaenia may be found in chemotherapy patients\nb) Eosinophilia is often found in cases of parasitism\nc) Neutropenia is usually seen in infectious inflammatory conditions\nd) Thrombocytopenia may result in haemorrhage",
+    "output": "正确答案是 C) Neutropenia is usually seen in infectious inflammatory conditions"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The flea species found MOST commonly on pet dogs  \n    is:\n\na) Cnemidocoptes\nb) Ctenocephalides canis\nc) Ctenocephalides felis\nd) Pulex irritans ---",
+    "output": "正确答案是 C) Ctenocephalides felis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following statements is the MOST accurate?\n\na) Dipylium caninum may affect humans\nb) Dipylium caninum may affect the cat as well as the dog\nc) The louse may be an intermediate host of Dipylium caninum\nd) All of the above",
+    "output": "正确答案是 D) All of the above"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Dipylium caninum infestation causes disease in the final host by:\n\na) competition for nutrients with the host\nb) causing diarrhoea\nc) loss of blood from the intestinal wall\nd) Dipylium caninum rarely causes overt disease in the final host",
+    "output": "正确答案是 D) Dipylium caninum rarely causes overt disease in the final host"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following statements concerning Echinococcus granulosus is NOT true?\n\na) Even a few worms in the final host can cause severe diarrhoea\nb) Only one of the two subspecies of E.granulosus is thought to be zoonotic\nc) The adult worm is about 0.5 cm long\nd) Within Great Britain, hydatid disease is most common in Wales ---",
+    "output": "正确答案是 A) Even a few worms in the final host can cause severe diarrhoea"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The active ingredient in Panacur is:*\n\na) Fenbendazole\nb) Mebendazole\nc) Nitroscanate\nd) Oxfendazole",
+    "output": "正确答案是 A) Fenbendazole"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Pups may have adult worms of Toxocara canis within their intestines by the time they are how old?*\n\na) 10 days\nb) 2 weeks\nc) 5 weeks\nd) 8 weeks",
+    "output": "正确答案是 B) 2 weeks"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Which ONE of the following statements about Toxocara canis is NOT true?*\n\na) After about 8 weeks of age, most of the ingested larvae pass directly from the intestine to muscle where they encyst\nb) In ideal conditions, a fertile Toxocara canis egg may develop to the infective stage in less than a week\nc) Puppies begin to develop immunity to Toxocara canis from about 7 weeks of age\nd) Toxocara eggs remain viable within the environment for up to 2 years ---",
+    "output": "正确答案是 A) After about 8 weeks of age, most of the ingested larvae pass directly from the intestine to muscle where they encyst"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following are sensible precautions for a pregnant woman to take to avoid infection with Toxoplasma gondii?\n\na) Avoid eating sheep cheeses\nb) Have the family cat’s blood tested for toxoplasmosis\nc) Wear rubber gloves when gardening\nd) All of the above",
+    "output": "正确答案是 D) All of the above"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What is the normal range for packed cell volume in the cat?\n\na) 25–45%\nb) 37–55%\nc) 40–58%\nd) 45–62%",
+    "output": "正确答案是 A) 25–45%"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The most numerous blood cells in the circulation are:\n\na) basophils\nb) eosinophils\nc) erythrocytes\nd) lymphocytes",
+    "output": "正确答案是 C) erythrocytes"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which blood cell has phagocytosis as its main function?\n\na) Eosinophil\nb) Erythrocyte\nc) Monocyte\nd) Lymphocyte ---",
+    "output": "正确答案是 C) Monocyte"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The destruction of erythrocytes is called:\n\na) anaemia\nb) haemophilia\nc) haemolysis\nd) erythropoiesis",
+    "output": "正确答案是 C) haemolysis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is not a route of transmission for human toxoplasmosis?\n\na) Cutaneous penetration\nb) Ingestion of tissue cysts in raw or uncooked meat\nc) Infected water (with oocysts)\nd) Nonpasteurised milk",
+    "output": "正确答案是 A) Cutaneous penetration"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Lungworm is the common name of:\n\na) Aelurostrongylus abstrusus\nb) Dipylidium caninum\nc) Toxocara cati\nd) Toxocaris leonina",
+    "output": "正确答案是 A) Aelurostrongylus abstrusus"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Trichuris vulpis is a:\n\na) Bladder worm\nb) Lungworm\nc) Tracheal worm\nd) Whipworm ---",
+    "output": "正确答案是 D) Whipworm ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Old blood in faeces is described as:\n\na) pathogenic\nb) melaena\nc) occult blood\nd) tenesmus",
+    "output": "正确答案是 B) melaena"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "When examined using UV light Microsporum canis usually fluoresces:\n\na) blue-green\nb) apple green\nc) yellow\nd) yellow-red",
+    "output": "正确答案是 B) apple green"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Systemic ringworm infections are MOST commonly treated with:\n\na) chlorhexidine\nb) iodine tablets\nc) griseofulvin\nd) thiabendazole",
+    "output": "正确答案是 C) griseofulvin"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "E coli is:\n\na) a Gram negative coccus\nb) a Gram negative bacillus\nc) a Gram positive coccus\nd) a Gram positive bacillus ---",
+    "output": "正确答案是 B) a Gram negative bacillus"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The field lens on a microscope is the:\n\na) upper lens in the eye piece\nb) lower lens in the eye piece\nc) oil immersion lens\nd) upper lens in the substage condenser",
+    "output": "正确答案是 B) lower lens in the eye piece"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "A dog is presented at surgery with alopecia around the eyes and muzzle, without obvious pruritus. Which mite do you suspect?\n\na) Otodectes cyanotis\nb) Demodex canis\nc) Sarcoptes scabiei\nd) Cheyletiella yasguri",
+    "output": "正确答案是 B) Demodex canis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The parasite which typically causes intense pruritus and crusting of the ear tips is:\n\na) Demodex canis\nb) Trichodectes canis\nc) Cheyletiella yasguri\nd) Sarcoptes scabiei",
+    "output": "正确答案是 D) Sarcoptes scabiei"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The eggs of which parasite are glued to the hair shafts of its host?\n\na) Ctenocephalides felis\nb) Sarcoptes scabiei\nc) Otodectes cyanotis\nd) Linognathus setosus ---",
+    "output": "正确答案是 D) Linognathus setosus ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Trichodectes canis has:\n\na) four pairs of legs, a broad head and biting mouth parts\nb) four pairs of legs, a conical head and biting mouth parts\nc) three pairs of legs, a broad head and biting mouth parts\nd) three pairs of legs, a conical head and sucking mouth parts",
+    "output": "正确答案是 C) three pairs of legs, a broad head and biting mouth parts"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The specific gravity of a urine sample reads above the scale on the refractometer (greater than 1.035). You dilute the urine 1:2 with distilled water. The sample now reads 1.013. The recorded specific gravity will be:\n\na) 1.026\nb) 1.039\nc) 2.026\nd) 3.039",
+    "output": "正确答案是 D) 3.039"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which regulation is there responsibility to report absences from work of three or more days involving an incident at work?\n\na) COSHH\nb) Fire precaution\nc) PPE\nd) RIDDOR ---",
+    "output": "正确答案是 D) RIDDOR ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Fluoride oxalate is an anti-coagulant. In which procedure should it be used?\n\na) Bile acid determination\nb) Determination of levels of clotting factors\nc) Glucose determination\nd) Platelet counts",
+    "output": "正确答案是 C) Glucose determination"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The fluid fraction obtained after clotted blood is centrifuged is:\n\na) interstitial fluid\nb) intracellular fluid\nc) plasma\nd) serum",
+    "output": "正确答案是 D) serum"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following urinary crystals has a flat, regular hexagonal shape?\n\na) Ammonium urate\nb) Calcium oxalate\nc) Cystine\nd) Triple phosphate",
+    "output": "正确答案是 C) Cystine"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "NORMAL cerebrospinal fluid is:\n\na) clear\nb) cloudy\nc) pink-tinged\nd) straw coloured ---",
+    "output": "正确答案是 A) clear"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following worms is a public health risk because it causes hydatid cysts?\n\na) Dipylidium caninum\nb) Echinococcus granulosus\nc) Filaroides osleri\nd) Toxocara canis",
+    "output": "正确答案是 B) Echinococcus granulosus"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "When Sudan III is applied to a faecal smear it stains:\n\na) starch granules orange\nb) fat droplets pink\nc) fat droplets orange\nd) muscle fibres pink",
+    "output": "正确答案是 B) fat droplets pink"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The mordant in Gram stain is:\n\na) iodine\nb) methylene blue\nc) carbol fuchsin\nd) safranine",
+    "output": "正确答案是 A) iodine"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The primary stain in Gram stain is:\n\na) iodine\nb) crystal violet\nc) safranine\nd) giemsa ---",
+    "output": "正确答案是 B) crystal violet"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "A Gram positive bacterium stained with methylene blue will stain:\n\na) purple\nb) red\nc) blue\nd) orange",
+    "output": "正确答案是 C) blue"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The commonest cause of dermatophytosis in the cat is:\n\na) Microsporum gypseum\nb) Candida albicans\nc) Microsporum canis\nd) Trichophyton mentagrophytes",
+    "output": "正确答案是 C) Microsporum canis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The parasite in the diagram above is:\n\na) Demodex\nb) Sarcoptes\nc) Ctenocephalides felis\nd) Otodectes ---",
+    "output": "正确答案是 B) Sarcoptes"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The worm egg in the diagram above is:\n\na) Trichuris vulpis\nb) Toxocara cati\nc) Toxocaris leonina\nd) Taenia sp",
+    "output": "正确答案是 A) Trichuris vulpis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The worm egg in the diagram above is:\n\na) Trichuris vulpis\nb) Toxocara canis\nc) Toxocaris leonina\nd) Taenia sp ---",
+    "output": "正确答案是 B) Toxocara canis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following organisms is multicellular?\n\na) A bacterium\nb) A virus\nc) A fungus\nd) A protozoon",
+    "output": "正确答案是 C) A fungus"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The system used for naming micro-organisms is the:\n\na) binary system\nb) binomial system\nc) generic system\nd) Gram’s system",
+    "output": "正确答案是 B) binomial system"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The term used to describe the genus to which micro-organisms belong is the:\n\na) generic name\nb) genetic name\nc) specific name\nd) species name",
+    "output": "正确答案是 D) species name"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following bottles would NOT be used as a sample bottle?\n\na) McCartney bottle\nb) Universal container\nc) Erlenmyer flask\nd) Clean jam jar ---",
+    "output": "正确答案是 C) Erlenmyer flask"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following solutions is NOT used in Ziehl-Neelsen acid fast stain?\n\na) Carbol fuchsin\nb) Acid alcohol\nc) Lugol’s iodine\nd) Methylene blue",
+    "output": "正确答案是 C) Lugol’s iodine"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Fleas MAY be involved in the transmission of:\n\na) myxomatosis\nb) parvovirus\nc) FIA\nd) A & C",
+    "output": "正确答案是 D) A & C"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Treatment for fleas on the host includes:\n\na) luferon\nb) permethrin\nc) negasunt\nd) fenbendazole",
+    "output": "正确答案是 B) permethrin"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is the biting louse of the dog?\n\na) Linognathus setosus\nb) Felicola subrostratus\nc) Trichodectes canis\nd) Ixodes ricinus ---",
+    "output": "正确答案是 C) Trichodectes canis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Trichodectes canis is the intermediate host for:\n\na) Ixodes ricinus\nb) Panleucopaenia\nc) Dipylidium caninum\nd) Felicola subrostratus",
+    "output": "正确答案是 C) Dipylidium caninum"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Ixodes hexagonus is the:\n\na) sheep tick\nb) hedgehog flea\nc) hedgehog tick\nd) sheep flea",
+    "output": "正确答案是 C) hedgehog tick"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is described as a subsurface mite?\n\na) Sarcoptes scabiei\nb) Otodectes cyanotis\nc) Cheyletilla yasguri\nd) Trichodectes canis",
+    "output": "正确答案是 A) Sarcoptes scabiei"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Cestode parasites are commonly known as:\n\na) roundworms\nb) hookworms\nc) tapeworms\nd) whipworms ---",
+    "output": "正确答案是 C) tapeworms"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following types of endoparasite is characteristically hermaphrodite?\n\na) Roundworm\nb) Hookworm\nc) Tapeworm\nd) Whipworm",
+    "output": "正确答案是 A) Roundworm"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The correct term for the head of a cestode parasite is:\n\na) the rostellum\nb) the scolex\nc) the proscolex\nd) the proglottid",
+    "output": "正确答案是 B) the scolex"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The term for a mature tapeworm segment which contains fertilised eggs is:\n\na) granulid\nb) glenoid\nc) gravid\nd) none of the above",
+    "output": "正确答案是 C) gravid"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The cell wall of a bacterium is comprised of:\n\na) peptidoglycan\nb) peptidases\nc) polypeptides\nd) pepsin ---",
+    "output": "正确答案是 A) peptidoglycan"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The Health and Safety at Work Act (1974) applies to:\n\na) The practice principal\nb) The veterinary surgeons\nc) The veterinary nurses\nd) everyone",
+    "output": "正确答案是 D) everyone"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Conjugation is a means by which genetic material is passed from one bacterium to another. The extra genetic material transmitted is called:\n\na) a pilus\nb) a plasmid\nc) plasma\nd) a recipient",
+    "output": "正确答案是 B) a plasmid"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Blood agar can be used for culturing bacteria under laboratory conditions. How much animal blood does the blood agar contain?\n\na) 1%\nb) 10%\nc) 20%\nd) 50%",
+    "output": "正确答案是 B) 10%"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Blood cells showing irregular margins and prickly points are known as:\n\na) crenated\nb) rouleaux\nc) proerythroblasts\nd) icteric ---",
+    "output": "正确答案是 A) crenated"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Agar is commonly used in culture media for bacterial cultivation. It is made from:\n\na) extract of seaweed\nb) gelatin\nc) starch\nd) gelatinous mass",
+    "output": "正确答案是 A) extract of seaweed"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following terms is used to describe a bacterium that can synthesise its own food?\n\na) heterotroph\nb) autotroph\nc) saprophyte\nd) parasite",
+    "output": "正确答案是 B) autotroph"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following parasites could be described as mutualistic?\n\na) Toxocara canis\nb) Ruminal gut micro-organisms\nc) Escherichia coli\nd) Toxocara cati",
+    "output": "正确答案是 B) Ruminal gut micro-organisms"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "A bacterium that is a facultative anaerobe is one that:\n\na) requires a good supply of oxygen\nb) requires a good supply of carbon dioxide\nc) grows best when oxygen concentration is lower than atmospheric air\nd) grows when oxygen is present but only functions in the absence of oxygen ---",
+    "output": "正确答案是 C) grows best when oxygen concentration is lower than atmospheric air"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "In choosing antibiotics, what is meant by potentiation?\n\na) The antibiotic is effective against Gram negative bacteria\nb) The antibiotic is effective against a range of bacteria\nc) Two antibiotics work together to enhance each other’s effectiveness\nd) One antibiotic interacts undesirably with another",
+    "output": "正确答案是 C) Two antibiotics work together to enhance each other’s effectiveness"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which urinary cast is clear, cylindrical, colourless and refractile and will dissolve in alkaline urine?\n\na) Tubular\nb) Hyaline\nc) Cellular\nd) Waxy",
+    "output": "正确答案是 B) Hyaline"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Bacteria exist in a variety of shapes. How would you classify these bacteria?\n\na) Bacilli\nb) Vibrii\nc) Cocci\nd) Spirochaetes ---",
+    "output": "正确答案是 A) Bacilli"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following agar media would be most suitable for the culture of bacteria from a faecal sample?\n\na) blood agar\nb) chocolate agar\nc) MacConkey agar\nd) Deoxycholate citrate agar",
+    "output": "正确答案是 D) Deoxycholate citrate agar"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Plasma samples can be stored in the fridge for up to:\n\na) 24 hours\nb) 3 days\nc) 1 week\nd) 3 weeks",
+    "output": "正确答案是 B) 3 days"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Raised total protein levels in a blood sample may be due to:\n\na) dehydration\nb) debility\nc) decreased protein synthesis\nd) pathological loss of protein",
+    "output": "正确答案是 A) dehydration"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Hypernatremia is:\n\na) increased blood sodium concentration\nb) increased blood calcium concentration\nc) increased blood potassium concentration\nd) increased blood phosphorus concentration ---",
+    "output": "正确答案是 A) increased blood sodium concentration"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Hyperkalemia is:\n\na) increased blood sodium concentration\nb) increased blood calcium concentration\nc) increased blood potassium concentration\nd) increased blood phosphorus concentration",
+    "output": "正确答案是 C) increased blood potassium concentration"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Normal range of plasma urea concentration in the dog is:\n\na) 0–22 mmol/l\nb) 2–8 mmol/l\nc) 8–16 mmol/l\nd) 16–24 mmol/l",
+    "output": "正确答案是 B) 2–8 mmol/l"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "High plasma urea may be seen in cases of:\n\na) renal failure\nb) diabetes mellitus\nc) Cushing's disease\nd) hyperthyroidism",
+    "output": "正确答案是 A) renal failure"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Creatinine levels are most commonly used in diagnostic aids to indicate:\n\na) renal conditions\nb) thyroid conditions\nc) liver conditions\nd) cardiovascular conditions ---",
+    "output": "正确答案是 A) renal conditions"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The eggs of Toxocara canis appear in faeces as\n\na) darkly nucleated, with a pitted shell\nb) darkly nucleated, with a smooth shell\nc) with a pale nucleus and a pitted shell\nd) with a pale nucleus and a smooth shell",
+    "output": "正确答案是 A) darkly nucleated, with a pitted shell"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The segment of a tapeworm is described as a\n\na) strobilla\nb) gravid\nc) proglottid\nd) rostellum",
+    "output": "正确答案是 C) proglottid"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of these animal species would it be appropriate to starve prior to sampling?\n\na) Bovine\nb) Canine\nc) Feline\nd) Lapine",
+    "output": "正确答案是 B) Canine"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Under which of the following pieces of legislation is it necessary to report serious injuries that occur in the practice laboratory?\n\na) COSHH 99\nb) RIDDOR 95\nc) HSAWA 74\nd) Environmental protection Act 1990 ---",
+    "output": "正确答案是 B) RIDDOR 95"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following parts of the microscope is responsible for regulating light?\n\na) Eye piece\nb) Objective lens\nc) Course adjustment\nd) Iris diaphragm",
+    "output": "正确答案是 D) Iris diaphragm"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The nose piece of the light microscope contains:\n\na) the objective lenses\nb) the eyepieces\nc) the sub stage condenser\nd) the course adjustment",
+    "output": "正确答案是 A) the objective lenses"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Bacteria should be viewed first on which ONE of the following magnifications:\n\na) × 4\nb) × 10\nc) × 40\nd) × 100",
+    "output": "正确答案是 B) × 10"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following fluids contains clotting factors?\n\na) Serum\nb) Plasma\nc) Interstitial fluid\nd) Intracellular fluid",
+    "output": "正确答案是 B) Plasma"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The function of a Diff-Quick stain is to:\n\na) stain a smear for haematological examination\nb) stain a smear for bacteriological examination\nc) stain a smear for urine examination\nd) stain a smear for faecal examination",
+    "output": "正确答案是 A) stain a smear for haematological examination"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What colour is the container for a blood sample that is to be placed in sodium fluoride?\n\na) Orange\nb) Pink\nc) Yellow\nd) Uncoloured",
+    "output": "正确答案是 C) Yellow"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following blood cell types is seen LEAST commonly in the normal blood smear of the dog?\n\na) Basophil\nb) Neutrophil\nc) Eosinophil\nd) Lymphocyte ---",
+    "output": "正确答案是 A) Basophil"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following white blood cells is agranular?\n\na) Neutrophil\nb) Eosinophil\nc) Basophil\nd) Monocyte",
+    "output": "正确答案是 D) Monocyte"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The Unopette method may be used in which ONE of the following types of examinations?\n\na) Haemotological\nb) Biochemical\nc) Bacteriological\nd) Faecal",
+    "output": "正确答案是 A) Haemotological"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The PCV of a cat may increase in which ONE of the following situations\n\na) Anaemia\nb) Overhydration\nc) Dehydration\nd) Haemobartenella infection",
+    "output": "正确答案是 C) Dehydration"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following parasites has eight legs?\n\na) Flea\nb) Tick\nc) Biting louse\nd) Sucking louse ---",
+    "output": "正确答案是 B) Tick"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Geimsa stain may be used in which ONE of the following types of investigation?\n\na) Haematology\nb) Urinalysis\nc) Bacteriology\nd) Biochemistry",
+    "output": "正确答案是 A) Haematology"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The fluid used for total white blood cell estimation is known as:\n\na) Turk’s solution\nb) saline\nc) Lugol’s Iodine\nd) crystal Violet",
+    "output": "正确答案是 A) Turk’s solution"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following would improve contrast when using a light microscope?\n\na) Iris diaphragm\nb) Substage condenser\nc) Huyghen lenses\nd) Immersion oil",
+    "output": "正确答案是 A) Iris diaphragm"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Ethylenediamine tetra-acetic acid (EDT\n\na) is the anticoagulant of choice for haematology because it: a) preserves blood cell morphology\nb) simultaneously stains and preserves blood cells\nc) destroys red cells while preserving white cells\nd) destroys white cells while preserving red cells ---",
+    "output": "正确答案是 A) is the anticoagulant of choice for haematology because it: a) preserves blood cell morphology"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which lens is responsible for focusing light?\n\na) Huyghen\nb) Substage condenser\nc) Iris\nd) × 10 objective",
+    "output": "正确答案是 B) Substage condenser"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Most anticoagulants work by:\n\na) removing calcium from the plasma\nb) chelating potassium\nc) forming insoluble complexes with sodium\nd) removing fibrinogen",
+    "output": "正确答案是 A) removing calcium from the plasma"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which anticoagulant inhibits a glycolytic enzyme, thus acting as a preservative for glucose?\n\na) Sodium citrate\nb) Lithium heparin\nc) Sodium fluoride\nd) Potassium oxalate",
+    "output": "正确答案是 D) Potassium oxalate"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Serum should be separated from blood cells in a blood sample as soon as possible because:\n\na) it evaporates rapidly\nb) it will not clot\nc) it becomes lipaemic\nd) certain chemical constituents change if serum is allowed to stay in contact with cells Askim Bryan College LIBRARY BOOK ---",
+    "output": "正确答案是 D) certain chemical constituents change if serum is allowed to stay in contact with cells Askim Bryan College LIBRARY BOOK ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "All of the following may cause haemolysis except:\n\na) removing the needle from the syringe to place blood in a collection tube\nb) freezing a whole blood sample\nc) mixing too vigorously after sample collection\nd) forcing blood sample through the needle",
+    "output": "正确答案是 A) removing the needle from the syringe to place blood in a collection tube"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "If you are unable to carry out biochemical tests on a sample for a few days, you should:\n\na) centrifuge the sample, separate the serum, and freeze it\nb) place the sample in the refrigerator\nc) centrifuge the sample and freeze it\nd) centrifuge the sample and refrigerate it",
+    "output": "正确答案是 A) centrifuge the sample, separate the serum, and freeze it"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Performing a group of blood chemistry tests to evaluate the overall health of an animal is referred to as:\n\na) biochemical profiling\nb) quality control assurance\nc) a complete blood count\nd) a differential diagnosis",
+    "output": "正确答案是 A) biochemical profiling"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The anticoagulant used to preserve blood glucose levels for blood chemistry analysis is:\n\na) EDTA\nb) sodium or lithium heparin\nc) sodium or lithium oxalate\nd) sodium fluoride ---",
+    "output": "正确答案是 C) sodium or lithium oxalate"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The preferred sample for most blood chemistry tests is:\n\na) whole blood\nb) serum\nc) plasma\nd) urine",
+    "output": "正确答案是 B) serum"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "To preserve blood constituents in the event that sample analysis is delayed, serum or plasma should be:\n\na) lyophilized and reconstituted before analysis\nb) refrigerated and warmed to room temperature before analysis\nc) placed in a 37 C water bath and brought to room temperature before analysis\nd) placed at room temperature until analysed",
+    "output": "正确答案是 B) refrigerated and warmed to room temperature before analysis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "A blood sample from an animal that has recently eaten may be:\n\na) haemolysed\nb) lipaemic\nc) icteric\nd) anaemic",
+    "output": "正确答案是 B) lipaemic"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Centrifuging a blood sample at high speed for a prolonged period may result in:\n\na) lipaemia\nb) icterus\nc) haemolysis\nd) bacterial contamination ---",
+    "output": "正确答案是 C) haemolysis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Improper handling of a blood sample, including vigorous shaking or forcing through a needle, may result in:\n\na) lipaemia\nb) icterus\nc) haemolysis\nd) bacterial contamination",
+    "output": "正确答案是 C) haemolysis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "A serum sample that is extremely icteric generally derives its colour from an increased level of:\n\na) lipids\nb) total bilirubin\nc) electrolytes\nd) glucose",
+    "output": "正确答案是 B) total bilirubin"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "A box of reagents for blood chemistry analysis labelled for storage at 8°C can be safely stored\n\na) in the freezer\nb) at room temperature\nc) in the incubator\nd) in the refrigerator",
+    "output": "正确答案是 B) at room temperature"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The technology of dry chemistry differs from that of wet chemistry in that the reagents in dry chemistry are supplied:\n\na) in lyophilized pellets\nb) in liquid solutions\nc) impregnated on slides, cards, or strips\nd) in powdered capsules ---",
+    "output": "正确答案是 C) impregnated on slides, cards, or strips"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which stain is used to confirm the presence of fat in a faecal smear?\n\na) New methylene blue\nb) Sudan III or IV\nc) Diff-Quick\nd) Giemsa",
+    "output": "正确答案是 B) Sudan III or IV"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which stain is referred to as a supravital stain?\n\na) New methylene blue\nb) Camco-Quick\nc) Eosin\nd) Sudan III or IV",
+    "output": "正确答案是 C) Eosin"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following pipettes is NOT graduated?\n\na) Marburg\nb) Thoma\nc) Serological\nd) Pasteur",
+    "output": "正确答案是 D) Pasteur"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "For what purpose are Unopettes used in haematology?\n\na) Blood cell count\nb) Hematocrit determination\nc) Haemoglobin determination\nd) Total protein determination ---",
+    "output": "正确答案是 A) Blood cell count"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What term describes a subnormal neutrophil count?\n\na) Leucocytosis\nb) Neutropaenia\nc) Anaemia\nd) Regenerate left shift",
+    "output": "正确答案是 B) Neutropaenia"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which cell becomes a macrophage once it enters the tissues?\n\na) Plasma cell\nb) Lymphocyte\nc) Neutrophil\nd) Monocyte",
+    "output": "正确答案是 D) Monocyte"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is an intracellular parasite of erythrocytes?\n\na) Babesia\nb) Ehrlichia\nc) Trypanosoma\nd) Toxoplasma",
+    "output": "正确答案是 A) Babesia"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Granular casts in urine are associated with:\n\na) inflammatory change\nb) chronic degenerative renal tubular changes\nc) poor circulation\nd) normal urine ---",
+    "output": "正确答案是 A) inflammatory change"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What is the term used to describe plasma that appears white or milky?\n\na) leukaemia\nb) lipaemia\nc) leucocytosis\nd) icterus",
+    "output": "正确答案是 B) lipaemia"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "For how long must the typical microhaematocrit tube be centrifuged for packed cell volume determination?\n\na) 1 min\nb) 5 min\nc) 10 min\nd) 15 min",
+    "output": "正确答案是 B) 5 min"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Howell-Jolly bodies resemble which erythrocyte parasite?\n\na) Babesia\nb) Haemobartonella\nc) Trypanosoma\nd) Ehrlichia",
+    "output": "正确答案是 B) Haemobartonella"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What is NORMALLY the largest blood cell in domestic species?\n\na) Monocyte\nb) Neutrophil\nc) Eosinophil\nd) Lymphocyte ---",
+    "output": "正确答案是 A) Monocyte"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which leucocyte can normally have a bean-shaped nucleus?\n\na) Lymphocyte\nb) Plasma cell\nc) Monocyte\nd) Band neutrophil",
+    "output": "正确答案是 C) Monocyte"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "An increased number of band cells in the peripheral blood indicates:\n\na) leukaemia\nb) autoimmune haemolytic anaemia\nc) a left shift\nd) neutropaenia",
+    "output": "正确答案是 C) a left shift"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Alanine aminotransferase (ALT) readings are sometimes used in the dog to indicate:\n\na) lymphatic damage\nb) cardiovascular damage\nc) renal damage\nd) hepatic damage",
+    "output": "正确答案是 D) hepatic damage"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The ACTH stimulation test is essential for the confirmation of:\n\na) Addison’s disease\nb) diabetes mellitus\nc) Cushing’s syndrome\nd) hyperthyroidism ---",
+    "output": "正确答案是 C) Cushing’s syndrome"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "To examine microscopically the sediment from a urine sample, the sample should be spun for:\n\na) 5 min at 2000 rpm\nb) 4 min at 8000 rpm\nc) 3 min at 10,000 rpm\nd) 2 min at 6000 rpm",
+    "output": "正确答案是 A) 5 min at 2000 rpm"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The function of the Huyghen lens is to:\n\na) distinguish between black and white\nb) obtain good contrast\nc) focus light onto the object\nd) magnify the primary image",
+    "output": "正确答案是 D) magnify the primary image"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Ketone bodies in a urine sample may indicate to the vet that the animal is suffering from:\n\na) Addison's disease\nb) Cushing's syndrome\nc) diabetes insipidus\nd) diabetes mellitus",
+    "output": "正确答案是 D) diabetes mellitus"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The total magnification of an object using \\( \\times 10 \\) eyepiece and \\( \\times 40 \\) objective will be:\n\na) \\( \\times 10 \\)\nb) \\( \\times 40 \\)\nc) \\( \\times 50 \\)\nd) \\( \\times 400 \\) ---",
+    "output": "正确答案是 D) \\( \\times 400 \\) ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Large numbers of hyaline casts may be present in a urine sample if the animal is suffering from:*\n\na) renal failure\nb) diabetes mellitus\nc) diabetes insipidus\nd) Cushing’s syndrome",
+    "output": "正确答案是 A) renal failure"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*In acid urine, which ONE of the following crystals is MOST likely to be present?*\n\na) Uric acid\nb) Triple phosphate\nc) Carbonate\nd) Ammonium magnesium phosphate",
+    "output": "正确答案是 A) Uric acid"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*For cellular examination, a sample of cerebrospinal fluid should be placed in a:*\n\na) plain tube\nb) EDTA tube\nc) heparin tube\nd) oxalate tube",
+    "output": "正确答案是 B) EDTA tube"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Cerebrospinal fluid samples may clot in a plain blood tube due to their high:*\n\na) protein content\nb) white blood cell content\nc) red blood cell content\nd) haemoglobin content ---",
+    "output": "正确答案是 A) protein content"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Normal cerebrospinal fluid is:*\n\na) yellow, turgid and odourless\nb) clear, turgid and odourless\nc) clear, transparent and odourless\nd) yellow, opaque and odourless",
+    "output": "正确答案是 C) clear, transparent and odourless"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The vein of choice to take a blood sample from a rabbit is the:*\n\na) marginal ear vein\nb) cephalic vein\nc) saphenous vein\nd) jugular vein",
+    "output": "正确答案是 A) marginal ear vein"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The vein of choice to take a blood sample from a young kitten is the:*\n\na) marginal ear vein\nb) cephalic vein\nc) saphonous vein\nd) jugular vein",
+    "output": "正确答案是 D) jugular vein"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*For microhaematocrit readings, the capillary tube should be spun for:*\n\na) 2 min at 10,000 rpm\nb) 5 min at 10,000 rpm\nc) 8 min at 4000 rpm\nd) 10 min at 2000 rpm ---",
+    "output": "正确答案是 B) 5 min at 10,000 rpm"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The reticulocytes in the normal total red cell count in the cat and dog make up approximately:*\n\na) 1%\nb) 10%\nc) 15%\nd) 20%",
+    "output": "正确答案是 A) 1%"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The warning label with a skull and crossbones indicates that a chemical is:*\n\na) corrosive\nb) harmful\nc) highly inflammable\nd) toxic",
+    "output": "正确答案是 D) toxic"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The MOST commonly used stain for a differential white blood cell count is:*\n\na) methylene blue\nb) Leishman’s\nc) Geimsa\nd) Gram stain",
+    "output": "正确答案是 B) Leishman’s"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Haemobartonella felis is detected after staining a blood smear with:*\n\na) methylene blue\nb) Leishman’s\nc) Geimsa\nd) Gram stain ---",
+    "output": "正确答案是 C) Geimsa"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Decreased lymphocyte numbers in a differential count may be due to:\n\na) dehydration\nb) shock\nc) lowered PCV\nd) lymphopaenia",
+    "output": "正确答案是 B) shock"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Eosinophils may be increased in the presence of:\n\na) diabetes insipidus\nb) low hydration status\nc) haemobartonella felis\nd) allergies or parasitism",
+    "output": "正确答案是 D) allergies or parasitism"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "A reduced total white cell count is UNLIKELY to be due to:\n\na) bone marrow failure\nb) overwhelming infection\nc) viral disease\nd) allergic reaction",
+    "output": "正确答案是 D) allergic reaction"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is the MOST appropriate long-term preservative for mites:\n\na) surgical spirit\nb) mineral oil\nc) potassium hydroxide (KOH)\nd) DTX mountant ---",
+    "output": "正确答案是 A) surgical spirit"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Neotrombicula autumnali is also known as:*\n\na) sarcoptes mange mite\nb) cat flea\nc) harvest mite\nd) walking dandruff",
+    "output": "正确答案是 C) harvest mite"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Which ONE of the following solutions is NOT appropriate for the flotation of parasite eggs in a faeces examination?*\n\na) Saturated salt solution\nb) Saturated sugar solution\nc) Saturated magnesium sulphate solution\nd) Saturated potassium hydroxide solution",
+    "output": "正确答案是 D) Saturated potassium hydroxide solution"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The McMasters slide is used for:*\n\na) total red blood cell counts\nb) urine analysis\nc) faecal worm egg counts\nd) total protein estimation",
+    "output": "正确答案是 C) faecal worm egg counts"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Confirmation of which ONE of the following parasites would require serological tests?*\n\na) Toxoplasma gondii\nb) Toxocariasis\nc) Dipylidium caninum\nd) Haemobartonella felis ---",
+    "output": "正确答案是 A) Toxoplasma gondii"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is NOT an intestinal protozoon?\n\na) Toxoplasma\nb) Cryptosporidea\nc) Sarcocystis\nd) Taenia sp",
+    "output": "正确答案是 D) Taenia sp"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is NOT a respiratory tract nematode?\n\na) Oslerus osleri\nb) Filaroides hirthi\nc) Angiostrongylus vasarium\nd) Trichuris vulpis",
+    "output": "正确答案是 D) Trichuris vulpis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is NOT an intestinal nematode?\n\na) Echinococcus granulosus\nb) Unciniaria stenocephala\nc) Trichuris vulpis\nd) Toxocara canis",
+    "output": "正确答案是 A) Echinococcus granulosus"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Crenation of red blood cells results in:\n\na) shrinkage of the cells\nb) increased turgidity of the cells\nc) water moving in by osmosis\nd) water moving in by active transport ---",
+    "output": "正确答案是 A) shrinkage of the cells"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Pyuria is:\n\na) pus in urine\nb) abnormal numbers of WBCs in circulation\nc) the presence of large numbers of WBCs in urine\nd) large numbers of red blood cells in the gut",
+    "output": "正确答案是 C) the presence of large numbers of WBCs in urine"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The suffix paenia refers to:\n\na) a decrease in the number of cells\nb) an increase in the number of cells\nc) a change in the number of cells\nd) fluctuating cell numbers",
+    "output": "正确答案是 A) a decrease in the number of cells"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The suffix philia refers to:\n\na) a decrease in the number of cells\nb) an increase in the numbers of cells\nc) a change in the number of cells\nd) fluctuating cell numbers",
+    "output": "正确答案是 B) an increase in the numbers of cells"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following media would be MOST appropriate for salmonella culture?\n\na) Sabourauds dextrose agar\nb) Deoxycholate citrate agar\nc) Blood agar\nd) Nutrient agar ---",
+    "output": "正确答案是 B) Deoxycholate citrate agar"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What is the function of a colorimeter?\n\na) It measures intensity of heat in a solution\nb) It measures intensity of colour in a solution\nc) It separates blood cells from plasma\nd) It separates faecal matter in a solution",
+    "output": "正确答案是 B) It measures intensity of colour in a solution"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The smallest of the white blood cells is the:\n\na) lymphocyte\nb) neutrophil\nc) monocyte\nd) basophil",
+    "output": "正确答案是 A) lymphocyte"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Heparin is the anticoagulant of choice when:\n\na) plasma samples are required\nb) haematological examination is to take place\nc) glucose levels are under investigation\nd) serum samples are required",
+    "output": "正确答案是 A) plasma samples are required"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "In the dog, acute haemorrhage and icteric disease may be caused by:\n\na) bordetella bronchoseptica\nb) leptospira icterohaemorrhagiae\nc) parainfluenza\nd) parvovirus ---",
+    "output": "正确答案是 B) leptospira icterohaemorrhagiae"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Blood agar is used for:\n\na) identification of ringworm spores\nb) routine isolation of aerobic bacteria\nc) isolation of enteric bacteria\nd) isolation of salmonella",
+    "output": "正确答案是 B) routine isolation of aerobic bacteria"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Staphylococcus are:\n\na) rod-shaped and arranged in pairs\nb) spherical and arranged in pairs\nc) rod-shaped and arranged in clusters\nd) spherical and arranged in clusters",
+    "output": "正确答案是 D) spherical and arranged in clusters"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Hair to be examined for dermatophyte investigation is best taken from:\n\na) the peripheral edges of the lesion\nb) the centre of the lesion\nc) anywhere within the lesion\nd) from outside the lesion",
+    "output": "正确答案是 A) the peripheral edges of the lesion"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The preferred method of urine sample collection for bacteriological investigation is:\n\na) mid stream voided sample collection\nb) catheterization\nc) bladder expression\nd) early morning sample collection ---",
+    "output": "正确答案是 B) catheterization"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The normal yellow colour of urine is due to the presence of:\n\na) proteins\nb) urochromes\nc) bile pigments\nd) haemoglobin",
+    "output": "正确答案是 B) urochromes"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "In microscopy, magnification of an object is produced by:\n\na) the eyepiece\nb) the objective\nc) both the eyepiece and the objective\nd) the field lens",
+    "output": "正确答案是 C) both the eyepiece and the objective"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Microscope slides to be used for blood smears should first be cleaned with:\n\na) detergent, and stored in ethanol\nb) surgical spirit\nc) soap, and stored in surgical spirit\nd) detergent, and stored in disinfectant",
+    "output": "正确答案是 A) detergent, and stored in ethanol"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "For which ONE of the following microscopy examinations should oil immersion be used?\n\na) Identification of Demodex\nb) Identification of bacteria\nc) Identification of worm eggs\nd) Identification of urinary crystals ---",
+    "output": "正确答案是 B) Identification of bacteria"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "A refractometer is used to measure:\n\na) urine glucose\nb) blood glucose\nc) urine specific gravity\nd) blood specific gravity",
+    "output": "正确答案是 C) urine specific gravity"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The site of choice in the dog, for collection of blood for biochemical analysis is:\n\na) jugular vein\nb) saphenous vein\nc) sublingual artery\nd) carotid artery",
+    "output": "正确答案是 A) jugular vein"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Plasma samples stored in the fridge can be kept for:\n\na) 24 hours\nb) 3 days\nc) 1 week\nd) 4 weeks",
+    "output": "正确答案是 A) 24 hours"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is UNLIKELY to cause haemolysis in a collected sample:\n\na) inadequate mixing\nb) narrow gauge needle use\nc) wet needle use to collect blood\nd) forcing blood through the needle ---",
+    "output": "正确答案是 A) inadequate mixing"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The following procedures all help to keep reagent strips in optimum condition, with the exception of:\n\na) storing away from high humidity\nb) not handling unnecessarily\nc) not returning unused strips to the container\nd) storing in the fridge",
+    "output": "正确答案是 D) storing in the fridge"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Normal urine pH range for carnivores is:\n\na) 3–5\nb) 5–7\nc) 7–9\nd) 9–11",
+    "output": "正确答案是 B) 5–7"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is NOT a urinary calculus?\n\na) Cystine\nb) Urate\nc) Triple phosphate\nd) Hyaline cast",
+    "output": "正确答案是 D) Hyaline cast"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Detection of haemobartonella felis is BEST undertaken using which ONE of the following stains?\n\na) Methylene blue\nb) Leishman’s\nc) Giemsa\nd) Gram ---",
+    "output": "正确答案是 C) Giemsa"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "A shift to the left in haematological examination means:\n\na) increased immature neutrophils\nb) increased mature leucocytes\nc) decreased eosinophils\nd) decreased mature leucocytes",
+    "output": "正确答案是 A) increased immature neutrophils"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "A reduced white cell count is UNLIKELY to be due to:\n\na) bone marrow failure\nb) overwhelming infection\nc) viral disease\nd) allergic reaction",
+    "output": "正确答案是 D) allergic reaction"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following parasitic infections is MOST likely to be diagnosed by collection of material from pustules:\n\na) Demodex\nb) Tryptophan\nc) Ctenocephalides\nd) Trichodectes ---",
+    "output": "正确答案是 A) Demodex"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "In the picture above, identify the part labelled C as the:\n\na) substage condenser\nb) mechanical stage\nc) iris\nd) limb",
+    "output": "正确答案是 D) limb"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What size lenses are normally used in the microscope oculars?\n\na) × 6\nb) × 10\nc) × 40\nd) × 100 ---",
+    "output": "正确答案是 B) × 10"
+  }
+]

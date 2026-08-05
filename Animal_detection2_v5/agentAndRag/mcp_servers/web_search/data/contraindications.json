@@ -1,0 +1,164 @@
+{
+  "Chronic Kidney Disease": {
+    "stages": ["Stage 1", "Stage 2", "Stage 3", "Stage 4"],
+    "restricted_ingredients": [
+      "high phosphorus",
+      "excessive protein",
+      "sodium chloride",
+      "added salt",
+      "phosphoric acid",
+      "bone meal"
+    ],
+    "recommended_ranges": {
+      "protein_percent_max": 25,
+      "phosphorus_percent_max": 0.5,
+      "sodium_percent_max": 0.3
+    },
+    "notes": "Limit protein and phosphorus to reduce renal workload. Lower stages tolerate more protein."
+  },
+  "Urinary Stones - Struvite": {
+    "restricted_ingredients": [
+      "magnesium oxide",
+      "magnesium",
+      "high pH diet",
+      "alkalizing agents"
+    ],
+    "recommended_ranges": {
+      "pH_min": 6.0,
+      "pH_max": 6.5,
+      "magnesium_percent_max": 0.04
+    },
+    "notes": "Acidifying diet needed to dissolve struvite stones."
+  },
+  "Urinary Stones - Calcium Oxalate": {
+    "restricted_ingredients": [
+      "excessive calcium",
+      "oxalate-rich ingredients",
+      "spinach",
+      "beet pulp",
+      "high sodium"
+    ],
+    "recommended_ranges": {
+      "calcium_percent_max": 0.8,
+      "sodium_percent_max": 0.3
+    },
+    "notes": "Moderate calcium, low oxalate, and adequate hydration."
+  },
+  "Diabetes Mellitus": {
+    "restricted_ingredients": [
+      "sugar",
+      "corn syrup",
+      "simple carbohydrates",
+      "white rice",
+      "wheat flour",
+      "sucrose",
+      "dextrose",
+      "fructose"
+    ],
+    "recommended_ranges": {
+      "fiber_percent_min": 5,
+      "carbohydrate_percent_max": 25
+    },
+    "notes": "High fiber, low glycemic index diet preferred."
+  },
+  "Pancreatitis": {
+    "restricted_ingredients": [
+      "high fat",
+      "animal fat",
+      "lard",
+      "tallow",
+      "chicken fat excessive",
+      "coconut oil"
+    ],
+    "recommended_ranges": {
+      "fat_percent_max": 10
+    },
+    "notes": "Strict low-fat diet. Avoid high-fat treats."
+  },
+  "Heart Disease": {
+    "restricted_ingredients": [
+      "sodium chloride",
+      "added salt",
+      "high sodium",
+      "soy sauce"
+    ],
+    "recommended_ranges": {
+      "sodium_percent_max": 0.2,
+      "taurine_mg_per_kg_min": 1000
+    },
+    "notes": "Low sodium, ensure adequate taurine and L-carnitine."
+  },
+  "Liver Disease": {
+    "restricted_ingredients": [
+      "copper sulfate",
+      "excessive copper",
+      "high copper",
+      "copper proteinate excess"
+    ],
+    "recommended_ranges": {
+      "copper_mg_per_kg_max": 10,
+      "protein_percent_max": 20
+    },
+    "notes": "Moderate high-quality protein, restrict copper for hepatic copper storage disease."
+  },
+  "Food Allergy - Chicken": {
+    "restricted_ingredients": [
+      "chicken",
+      "chicken meal",
+      "chicken fat",
+      "chicken liver",
+      "chicken by-product",
+      "poultry"
+    ],
+    "notes": "Strict avoidance of all chicken-derived ingredients."
+  },
+  "Food Allergy - Beef": {
+    "restricted_ingredients": [
+      "beef",
+      "beef meal",
+      "beef tallow",
+      "beef liver",
+      "beef by-product"
+    ],
+    "notes": "Strict avoidance of all beef-derived ingredients."
+  },
+  "Food Allergy - Grain": {
+    "restricted_ingredients": [
+      "wheat",
+      "corn",
+      "soy",
+      "barley",
+      "oats",
+      "wheat gluten",
+      "corn gluten"
+    ],
+    "notes": "Use grain-free formulations. Watch for hidden grain derivatives."
+  },
+  "Obesity": {
+    "restricted_ingredients": [
+      "excessive fat",
+      "sugar",
+      "corn syrup"
+    ],
+    "recommended_ranges": {
+      "fat_percent_max": 12,
+      "fiber_percent_min": 5,
+      "calories_per_cup_max": 300
+    },
+    "notes": "Calorie restriction with high fiber for satiety."
+  },
+  "Inflammatory Bowel Disease": {
+    "restricted_ingredients": [
+      "artificial preservatives",
+      "BHA",
+      "BHT",
+      "ethoxyquin",
+      "artificial colors",
+      "high fat"
+    ],
+    "recommended_ranges": {
+      "fat_percent_max": 15
+    },
+    "notes": "Novel protein or hydrolyzed diet preferred. Avoid common allergens."
+  }
+}

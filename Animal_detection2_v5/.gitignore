@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.pyc
+
+# PyCharm
+.idea/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Build and Distribution
+build/
+dist/
+*.egg-info/
+*.egg
+*.spec
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Logs
+*.log
+
+# Local configuration
+*.local
+.env

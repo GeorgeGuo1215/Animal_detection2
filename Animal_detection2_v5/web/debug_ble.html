@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BLE Debug</title>
+    <script src="bluetooth.js?v=20260113-4"></script>
+    <script src="radar-processor.js"></script>
+    <script src="app.js"></script>
+</head>
+<body>
+    <h1>BLE Debug Page</h1>
+    <div id="debug-info"></div>
+    <button onclick="testBLE()">Test BLE</button>
+    <button onclick="testApp()">Test App</button>
+
+    <script>
+        function testBLE() {
+            const debug = document.getElementById('debug-info');
+            debug.innerHTML = '';
+
+            if (window.BLE) {
+                debug.innerHTML += '✅ BLE object exists<br>';
+                debug.innerHTML += 'BLE type: ' + typeof BLE + '<br>';
+                debug.innerHTML += 'BLE methods: ' + Object.getOwnPropertyNames(Object.getPrototypeOf(BLE)).join(', ') + '<br>';
+            } else {
+                debug.innerHTML += '❌ BLE object not found<br>';
+            }
+        }
+
+        function testApp() {
+            const debug = document.getElementById('debug-info');
+            debug.innerHTML = '';
+
+            try {
+                if (window.app) {
+                    debug.innerHTML += '✅ App exists<br>';
+                    debug.innerHTML += 'App type: ' + typeof app + '<br>';
+                } else {
+                    debug.innerHTML += '❌ App not found, creating...<br>';
+                    window.app = new RadarWebApp();
+                    debug.innerHTML += '✅ App created<br>';
+                }
+
+                if (app && app.processor) {
+                    debug.innerHTML += '✅ Processor exists<br>';
+                    debug.innerHTML += 'Processor fs: ' + app.processor.fs + '<br>';
+                } else {
+                    debug.innerHTML += '❌ Processor not found<br>';
+                }
+
+            } catch (e) {
+                debug.innerHTML += '❌ Error: ' + e.message + '<br>';
+                debug.innerHTML += 'Stack: ' + e.stack + '<br>';
+            }
+        }
+
+        // Auto test on load
+        window.onload = function() {
+            setTimeout(testBLE, 100);
+            setTimeout(testApp, 200);
+        };
+    </script>
+</body>
+</html>

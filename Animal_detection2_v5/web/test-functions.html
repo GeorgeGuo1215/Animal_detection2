@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>函数导出测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-box {
+            background: white;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            background: #007bff;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 睡眠监测函数导出测试</h1>
+    
+    <div class="test-box">
+        <h3>1. 脚本加载检查</h3>
+        <div id="script-status">等待检查...</div>
+    </div>
+
+    <div class="test-box">
+        <h3>2. 函数导出检查</h3>
+        <div id="function-status">等待检查...</div>
+    </div>
+
+    <div class="test-box">
+        <h3>3. 测试按钮</h3>
+        <button onclick="testStartSleep()">测试 startSleepMonitor()</button>
+        <div id="button-status"></div>
+    </div>
+
+    <div class="test-box">
+        <h3>4. 控制台日志</h3>
+        <pre id="console-log" style="background: #f8f9fa; padding: 10px; max-height: 300px; overflow-y: auto;"></pre>
+    </div>
+
+    <!-- 加载所有依赖 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="fft.js"></script>
+    <script src="bluetooth.js"></script>
+    <script src="radar-processor.js"></script>
+    <script src="azure-gpt.js"></script>
+    <script src="resting-monitor.js"></script>
+    <script src="activity-monitor.js"></script>
+    <script src="sleep-monitor.js?v=20260128-1"></script>
+    <script src="app.js?v=20260122-sleep"></script>
+
+    <script>
+        // 拦截控制台输出
+        const consoleLog = document.getElementById('console-log');
+        const originalLog = console.log;
+        const originalError = console.error;
+
+        function addLog(type, ...args) {
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            consoleLog.textContent += `[${type}] ${message}\n`;
+            consoleLog.scrollTop = consoleLog.scrollHeight;
+        }
+
+        console.log = function(...args) {
+            addLog('LOG', ...args);
+            originalLog.apply(console, args);
+        };
+
+        console.error = function(...args) {
+            addLog('ERROR', ...args);
+            originalError.apply(console, args);
+        };
+
+        // 页面加载后检查
+        window.addEventListener('load', function() {
+            setTimeout(() => {
+                checkScripts();
+                checkFunctions();
+            }, 500);
+        });
+
+        function checkScripts() {
+            let html = '';
+            const required = ['Chart', 'FFT', 'BLE', 'RadarDataProcessor', 'SleepMonitor'];
+            let allLoaded = true;
+
+            required.forEach(name => {
+                const exists = typeof window[name] !== 'undefined';
+                if (!exists) allLoaded = false;
+                const className = exists ? 'success' : 'error';
+                const icon = exists ? '✅' : '❌';
+                html += `<div class="status ${className}">${icon} ${name}</div>`;
+            });
+
+            document.getElementById('script-status').innerHTML = html;
+            return allLoaded;
+        }
+
+        function checkFunctions() {
+            let html = '';
+            const functions = [
+                'startSleepMonitor',
+                'stopSleepMonitor',
+                'resetSleepData',
+                'generateSleepReport',
+                'updateSleepDisplay',
+                'sleepLog'
+            ];
+            let allExported = true;
+
+            functions.forEach(name => {
+                const exists = typeof window[name] === 'function';
+                if (!exists) allExported = false;
+                const className = exists ? 'success' : 'error';
+                const icon = exists ? '✅' : '❌';
+                html += `<div class="status ${className}">${icon} window.${name} = ${typeof window[name]}</div>`;
+            });
+
+            if (allExported) {
+                html += '<div class="status success"><strong>🎉 所有函数已正确导出！</strong></div>';
+            } else {
+                html += '<div class="status error"><strong>⚠️ 部分函数未导出，请检查app.js</strong></div>';
+            }
+
+            document.getElementById('function-status').innerHTML = html;
+            return allExported;
+        }
+
+        function testStartSleep() {
+            const statusDiv = document.getElementById('button-status');
+            
+            try {
+                console.log('🧪 测试调用 startSleepMonitor()...');
+                
+                if (typeof startSleepMonitor !== 'function') {
+                    throw new Error('startSleepMonitor 不是函数');
+                }
+
+                // 尝试调用（可能会因为app未初始化而alert）
+                startSleepMonitor();
+                
+                statusDiv.innerHTML = '<div class="status success">✅ 函数调用成功（查看控制台）</div>';
+            } catch (e) {
+                statusDiv.innerHTML = `<div class="status error">❌ 错误: ${e.message}</div>`;
+                console.error('测试失败:', e);
+            }
+        }
+    </script>
+</body>
+</html>

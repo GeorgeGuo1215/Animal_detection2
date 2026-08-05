@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>🐾 宠物健康分析与对话（Agent）</title>
+  <link rel="stylesheet" href="style.css?v=20260120-1">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="fft.js?v=20260113-1"></script>
+  <script src="radar-processor.js?v=20260113-1"></script>
+  <style>
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .card { background:#fff; border:1px solid #eee; border-radius:10px; padding:12px; }
+    .chat-box { height: 360px; overflow:auto; border:1px solid #eee; border-radius:10px; padding:12px; background:#fff; }
+    .msg { margin: 10px 0; }
+    .msg .role { font-weight:700; margin-right:6px; }
+    .msg.user .role { color:#0d6efd; }
+    .msg.assistant .role { color:#198754; }
+    .muted { color:#666; font-size:0.9rem; }
+    textarea { width:100%; }
+    .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#f2f6ff; border:1px solid #dbe6ff; font-size:0.85rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🐾 宠物健康分析与对话（Agent）</h1>
+      <p class="subtitle">上传原始记录（TXT/JSON）→ 自动解析 → 调用 Agent + RAG 生成解读 → 继续对话追问</p>
+      <p class="muted">提示：你给的蓝牙样例是 TXT（三列：时间戳 + I + Q）。本页也支持上传“事件 JSON”（含 signals.vitals/temperature/accel）。</p>
+      <div class="row">
+        <a class="btn btn-secondary" href="index.html">⬅️ 返回原页面</a>
+        <span class="pill">不影响原页面逻辑</span>
+      </div>
+    </header>
+
+    <section class="upload-section">
+      <h2>1) 配置</h2>
+      <div class="row">
+        <label>Agent API Base URL：</label>
+        <input id="agentBaseUrl" type="text" style="min-width:360px" placeholder="例如：http://127.0.0.1:8000 或 https://your-domain" />
+        <button class="btn btn-primary" id="saveAgentBaseBtn">保存</button>
+        <span class="muted">（前端将请求：<span class="mono">/agent/plan_and_solve</span>）</span>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <label>animal_id：</label>
+        <input id="animalId" type="text" placeholder="dog_001" style="width:140px" />
+        <label>物种：</label>
+        <select id="species" style="width:140px">
+          <option value="dog">dog</option>
+          <option value="cat">cat</option>
+          <option value="other">other</option>
+        </select>
+        <label>采样率(Hz)：</label>
+        <input id="samplingRate" type="number" value="50" min="1" max="1000" style="width:110px" />
+      </div>
+    </section>
+
+    <section class="upload-section">
+      <h2>2) 上传原始文件（TXT/JSON）</h2>
+      <div class="card">
+        <div class="row">
+          <input type="file" id="petFileInput" accept=".txt,.json,.jsonl" />
+          <button class="btn btn-primary" id="parseBtn">解析</button>
+          <button class="btn btn-success" id="analyzeBtn" disabled>🩺 调用 Agent 生成分析</button>
+        </div>
+        <div class="muted" style="margin-top:8px;">
+          - TXT：每行建议形如 <span class="mono">YYYY-MM-DD HH:MM:SS  I  Q</span><br/>
+          - JSON：支持你工作流事件结构：<span class="mono">{ event_id, ts, animal, device, signals: { vitals/temperature/accel } }</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="results-section" id="summarySection" style="display:none;">
+      <h2>3) 解析摘要</h2>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">💓</div>
+          <div class="stat-content">
+            <div class="stat-label">心率</div>
+            <div class="stat-value" id="sumHR">-- bpm</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🫁</div>
+          <div class="stat-content">
+            <div class="stat-label">呼吸</div>
+            <div class="stat-value" id="sumRR">-- bpm</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">⏱️</div>
+          <div class="stat-content">
+            <div class="stat-label">时长</div>
+            <div class="stat-value" id="sumDur">--</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">📦</div>
+          <div class="stat-content">
+            <div class="stat-label">样本数</div>
+            <div class="stat-value" id="sumN">--</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px;">
+        <div class="muted">解析后的结构化摘要（将作为 Agent 的输入）：</div>
+        <pre class="mono" id="summaryJson" style="white-space:pre-wrap; margin:0; margin-top:8px;"></pre>
+      </div>
+    </section>
+
+    <section class="results-section" id="agentReportSection" style="display:none;">
+      <h2>4) Agent 分析报告</h2>
+      <div class="card">
+        <div class="muted">Trace ID：<span class="mono" id="traceId">--</span></div>
+        <div id="agentAnswer" style="white-space:pre-wrap; margin-top:10px;"></div>
+      </div>
+    </section>
+
+    <section class="results-section" id="chatSection" style="display:none;">
+      <h2>5) 宠物健康对话（基于本次数据）</h2>
+      <div class="chat-box" id="chatBox"></div>
+      <div class="row" style="margin-top:10px;">
+        <textarea id="chatInput" rows="2" placeholder="例如：这只狗现在风险大吗？需要马上就医吗？日常怎么调整？"></textarea>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button class="btn btn-primary" id="sendChatBtn">发送</button>
+        <button class="btn btn-secondary" id="clearChatBtn">清空对话</button>
+        <span class="muted">对话会自动带上“解析摘要 + 已生成的报告”作为上下文。</span>
+      </div>
+    </section>
+  </div>
+
+  <script src="pet_health.js?v=20260120-1"></script>
+</body>
+</html>
+

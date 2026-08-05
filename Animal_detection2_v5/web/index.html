@@ -1,0 +1,1811 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- 防止浏览器缓存旧版 index.html（否则会出现“明明改了代码但页面仍显示旧版/缺少IMU单元”的情况） -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>毫米波雷达数据处理系统 - Web版</title>
+    <link rel="stylesheet" href="style.css?v=20260417-huemint">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="fft.js?v=20260302-2"></script>
+    <script src="cwt-vitals.js?v=20260721-low-bias-guard-v5"></script>
+    <script src="vitals-tracker.js?v=20260721-low-bias-guard-v5"></script>
+    <script src="bluetooth.js?v=20260721-low-bias-guard-v5"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎯 毫米波雷达数据处理系统</h1>
+            <p class="subtitle">基于Web的生理信号分析工具 · 算法构建 v5（2026-07-21 低频伪峰防自锁版）</p>
+            <a href="chat.html" class="btn btn-primary"
+               style="display:inline-block;margin-top:10px;padding:12px 28px;font-size:16px;font-weight:700;
+                      background:linear-gradient(135deg,#637b8f,#585671);color:#fff;border-radius:12px;
+                      text-decoration:none;box-shadow:0 4px 14px rgba(99,123,143,.35);
+                      transition:transform .2s,box-shadow .2s;"
+               onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(88,86,113,.45)'"
+               onmouseout="this.style.transform='';this.style.boxShadow='0 4px 14px rgba(99,123,143,.35)'"
+            >💬 智能对话 — PetMind / PandaMind</a>
+        </header>
+
+        <div class="main-content">
+            <!-- 蓝牙实时数据区域 -->
+            <section class="upload-section">
+                <h2>📶 蓝牙实时数据接口</h2>
+
+                <!-- 保存的设备信息 -->
+                <div id="bleSavedDevice" style="display:none; background: rgba(173,202,218,0.2); border:1px solid #adcada; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                </div>
+
+                <div class="file-actions">
+                    <button class="btn btn-primary" id="bleConnectBtn" onclick="bleConnect()">连接蓝牙</button>
+                    <button class="btn btn-success" id="bleReconnectBtn" onclick="bleReconnect()" style="display:none;">快速重连</button>
+                    <button class="btn btn-secondary" id="bleDisconnectBtn" onclick="bleDisconnect()">断开</button>
+                    <button class="btn btn-warning" id="bleClearSavedBtn" onclick="bleClearSaved()" style="display:none;">清除保存</button>
+                    <button class="btn btn-success" id="bleStartRecordBtn" onclick="bleStartRecording()">开始记录</button>
+                    <button class="btn btn-danger" id="bleStopRecordBtn" onclick="bleStopRecording()" style="display:none;">结束记录</button>
+                    <button class="btn btn-info" id="bleShowChartsBtn" onclick="showBluetoothCharts()">显示蓝牙图表</button>
+                    <button class="btn btn-secondary" id="bleDiagBtn" onclick="bleQuickDiagnose()">连接诊断(复制)</button>
+                    <button class="btn btn-primary" id="bleAzureBtn" onclick="bleAzureDiagnose()" style="margin-left:10px;">AI诊断(本次录制)</button>
+                    <button class="btn btn-warning" onclick="startSimulationTest()" style="margin-left:10px;">模拟测试</button>
+                </div>
+
+                <div class="ble-upload-config">
+                    <label for="bleUploadUrl">上报接口:</label>
+                    <input id="bleUploadUrl" type="text" placeholder="http://127.0.0.1:9001/ingest" class="input-url">
+                    <label for="bleAnimalId">animal_id:</label>
+                    <input id="bleAnimalId" type="text" placeholder="dog_001" class="input-sm">
+                    <label for="bleDeviceId">device_id:</label>
+                    <input id="bleDeviceId" type="text" placeholder="ble_device_01" class="input-md">
+                    <label for="bleUploadInterval">间隔(s):</label>
+                    <input id="bleUploadInterval" type="number" min="5" value="10" class="input-xs">
+                    <button class="btn btn-success" id="bleStartUploadBtn" onclick="bleStartUpload()" style="display:none;">开始上传</button>
+                    <button class="btn btn-danger" id="bleStopUploadBtn" onclick="bleStopUpload()" style="display:none;">停止上传</button>
+                    <span id="bleUploadStatus">未上传</span>
+                </div>
+
+                <div class="ble-pet-profile">
+                    <div class="ble-pet-profile-title">🐾 宠物档案（录制时一并保存）</div>
+                    <label for="blePetName">名称:</label>
+                    <input id="blePetName" type="text" placeholder="如 豆豆" class="input-sm">
+                    <label for="blePetSpecies">物种:</label>
+                    <select id="blePetSpecies" class="input-sm">
+                        <option value="dog">狗</option>
+                        <option value="cat">猫</option>
+                        <option value="other">其他</option>
+                    </select>
+                    <label for="blePetBreed">品种:</label>
+                    <input id="blePetBreed" type="text" placeholder="如 金毛" class="input-sm">
+                    <label for="blePetAgeYears">年龄(岁):</label>
+                    <input id="blePetAgeYears" type="number" min="0" value="0" class="input-xs">
+                    <label for="blePetAgeMonths">月龄:</label>
+                    <input id="blePetAgeMonths" type="number" min="0" max="11" value="0" class="input-xs">
+                    <label for="blePetSex">性别:</label>
+                    <select id="blePetSex" class="input-xs">
+                        <option value="unknown">未知</option>
+                        <option value="male">公</option>
+                        <option value="female">母</option>
+                    </select>
+                    <label for="blePetWeight">体重(kg):</label>
+                    <input id="blePetWeight" type="number" min="0" step="0.1" placeholder="10" class="input-xs">
+                    <label for="blePetCondition">病情/备注:</label>
+                    <input id="blePetCondition" type="text" placeholder="如 术后恢复、咳嗽" class="input-condition">
+                </div>
+                
+                <!-- 连接状态和实时数据显示 -->
+                <div class="ble-status">
+                    <div class="status-log" id="bleLog"></div>
+                    
+                    <!-- 实时数据监控 -->
+                    <div id="bleRealTimeData" style="display:none;">
+                        <h4>📡 实时数据流（实时数据进入下方“蓝牙实时数据图表”）:</h4>
+                        <div class="realtime-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">目标频率:</span>
+                                <span class="stat-value" id="bleTargetFs" style="color:#637b8f;font-weight:600;">50 Hz</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">实际接收频率:</span>
+                                <span class="stat-value" id="bleActualFs" title="悬停查看状态">-- Hz</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">配置状态:</span>
+                                <span class="stat-value" id="bleConfigStatus" style="color:#aaa;">等待连接...</span>
+                                <button id="bleReconfigBtn" onclick="window.app && window.app._autoConfigTcycleWithRetry(3)" style="margin-left:8px;padding:2px 10px;font-size:12px;cursor:pointer;border:1px solid #637b8f;background:rgba(173,202,218,0.15);color:#637b8f;border-radius:4px;display:none;">重新配置 50Hz</button>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">当前协议:</span>
+                                <span class="stat-value" id="bleProtocol" style="color:#aaa;">未连接</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">接收数据点:</span>
+                                <span class="stat-value" id="bleDataCount">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">丢帧统计:</span>
+                                <span class="stat-value" id="bleMissedFrames">0 / 0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">丢包率:</span>
+                                <span class="stat-value" id="blePacketLoss">-- %</span>
+                            </div>
+                            <div class="stat-item" style="grid-column: 1/-1;">
+                                <span class="stat-label">频率达标率:</span>
+                                <div style="display:flex;align-items:center;gap:8px;flex:1;">
+                                    <div style="flex:1;height:14px;background:#333;border-radius:7px;overflow:hidden;">
+                                        <div id="bleFreqBar" style="height:100%;width:0%;background:#5a9070;border-radius:7px;transition:width 0.3s;"></div>
+                                    </div>
+                                    <span id="bleFreqBarText" class="stat-value" style="min-width:50px;">0%</span>
+                                </div>
+                            </div>
+                            <div class="stat-item" style="grid-column: 1/-1; margin-top:6px;">
+                                <span class="stat-label" style="font-weight:600;">📡 设备采样周期设置：</span>
+                                <span style="font-size:0.82em;color:#aaa;">（心率检测需 ≥6Hz，推荐50Hz）</span>
+                                <div style="display:flex;gap:6px;margin-top:4px;align-items:center;flex-wrap:wrap;">
+                                    <button onclick="if(app)app.sendTcycleCommand(20)"
+                                        style="padding:4px 10px;background:#637b8f;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85em;">
+                                        50Hz
+                                    </button>
+                                    <button onclick="if(app)app.sendTcycleCommand(50)"
+                                        style="padding:4px 10px;background:#7a8fa0;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85em;">
+                                        20Hz
+                                    </button>
+                                    <button onclick="if(app)app.sendTcycleCommand(100)"
+                                        style="padding:4px 10px;background:#5a9070;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85em;">
+                                        10Hz
+                                    </button>
+                                    <button onclick="if(app)app.sendTcycleCommand(200)"
+                                        style="padding:4px 10px;background:#b8935a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85em;">
+                                        5Hz
+                                    </button>
+                                    <button onclick="if(app)app.sendTcycleCommand(500)"
+                                        style="padding:4px 10px;background:#857780;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85em;">
+                                        2Hz
+                                    </button>
+                                    <span style="font-size:0.8em;color:#857780;">|</span>
+                                    <input id="tcycleCustomMs" type="number" min="10" max="10000" value="20" placeholder="ms"
+                                        style="width:60px;padding:3px 6px;border-radius:5px;border:1px solid #adcada;background:#2a2935;color:#e0ddef;font-size:0.85em;">
+                                    <span style="font-size:0.8em;color:#9f9c9d;">ms</span>
+                                    <button onclick="var ms=parseInt(document.getElementById('tcycleCustomMs').value);if(app&&ms)app.sendTcycleCommand(ms);"
+                                        style="padding:4px 10px;background:#585671;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85em;">
+                                        发送
+                                    </button>
+                                </div>
+                                <div style="margin-top:4px;font-size:0.78em;color:#888;">
+                                    指令格式：$AT+Tcycle=&lt;ms&gt;*\r\n（范围 10-10000ms）
+                                    · Web Bluetooth 不支持 MTU 协商，使用系统默认值
+                                </div>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">当前心率:</span>
+                                <span class="stat-value" id="bleCurrentHR">-- bpm</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">当前呼吸:</span>
+                                <span class="stat-value" id="bleCurrentResp">-- bpm</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">跟踪心率:</span>
+                                <span class="stat-value" id="vitalsHRNew" style="color:#adcada;font-weight:600;">-- bpm</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">跟踪呼吸:</span>
+                                <span class="stat-value" id="vitalsRRNew" style="color:#adcada;font-weight:600;">-- bpm</span>
+                            </div>
+                            <div class="stat-item" style="grid-column: 1/-1;">
+                                <span class="stat-label" style="font-weight:600;">相位心率呼吸算法:</span>
+                                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:1;">
+                                    <select id="vitalsMethodSelect" onchange="if(app)app.changeVitalsMethod(this.value)"
+                                            style="padding:4px 8px;border-radius:5px;border:1px solid #adcada;background:#2a2935;color:#e0ddef;">
+                                        <option value="freqBP">相位频域带通(快速)</option>
+                                        <option value="cwt" selected>相位CWT滤波器组(精细)</option>
+                                    </select>
+                                    <label style="font-size:0.85em;color:#aaa;">滑窗(s):
+                                        <input id="vitalsWindowSec" type="number" min="12" max="120" value="20"
+                                               onchange="if(app)app.updateVitalsSettings()"
+                                               style="width:56px;padding:3px 6px;border-radius:5px;border:1px solid #adcada;background:#2a2935;color:#e0ddef;">
+                                    </label>
+                                    <label style="font-size:0.85em;color:#aaa;">周期(s):
+                                        <input id="vitalsPeriodSec" type="number" min="1" max="30" value="1"
+                                               onchange="if(app)app.updateVitalsSettings()"
+                                               style="width:56px;padding:3px 6px;border-radius:5px;border:1px solid #adcada;background:#2a2935;color:#e0ddef;">
+                                    </label>
+                                    <button onclick="if(app)app.runVitalsFullDiagnostic()"
+                                            style="padding:4px 12px;background:#585671;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85em;">
+                                        完整诊断
+                                    </button>
+                                    <span id="vitalsMotionStatus" title="实时值与运动保持值会明确区分；持续强运动时不会把晃动当成心率"
+                                          style="padding:3px 8px;border-radius:999px;background:#3a3848;color:#bdb9ca;font-size:0.80em;">等待可靠测量</span>
+                                    <span id="vitalsRuntime" title="相位算法使用局部运动分段、20秒短窗和30秒长窗校验；运动时保留最近可靠值并标记新鲜度" style="font-size:0.82em;color:#999;">未启动</span>
+                                </div>
+                            </div>
+                            <div id="vitalsDiagnosticPanel" class="stat-item" style="grid-column: 1/-1; display:none; min-height:260px;">
+                                <span class="stat-label">新算法频谱:</span>
+                                <canvas id="vitalsSpectrumChart" style="width:100%;max-height:260px;"></canvas>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">I/Q 调试:</span>
+                                <span class="stat-value" id="bleCurrentIQ">--</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">陀螺仪 (Gyr):</span>
+                                <span class="stat-value" id="bleCurrentGyr">--</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">加速度 (Acc):</span>
+                                <span class="stat-value" id="bleCurrentAcc">--</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">当前温度:</span>
+                                <span class="stat-value" id="bleCurrentTemp">-- °C</span>
+                            </div>
+                        </div>
+                        <div class="raw-data-log" id="bleRawDataLog">
+                            <strong>原始数据:</strong><br/>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 姿态解算模块 -->
+            <section class="upload-section attitude-section" id="attitudeSection">
+                <h2>🎯 IMU 姿态解算</h2>
+                <p class="section-desc">
+                    基于加速度计和陀螺仪数据进行实时姿态解算,支持 Madgwick 和互补滤波器算法
+                </p>
+
+                <div class="file-actions">
+                    <button class="btn btn-primary" id="attitudeEnableBtn" onclick="toggleAttitude()">启用姿态解算</button>
+                    <select id="attitudeAlgorithm" onchange="changeAttitudeAlgorithm()" style="margin-left: 10px; padding: 8px;">
+                        <option value="madgwick">Madgwick 滤波器</option>
+                        <option value="complementary">互补滤波器</option>
+                    </select>
+                    <label style="margin-left: 15px;">
+                        灵敏度:
+                        <input type="range" id="attitudeBeta" min="0.1" max="2.0" step="0.1" value="0.5"
+                               onchange="adjustAttitudeSensitivity()" style="width: 150px; vertical-align: middle;">
+                        <span id="attitudeBetaValue">0.5</span>
+                    </label>
+                </div>
+
+                <div id="attitudeDisplay" style="display:none; margin-top: 20px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <!-- 3D 可视化 -->
+                        <div>
+                            <h3>3D 姿态可视化</h3>
+                            <div id="attitude3DContainer" style="width: 100%; height: 400px; background: #1a1a2e; border-radius: 8px;"></div>
+                        </div>
+
+                        <!-- 数据显示 -->
+                        <div>
+                            <h3>姿态数据</h3>
+                            <div class="attitude-data-panel">
+                                <div class="attitude-data-group">
+                                    <h4>欧拉角 (度)</h4>
+                                    <div class="attitude-data-item">
+                                        <span>Pitch (俯仰):</span>
+                                        <span id="attitudePitch">0.0°</span>
+                                    </div>
+                                    <div class="attitude-data-item">
+                                        <span>Roll (横滚):</span>
+                                        <span id="attitudeRoll">0.0°</span>
+                                    </div>
+                                    <div class="attitude-data-item">
+                                        <span>Yaw (偏航):</span>
+                                        <span id="attitudeYaw">0.0°</span>
+                                    </div>
+                                </div>
+
+                                <div class="attitude-data-group">
+                                    <h4>四元数</h4>
+                                    <div class="attitude-data-item">
+                                        <span>W:</span>
+                                        <span id="attitudeQW">1.000</span>
+                                    </div>
+                                    <div class="attitude-data-item">
+                                        <span>X:</span>
+                                        <span id="attitudeQX">0.000</span>
+                                    </div>
+                                    <div class="attitude-data-item">
+                                        <span>Y:</span>
+                                        <span id="attitudeQY">0.000</span>
+                                    </div>
+                                    <div class="attitude-data-item">
+                                        <span>Z:</span>
+                                        <span id="attitudeQZ">0.000</span>
+                                    </div>
+                                </div>
+
+                                <div class="attitude-data-group">
+                                    <h4>角速度 (deg/s)</h4>
+                                    <div class="attitude-data-item">
+                                        <span>Gx:</span>
+                                        <span id="attitudeGx">0.0</span>
+                                    </div>
+                                    <div class="attitude-data-item">
+                                        <span>Gy:</span>
+                                        <span id="attitudeGy">0.0</span>
+                                    </div>
+                                    <div class="attitude-data-item">
+                                        <span>Gz:</span>
+                                        <span id="attitudeGz">0.0</span>
+                                    </div>
+                                </div>
+
+                                <!-- 姿态数据标注与记录 -->
+                                <div class="attitude-data-group" style="border: 2px solid #FF9800; border-radius: 8px; padding: 12px; background: #2e1a0a; margin-bottom: 15px;">
+                                    <h4 style="color:#FF9800; margin-bottom: 15px;">📝 姿态数据标注与记录</h4>
+
+                                    <!-- 手动标注选择 -->
+                                    <div style="margin-bottom: 15px;">
+                                        <label style="display: block; color: #FFB74D; font-weight: bold; margin-bottom: 8px;">✏️ 选择当前真实姿态:</label>
+                                        <select id="manualPostureInput" style="width: 100%; padding: 10px; font-size: 1.1em; border-radius: 4px; background: #1a1a1a; color: #fff; border: 2px solid #FF9800;">
+                                            <option value="">-- 请选择当前真实状态 --</option>
+                                            <option value="初始佩戴静止" style="background: #2196F3; font-weight: bold;">⚙️ 初始佩戴静止（校准）</option>
+                                            <option value="" disabled>────────────────</option>
+                                            <option value="站立">🐾 站立</option>
+                                            <option value="左侧躺">😴 左侧躺</option>
+                                            <option value="右侧躺">😴 右侧躺</option>
+                                            <option value="趴卧">🐕 趴卧</option>
+                                            <option value="仰卧">🐾 仰卧</option>
+                                            <option value="低头进食">🌿 低头进食</option>
+                                            <option value="行走/活动">🚶 行走/活动</option>
+                                            <option value="奔跑">🏃 奔跑</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- 当前标注状态显示 -->
+                                    <div style="background: #1a1a1a; padding: 10px; border-radius: 4px; margin-bottom: 15px; border-left: 4px solid #FFB74D;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <span style="color: #999;">当前标注:</span>
+                                            <span id="manualPostureDisplay" style="color:#FFB74D; font-weight:bold; font-size: 1.2em;">未标注</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- 记录控制按钮 -->
+                                    <div style="display: flex; gap: 8px; margin-bottom: 15px;">
+                                        <button id="postureRecordStartBtn" onclick="togglePostureRecording()"
+                                                style="flex: 2; padding: 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1em; font-weight: bold;">
+                                            🔴 开始记录姿态
+                                        </button>
+                                        <button onclick="diagnosePostureRecording()"
+                                                style="flex: 1; padding: 12px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9em;">
+                                            🔍 诊断
+                                        </button>
+                                    </div>
+
+                                    <!-- 记录统计 -->
+                                    <div style="background: #1a1a1a; padding: 12px; border-radius: 4px; border-left: 4px solid #2196F3;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                            <span style="color: #64B5F6; font-weight: bold;">📊 已记录数据:</span>
+                                            <div style="display: flex; gap: 10px; align-items: center;">
+                                                <span id="postureRecordCount" style="color:#4CAF50; font-weight:bold; font-size: 1.3em;">0</span>
+                                                <span style="color: #999;">条</span>
+                                                <button id="exportPostureDataBtn" onclick="exportCurrentPostureData()"
+                                                        style="padding: 6px 12px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85em;">
+                                                    📥 导出
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <!-- 数据预览 -->
+                                        <div style="margin-top: 10px; padding: 10px; background: #000; border-radius: 4px; font-family: monospace; font-size: 0.85em; max-height: 180px; overflow-y: auto;" id="postureDataPreview">
+                                            <div style="color: #888;">等待记录数据...</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 动物姿态判断 -->
+                                <div class="attitude-data-group" style="border: 2px solid #4CAF50; border-radius: 8px; padding: 12px; background: #1a2e1a;">
+                                    <h4 style="color:#4CAF50;">🐾 系统自动判断</h4>
+                                    <div class="attitude-data-item" style="font-size:1.3em; font-weight:bold;">
+                                        <span>判断姿态:</span>
+                                        <span id="animalPostureLabel" style="color:#7fff7f;">--</span>
+                                    </div>
+                                    <div class="attitude-data-item">
+                                        <span>置信度:</span>
+                                        <span id="animalPostureConf">--</span>
+                                    </div>
+                                    <div class="attitude-data-item">
+                                        <span>加速度幅值:</span>
+                                        <span id="animalAccMag">-- g</span>
+                                    </div>
+                                    <div class="attitude-data-item">
+                                        <span>角速度幅值:</span>
+                                        <span id="animalGyrMag">-- °/s</span>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 静息心率监测模块（独立模块） -->
+            <section class="upload-section resting-section">
+                <h2>🛌 静息心率呼吸率长期监测</h2>
+                <p class="section-desc">
+                    系统将通过活动监测模块自动判断宠物是否处于静息状态，只在静息时记录心率和呼吸率
+                </p>
+                
+                <!-- 控制按钮 -->
+                <div class="file-actions">
+                    <button class="btn btn-success" id="restingStartBtn" onclick="startRestingMonitor()">
+                        🎯 开始静息监测
+                    </button>
+                    <button class="btn btn-danger" id="restingStopBtn" onclick="stopRestingMonitor()" style="display:none;">
+                        ⏹️ 停止监测
+                    </button>
+                    <button class="btn btn-primary" id="restingSaveBtn" onclick="saveRestingData()" style="display:none;">
+                        💾 保存数据
+                    </button>
+                    <button class="btn btn-info" id="restingConfigBtn" onclick="configRestingMonitor()" style="display:none;">
+                        ⚙️ 配置参数
+                    </button>
+                    <button class="btn btn-secondary" id="restingClearBtn" onclick="clearRestingData()" style="display:none;">
+                        🗑️ 清空数据
+                    </button>
+                </div>
+                
+                <!-- 状态面板 -->
+                <div id="restingStatusPanel" class="resting-status-panel" style="display:none;">
+                    <h4 class="panel-title">📊 监测状态</h4>
+                    
+                    <div class="resting-stats-grid">
+                        <div class="resting-stat-card">
+                            <div class="resting-stat-label">当前状态</div>
+                            <div class="resting-stat-value" id="restingStateText">🚶 活动中</div>
+                        </div>
+                        <div class="resting-stat-card">
+                            <div class="resting-stat-label">本次静息持续</div>
+                            <div class="resting-stat-value" id="restingCurrentDuration">-- 秒</div>
+                        </div>
+                        <div class="resting-stat-card">
+                            <div class="resting-stat-label">已记录数据</div>
+                            <div class="resting-stat-value" id="restingTotalRecords">0 条</div>
+                        </div>
+                        <div class="resting-stat-card">
+                            <div class="resting-stat-label">平均静息心率</div>
+                            <div class="resting-stat-value" id="restingAvgHR" style="color:#dc3545;">-- bpm</div>
+                        </div>
+                        <div class="resting-stat-card">
+                            <div class="resting-stat-label">平均静息呼吸</div>
+                            <div class="resting-stat-value" id="restingAvgRR" style="color:#5a9070;">-- bpm</div>
+                        </div>
+                    </div>
+
+                    <!-- 实时静息数据 -->
+                    <div class="resting-info-box" style="background: linear-gradient(135deg, #637b8f 0%, #585671 100%); color: white; margin-top: 20px;">
+                        <strong>💓 实时静息数据</strong>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 15px;">
+                            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px;">
+                                <div style="font-size: 12px; opacity: 0.9;">当前心率</div>
+                                <div id="restingCurrentHR" style="font-size: 24px; font-weight: bold; margin: 5px 0;">-- bpm</div>
+                                <div style="font-size: 11px; opacity: 0.8;">静息状态</div>
+                            </div>
+                            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px;">
+                                <div style="font-size: 12px; opacity: 0.9;">当前呼吸</div>
+                                <div id="restingCurrentRR" style="font-size: 24px; font-weight: bold; margin: 5px 0;">-- bpm</div>
+                                <div style="font-size: 11px; opacity: 0.8;">静息状态</div>
+                            </div>
+                            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px;">
+                                <div style="font-size: 12px; opacity: 0.9;">最后更新</div>
+                                <div id="restingLastUpdate" style="font-size: 24px; font-weight: bold; margin: 5px 0;">--:--:--</div>
+                                <div style="font-size: 11px; opacity: 0.8;">时间</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 实时静息心率图 -->
+                    <div class="resting-stat-card" style="grid-column: span 2; margin-top: 20px;">
+                        <h4>📈 实时静息心率</h4>
+                        <canvas id="restingRealtimeHRChart" style="max-height: 250px;"></canvas>
+                    </div>
+
+                    <!-- 每分钟静息心率图 -->
+                    <div class="resting-stat-card" style="grid-column: span 2;">
+                        <h4>⏱️ 每分钟静息心率</h4>
+                        <canvas id="restingMinuteHRChart" style="max-height: 250px;"></canvas>
+                    </div>
+
+                    <!-- 每小时静息心率图 -->
+                    <div class="resting-stat-card" style="grid-column: span 2;">
+                        <h4>🕐 每小时静息心率</h4>
+                        <canvas id="restingHourlyHRChart" style="max-height: 250px;"></canvas>
+                    </div>
+
+                    <!-- 参数说明 -->
+                    <div class="resting-info-box">
+                        <p>
+                            <strong>💡 当前参数：</strong>
+                            <br/>• IMU 稳定阈值: <strong id="restingThresholdDisplay">2.0</strong>
+                            <br/>• 判定静息时长: <strong id="restingStableDurDisplay">5</strong> 秒
+                            <br/>• 最小记录时长: <strong id="restingMinDurDisplay">10</strong> 秒
+                            <br/><span class="text-muted">点击"配置参数"可调整</span>
+                        </p>
+                    </div>
+                    
+                    <!-- 日志区域 -->
+                    <div class="resting-log-container">
+                        <div id="restingLog"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 活动量与步数监测模块 -->
+            <section class="upload-section activity-section">
+                <h2>🏃 活动量与步数监测</h2>
+                <p class="section-desc">
+                    基于IMU加速度计数据，实时计算活动量(ENMO)、步数和卡路里消耗，提供可视化展示
+                </p>
+
+                <!-- 控制按钮 -->
+                <div class="file-actions">
+                    <button class="btn btn-success" id="activityStartBtn" onclick="startActivityMonitor()">
+                        🎯 开始活动监测
+                    </button>
+                    <button class="btn btn-danger" id="activityStopBtn" onclick="stopActivityMonitor()" style="display:none;">
+                        ⏹️ 停止监测
+                    </button>
+                    <button class="btn btn-warning" id="activityResetBtn" onclick="resetActivityData()" style="display:none;">
+                        🔄 重置今日数据
+                    </button>
+                    <div style="display:inline-block; margin-left: 20px;">
+                        <label>宠物体重(kg):</label>
+                        <input type="number" id="petWeight" value="10.0" min="1" max="100" step="0.5" style="width:80px; padding:5px;">
+                        <label style="margin-left:10px;">步数目标:</label>
+                        <input type="number" id="activityStepsGoal" value="1000" min="100" step="100" style="width:100px; padding:5px;">
+                        <label style="margin-left:10px;">活动量目标:</label>
+                        <input type="number" id="activityENMOGoal" value="100" min="10" max="500" step="10" style="width:100px; padding:5px;">
+                        <label style="margin-left:10px;">卡路里目标(kcal):</label>
+                        <input type="number" id="activityCalorieGoal" value="100" min="10" max="500" step="10" style="width:100px; padding:5px;">
+                        <button class="btn btn-primary" onclick="updateActivityGoals()" style="margin-left:10px;">更新目标</button>
+                    </div>
+                </div>
+
+                <!-- 活动环和统计 -->
+                <div id="activityDashboard" style="display:none;">
+                    <!-- 活动环区域 -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin: 20px 0;">
+                        <div class="resting-stat-card" style="text-align: center; padding: 24px;">
+                            <div style="font-size: 14px; color: #86868b; margin-bottom: 16px;">步数</div>
+                            <div style="position: relative; width: 180px; height: 180px; margin: 0 auto;">
+                                <canvas id="activityStepsRingChart"></canvas>
+                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 28px; font-weight: 700;" id="activityStepsPercent">0%</div>
+                            </div>
+                            <div style="font-size: 32px; font-weight: 700; margin-top: 16px;" id="activityTotalSteps">0</div>
+                            <div style="font-size: 14px; color: #86868b;">目标: <span id="displayStepsGoal">1000</span> 步</div>
+                        </div>
+
+                        <div class="resting-stat-card" style="text-align: center; padding: 24px;">
+                            <div style="font-size: 14px; color: #86868b; margin-bottom: 16px;">活动量 (ENMO)</div>
+                            <div style="position: relative; width: 180px; height: 180px; margin: 0 auto;">
+                                <canvas id="activityENMORingChart"></canvas>
+                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 28px; font-weight: 700;" id="activityENMOPercent">0%</div>
+                            </div>
+                            <div style="font-size: 32px; font-weight: 700; margin-top: 16px;" id="activityTotalENMO">0.00</div>
+                            <div style="font-size: 14px; color: #86868b;">目标: <span id="displayActivityGoal">100</span></div>
+                        </div>
+
+                        <div class="resting-stat-card" style="text-align: center; padding: 24px;">
+                            <div style="font-size: 14px; color: #86868b; margin-bottom: 16px;">卡路里消耗</div>
+                            <div style="position: relative; width: 180px; height: 180px; margin: 0 auto;">
+                                <canvas id="activityCalorieRingChart"></canvas>
+                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 28px; font-weight: 700;" id="activityCaloriePercent">0%</div>
+                            </div>
+                            <div style="font-size: 32px; font-weight: 700; margin-top: 16px;" id="activityTotalCalories">0.00</div>
+                            <div style="font-size: 14px; color: #86868b;">目标: <span id="displayCalorieGoal">100</span> kcal</div>
+                            <div style="font-size: 12px; color: #86868b; margin-top: 8px;">METs: <span id="activityCurrentMETs">1.0</span></div>
+                        </div>
+
+                        <div class="resting-stat-card" style="padding: 24px;">
+                            <div style="font-size: 14px; color: #86868b; margin-bottom: 8px;">当前活动强度</div>
+                            <div style="font-size: 28px; font-weight: 700; margin-bottom: 16px;" id="activityCurrentIntensity">静息</div>
+                            <div style="font-size: 14px; color: #86868b; margin-bottom: 4px;">宠物体重</div>
+                            <div style="font-size: 18px; font-weight: 600; margin-bottom: 12px;" id="activityPetWeight">10.0 kg</div>
+                            <div style="font-size: 14px; color: #86868b; margin-bottom: 4px;">基础代谢(RER)</div>
+                            <div style="font-size: 18px; font-weight: 600; margin-bottom: 12px;" id="activityRER">0 kcal/day</div>
+                            <div style="font-size: 14px; color: #86868b; margin-bottom: 4px;">最后更新</div>
+                            <div style="font-size: 18px; font-weight: 600;" id="activityLastUpdate">--:--:--</div>
+                        </div>
+                    </div>
+
+                    <!-- 图表区域 -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 20px; margin: 20px 0;">
+                        <div class="resting-stat-card" style="padding: 24px;">
+                            <h4 style="margin-bottom: 16px;">📊 每小时步数分布</h4>
+                            <div style="height: 300px;">
+                                <canvas id="activityHourlyStepsChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="resting-stat-card" style="padding: 24px;">
+                            <h4 style="margin-bottom: 16px;">📈 每小时活动量分布</h4>
+                            <div style="height: 300px;">
+                                <canvas id="activityHourlyENMOChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="resting-stat-card" style="padding: 24px;">
+                            <h4 style="margin-bottom: 16px;">🔥 每小时卡路里分布</h4>
+                            <div style="height: 300px;">
+                                <canvas id="activityHourlyCalorieChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin: 20px 0;">
+                        <div class="resting-stat-card" style="padding: 24px;">
+                            <h4 style="margin-bottom: 16px;">📉 实时活动强度趋势 (最近10分钟)</h4>
+                            <div style="height: 300px;">
+                                <canvas id="activityIntensityTrendChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 日志区域 -->
+                    <div class="resting-info-box">
+                        <strong>📝 活动日志:</strong>
+                        <div id="activityLog" style="max-height: 150px; overflow-y: auto; margin-top: 10px; font-family: monospace; font-size: 12px;">
+                            等待开始监测...
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 睡眠质量监测模块 -->
+            <section class="upload-section activity-section">
+                <h2>😴 睡眠质量监测</h2>
+                <p class="section-desc">
+                    基于IMU加速度计数据，实时监测宠物睡眠状态，分析睡眠质量和睡眠周期
+                </p>
+
+                <!-- 控制按钮 -->
+                <div class="file-actions">
+                    <button class="btn btn-success" id="sleepStartBtn" onclick="startSleepMonitor()">
+                        😴 开始睡眠监测
+                    </button>
+                    <button class="btn btn-danger" id="sleepStopBtn" onclick="stopSleepMonitor()" style="display:none;">
+                        ⏹️ 停止监测
+                    </button>
+                    <button class="btn btn-secondary" onclick="resetSleepData()">
+                        🔄 重置数据
+                    </button>
+                    <button class="btn btn-primary" onclick="generateSleepReport()">
+                        📊 生成报告
+                    </button>
+                </div>
+
+                <div class="resting-container">
+                    <!-- 实时状态卡片 -->
+                    <div class="resting-stats-grid">
+                        <div class="resting-stat-card">
+                            <div>当前状态</div>
+                            <div id="sleepCurrentStage" class="resting-value">清醒</div>
+                            <div id="sleepInBedStatus">未在床上</div>
+                        </div>
+
+                        <div class="resting-stat-card">
+                            <div>睡眠时长</div>
+                            <div id="sleepDuration" class="resting-value">0分钟</div>
+                            <div id="sleepStartTime">未开始</div>
+                        </div>
+
+                        <div class="resting-stat-card">
+                            <div>睡眠效率</div>
+                            <div id="sleepEfficiency" class="resting-value">0%</div>
+                            <div>睡眠质量指标</div>
+                        </div>
+
+                        <div class="resting-stat-card">
+                            <div>翻身次数</div>
+                            <div id="sleepTurnOverCount" class="resting-value">0次</div>
+                            <div>体动频率</div>
+                        </div>
+                    </div>
+
+                    <!-- 实时关键指标 -->
+                    <div class="resting-info-box" style="grid-column: span 2; background: linear-gradient(135deg, #637b8f 0%, #585671 100%); color: white;">
+                        <strong>📊 实时关键指标</strong>
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 15px;">
+                            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px;">
+                                <div style="font-size: 12px; opacity: 0.9;">RMS能量</div>
+                                <div id="sleepCurrentRMS" style="font-size: 24px; font-weight: bold; margin: 5px 0;">0.000g</div>
+                                <div id="sleepRMSStatus" style="font-size: 11px; opacity: 0.8;">静息</div>
+                            </div>
+                            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px;">
+                                <div style="font-size: 12px; opacity: 0.9;">零交叉率</div>
+                                <div id="sleepCurrentMCR" style="font-size: 24px; font-weight: bold; margin: 5px 0;">0.0次/秒</div>
+                                <div id="sleepMCRStatus" style="font-size: 11px; opacity: 0.8;">低频</div>
+                            </div>
+                            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px;">
+                                <div style="font-size: 12px; opacity: 0.9;">阶段持续</div>
+                                <div id="sleepStageDuration" style="font-size: 24px; font-weight: bold; margin: 5px 0;">0分钟</div>
+                                <div id="sleepLastStageChange" style="font-size: 11px; opacity: 0.8;">刚开始</div>
+                            </div>
+                            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px;">
+                                <div style="font-size: 12px; opacity: 0.9;">数据更新</div>
+                                <div id="sleepDataRate" style="font-size: 24px; font-weight: bold; margin: 5px 0;">0 Hz</div>
+                                <div id="sleepLastUpdate" style="font-size: 11px; opacity: 0.8;">等待数据</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 睡眠周期饼图 -->
+                    <div class="resting-stat-card" style="grid-column: span 2;">
+                        <h4>🌙 睡眠周期分布</h4>
+                        <canvas id="sleepCycleChart" style="max-height: 300px;"></canvas>
+                    </div>
+
+                    <!-- 睡眠阶段时间线 -->
+                    <div class="resting-stat-card" style="grid-column: span 2;">
+                        <h4>📈 睡眠阶段时间线</h4>
+                        <canvas id="sleepStageTimelineChart" style="max-height: 250px;"></canvas>
+                    </div>
+
+                    <!-- RMS能量趋势 -->
+                    <div class="resting-stat-card" style="grid-column: span 2;">
+                        <h4>⚡ 运动强度趋势 (RMS)</h4>
+                        <canvas id="sleepRMSChart" style="max-height: 250px;"></canvas>
+                    </div>
+
+                    <!-- 睡眠统计信息 -->
+                    <div class="resting-info-box" style="grid-column: span 2;">
+                        <strong>📊 睡眠统计:</strong>
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 10px;">
+                            <div>
+                                <div style="color: #5856D6; font-weight: bold;">深睡</div>
+                                <div id="sleepDeepTime">0分钟</div>
+                            </div>
+                            <div>
+                                <div style="color: #007AFF; font-weight: bold;">浅睡</div>
+                                <div id="sleepLightTime">0分钟</div>
+                            </div>
+                            <div>
+                                <div style="color: #FF9500; font-weight: bold;">REM</div>
+                                <div id="sleepREMTime">0分钟</div>
+                            </div>
+                            <div>
+                                <div style="color: #8E8E93; font-weight: bold;">清醒</div>
+                                <div id="sleepAwakeTime">0分钟</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 日志区域 -->
+                    <div class="resting-info-box" style="grid-column: span 2;">
+                        <strong>📝 睡眠事件:</strong>
+                        <div id="sleepEventLog" style="max-height: 150px; overflow-y: auto; margin-top: 10px; font-family: monospace; font-size: 12px;">
+                            等待开始监测...
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 宠物情绪监测模块 -->
+            <section class="upload-section" id="petEmotionSection">
+                <h2>🐾 宠物情绪监测 (HR · RR · ENMO · HRV)</h2>
+                <p class="section-desc">
+                    基于心率(HR)、呼吸率(RR)、活动量(ENMO)和心率变异性(HRV-RMSSD)的实时趋势图，
+                    为宠物情绪识别提供基础数据支持。HRV 采用 RMSSD 近似算法，由 HR 时序推算。
+                </p>
+
+                <!-- 控制栏 -->
+                <div class="file-actions" style="align-items:center; flex-wrap:wrap; gap:8px;">
+                    <label style="font-weight:600;">物种:</label>
+                    <select id="petEmotionSpecies"
+                        style="padding:6px 12px; border-radius:6px; border:1px solid #ccc; font-size:14px;"
+                        onchange="if(app && app.petEmotionMonitor) app.petEmotionMonitor.setSpecies(this.value)">
+                        <option value="dog">🐕 狗</option>
+                        <option value="cat">🐈 猫</option>
+                    </select>
+
+                    <button class="btn btn-success" id="petEmotionStartBtn" onclick="startPetEmotionMonitor()">
+                        ▶ 开始监测
+                    </button>
+                    <button class="btn btn-danger" id="petEmotionStopBtn" onclick="stopPetEmotionMonitor()" style="display:none;">
+                        ⏹ 停止
+                    </button>
+                    <button class="btn btn-secondary" onclick="if(app && app.petEmotionMonitor) app.petEmotionMonitor.reset()">
+                        🔄 重置
+                    </button>
+
+                    <span id="petEmotionStatus" style="margin-left:8px; color:#7f8c8d; font-size:13px;">未启动</span>
+                </div>
+
+                <!-- 当前数值展示 -->
+                <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:16px 0;">
+                    <div style="background:rgba(156,90,90,0.08); border-radius:10px; padding:14px; text-align:center; border:1px solid rgba(156,90,90,0.25);">
+                        <div style="font-size:12px; color:#857780; margin-bottom:4px;">心率 HR</div>
+                        <div id="emotionCurrentHR" style="font-size:22px; font-weight:700; color:#9c5a5a;">-- bpm</div>
+                    </div>
+                    <div style="background:rgba(99,123,143,0.08); border-radius:10px; padding:14px; text-align:center; border:1px solid rgba(99,123,143,0.25);">
+                        <div style="font-size:12px; color:#857780; margin-bottom:4px;">呼吸率 RR</div>
+                        <div id="emotionCurrentRR" style="font-size:22px; font-weight:700; color:#637b8f;">-- 次/分</div>
+                    </div>
+                    <div style="background:rgba(90,144,112,0.08); border-radius:10px; padding:14px; text-align:center; border:1px solid rgba(90,144,112,0.25);">
+                        <div style="font-size:12px; color:#857780; margin-bottom:4px;">活动量 ENMO</div>
+                        <div id="emotionCurrentENMO" style="font-size:22px; font-weight:700; color:#5a9070;">-- g</div>
+                    </div>
+                    <div style="background:rgba(133,119,128,0.08); border-radius:10px; padding:14px; text-align:center; border:1px solid rgba(133,119,128,0.25);">
+                        <div style="font-size:12px; color:#857780; margin-bottom:4px;">心率变异性 HRV</div>
+                        <div id="emotionCurrentHRV" style="font-size:22px; font-weight:700; color:#857780;">-- ms</div>
+                    </div>
+                </div>
+
+                <!-- 四图网格 -->
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                    <div style="background:#fbfffe; border-radius:10px; padding:16px; box-shadow:0 2px 8px rgba(88,86,113,0.08);">
+                        <div style="font-size:13px; font-weight:600; color:#9c5a5a; margin-bottom:8px;">❤️ 心率趋势 Heart Rate</div>
+                        <div style="height:200px; position:relative;">
+                            <canvas id="emotionHRChart"></canvas>
+                        </div>
+                    </div>
+                    <div style="background:#fbfffe; border-radius:10px; padding:16px; box-shadow:0 2px 8px rgba(88,86,113,0.08);">
+                        <div style="font-size:13px; font-weight:600; color:#637b8f; margin-bottom:8px;">🌬️ 呼吸率趋势 Respiratory Rate</div>
+                        <div style="height:200px; position:relative;">
+                            <canvas id="emotionRRChart"></canvas>
+                        </div>
+                    </div>
+                    <div style="background:#fbfffe; border-radius:10px; padding:16px; box-shadow:0 2px 8px rgba(88,86,113,0.08);">
+                        <div style="font-size:13px; font-weight:600; color:#5a9070; margin-bottom:8px;">🏃 活动量趋势 ENMO</div>
+                        <div style="height:200px; position:relative;">
+                            <canvas id="emotionENMOChart"></canvas>
+                        </div>
+                    </div>
+                    <div style="background:#fbfffe; border-radius:10px; padding:16px; box-shadow:0 2px 8px rgba(88,86,113,0.08);">
+                        <div style="font-size:13px; font-weight:600; color:#857780; margin-bottom:8px;">💜 心率变异性趋势 HRV-RMSSD</div>
+                        <div style="height:200px; position:relative;">
+                            <canvas id="emotionHRVChart"></canvas>
+                        </div>
+                        <div style="font-size:11px; color:#9f9c9d; margin-top:4px;">
+                            HRV 低(&lt;20ms) = 应激/疼痛 &nbsp;|&nbsp; HRV 高(&gt;50ms) = 放松
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 说明卡 -->
+                <div style="margin-top:16px; padding:12px 16px; background:rgba(184,147,90,0.1); border-radius:8px; border:1px solid rgba(184,147,90,0.4); font-size:12px; color:#7a6300;">
+                    <strong>📌 使用说明：</strong>
+                    先连接蓝牙设备并确保数据正常接收，然后点击"开始监测"。
+                    建议同时启动活动监测(ENMO)以获取完整四路信号。
+                    HRV-RMSSD 需至少 5 秒数据才开始显示。
+                </div>
+            </section>
+
+            <!-- GPS 定位追踪模块 -->
+            <section class="upload-section" id="gpsLocationSection">
+                <h2>📍 GPS 定位追踪</h2>
+                <p class="section-desc">
+                    基于BLE协议GPS数据，实时显示宠物位置、运动轨迹，计算移动距离和当前速度
+                </p>
+
+                <div class="file-actions" style="align-items:center; flex-wrap:wrap; gap:8px;">
+                    <button class="btn btn-success" id="gpsStartBtn" onclick="startGPSLocation()">
+                        ▶ 开始追踪
+                    </button>
+                    <button class="btn btn-danger" id="gpsStopBtn" onclick="stopGPSLocation()" style="display:none;">
+                        ⏹ 停止
+                    </button>
+                    <button class="btn btn-secondary" onclick="resetGPSLocation()">
+                        🔄 重置
+                    </button>
+                    <span id="gpsStatus" style="margin-left:8px; color:#7f8c8d; font-size:13px;">未启动</span>
+                </div>
+
+                <!-- GPS仪表板：地图 + 统计侧边栏（双列布局） -->
+                <div id="gpsDashboard" style="display:none; margin-top:16px;">
+                    <div style="display:grid; grid-template-columns:1fr 220px; gap:12px; align-items:start;">
+
+                        <!-- 左：地图容器 -->
+                        <div style="background:#fbfffe; border-radius:10px; padding:16px; box-shadow:0 2px 8px rgba(88,86,113,0.08);">
+                            <div style="font-size:13px; font-weight:600; color:#5a9070; margin-bottom:8px;">🗺️ 实时位置地图</div>
+                            <div style="position:relative;">
+                                <div id="gpsMapContainer" style="height:480px; border-radius:8px; border:1px solid #adcada; position:relative;"></div>
+                                <!-- 速度色标图例（悬浮在地图左下角） -->
+                                <div id="gpsSpeedLegend" style="position:absolute; bottom:40px; left:10px; z-index:500; background:rgba(251,255,254,0.94); border-radius:8px; padding:8px 12px; font-size:11px; box-shadow:0 2px 6px rgba(88,86,113,0.2); pointer-events:none;">
+                                    <div style="font-weight:600; margin-bottom:4px; color:#585671;">速度色标</div>
+                                    <div style="width:80px; height:8px; border-radius:4px; background:linear-gradient(to right, rgb(30,100,230), rgb(0,200,200), rgb(50,200,50), rgb(230,230,0), rgb(255,140,0), rgb(220,20,20)); margin-bottom:3px;"></div>
+                                    <div style="display:flex; justify-content:space-between; width:80px; color:#857780;">
+                                        <span>慢</span><span>快</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="margin-top:8px; font-size:12px; color:#9f9c9d;">
+                                经度: <span id="gpsCurrentLon">--</span> &nbsp;|&nbsp;
+                                纬度: <span id="gpsCurrentLat">--</span> &nbsp;|&nbsp;
+                                最后更新: <span id="gpsLastUpdate">--</span>
+                            </div>
+                        </div>
+
+                        <!-- 右：统计侧边栏 -->
+                        <div style="display:flex; flex-direction:column; gap:10px;">
+                            <div style="font-size:13px; font-weight:700; color:#585671; padding:4px 0;">📊 轨迹统计</div>
+
+                            <!-- 最高速度 -->
+                            <div style="background:linear-gradient(135deg,rgba(156,90,90,0.06),rgba(156,90,90,0.14)); border-radius:10px; padding:14px; text-align:center; border:1px solid rgba(156,90,90,0.3);">
+                                <div style="font-size:11px; color:#9f9c9d; margin-bottom:4px;">最高速度</div>
+                                <div id="gpsMaxSpeed" style="font-size:20px; font-weight:700; color:#9c5a5a;">0.0 km/h</div>
+                            </div>
+
+                            <!-- 平均速度 -->
+                            <div style="background:linear-gradient(135deg,rgba(99,123,143,0.06),rgba(99,123,143,0.14)); border-radius:10px; padding:14px; text-align:center; border:1px solid rgba(99,123,143,0.3);">
+                                <div style="font-size:11px; color:#9f9c9d; margin-bottom:4px;">平均速度</div>
+                                <div id="gpsAvgSpeed" style="font-size:20px; font-weight:700; color:#637b8f;">0.0 km/h</div>
+                            </div>
+
+                            <!-- 运动时长 -->
+                            <div style="background:linear-gradient(135deg,rgba(90,144,112,0.06),rgba(90,144,112,0.14)); border-radius:10px; padding:14px; text-align:center; border:1px solid rgba(90,144,112,0.3);">
+                                <div style="font-size:11px; color:#9f9c9d; margin-bottom:4px;">运动时长</div>
+                                <div id="gpsDuration" style="font-size:20px; font-weight:700; color:#5a9070;">0s</div>
+                            </div>
+
+                            <!-- 停留点数 -->
+                            <div style="background:linear-gradient(135deg,rgba(133,119,128,0.06),rgba(133,119,128,0.14)); border-radius:10px; padding:14px; text-align:center; border:1px solid rgba(133,119,128,0.3);">
+                                <div style="font-size:11px; color:#9f9c9d; margin-bottom:4px;">停留点数</div>
+                                <div id="gpsStayCount" style="font-size:20px; font-weight:700; color:#857780;">0</div>
+                            </div>
+
+                            <div style="border-top:1px solid #adcada; margin:2px 0;"></div>
+
+                            <!-- 基础4项（紧凑行） -->
+                            <div style="background:rgba(173,202,218,0.1); border-radius:8px; padding:10px; font-size:12px; border:1px solid #adcada;">
+                                <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                                    <span style="color:#857780;">移动距离</span>
+                                    <span id="gpsDistance" style="font-weight:600; color:#5a9070;">0 m</span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                                    <span style="color:#857780;">当前速度</span>
+                                    <span id="gpsSpeed" style="font-weight:600; color:#637b8f;">0.0 km/h</span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                                    <span style="color:#857780;">GPS 定位</span>
+                                    <span id="gpsFixStatus" style="font-weight:600; color:#9c5a5a;">无信号</span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between;">
+                                    <span style="color:#857780;">轨迹点数</span>
+                                    <span id="gpsPointCount" style="font-weight:600; color:#857780;">0</span>
+                                </div>
+                            </div>
+                        </div><!-- /右侧边栏 -->
+
+                    </div><!-- /grid -->
+                </div><!-- /gpsDashboard -->
+
+                <div style="margin-top:16px; padding:12px 16px; background:#fffbe6; border-radius:8px; border:1px solid #ffe58f; font-size:12px; color:#7a6300;">
+                    <strong>📌 使用说明：</strong>
+                    先连接蓝牙设备并确保数据正常接收，然后点击"开始追踪"。
+                    GPS需要在户外有良好卫星信号才能定位。当GPS无定位(0,0)时数据将被忽略。
+                    地图使用高德普通图+卫星图（官方 API Key），右上角可切换 🗺️/🛰️ 底图。
+                    注意：高德地图使用GCJ-02坐标系，GPS原始数据为WGS-84，国内使用时轨迹线可能有约100-500m视觉偏移，不影响速度/距离/停留点计算。
+                </div>
+            </section>
+
+            <!-- 文件上传区域 -->
+            <section class="upload-section">
+                <h2>📁 数据文件上传</h2>
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-content">
+                        <div class="upload-icon">📤</div>
+                        <p>拖拽文件到此处或点击选择文件</p>
+                        <p class="upload-hint">支持 .txt 格式的雷达数据文件 或 .json 格式的结构化数据文件</p>
+                        <input type="file" id="fileInput" accept=".txt,.json" multiple>
+                    </div>
+                </div>
+                
+                <!-- 文件列表 -->
+                <div class="file-list" id="fileList" style="display: none;">
+                    <h3>已选择的文件:</h3>
+                    <ul id="fileItems"></ul>
+                    <div class="file-actions">
+                        <button class="btn btn-primary" onclick="processFiles()">开始处理</button>
+                        <button class="btn btn-secondary" onclick="clearFiles()">清空文件</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 处理状态 -->
+            <section class="status-section" id="statusSection" style="display: none;">
+                <h2>⚙️ 处理状态</h2>
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-text" id="progressText">准备中...</div>
+                </div>
+                <div class="status-log" id="statusLog"></div>
+            </section>
+
+            <!-- 处理结果 -->
+            <section class="results-section" id="resultsSection" style="display: none;">
+                <h2>📊 处理结果</h2>
+
+                <!-- JSON数据详细信息 -->
+                <div class="json-data-section" id="jsonDataSection" style="display: none; margin-bottom: 20px;">
+                    <h3>🐾 宠物信息</h3>
+                    <div class="animal-info-card" id="animalInfoCard">
+                        <div class="animal-header">
+                            <div class="animal-avatar">
+                                <span id="animalEmoji">🐕</span>
+                            </div>
+                            <div class="animal-details">
+                                <h4 id="animalName">宠物名称</h4>
+                                <p id="animalBasicInfo">品种 · 年龄 · 性别</p>
+                            </div>
+                        </div>
+                        <div class="animal-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">体重</span>
+                                <span class="stat-value" id="animalWeight">-- kg</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">设备ID</span>
+                                <span class="stat-value" id="animalId">--</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h3>📱 设备信息</h3>
+                    <div class="device-info-card" id="deviceInfoCard">
+                        <div class="device-details">
+                            <div class="device-item">
+                                <span class="device-label">设备ID:</span>
+                                <span class="device-value" id="deviceId">--</span>
+                            </div>
+                            <div class="device-item">
+                                <span class="device-label">固件版本:</span>
+                                <span class="device-value" id="deviceFirmware">--</span>
+                            </div>
+                            <div class="device-item">
+                                <span class="device-label">采样频率:</span>
+                                <span class="device-value" id="deviceSampling">--</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h3>📍 测量信息</h3>
+                    <div class="measurement-info-card" id="measurementInfoCard">
+                        <div class="measurement-details">
+                            <div class="measurement-item">
+                                <span class="measurement-label">事件ID:</span>
+                                <span class="measurement-value" id="eventId">--</span>
+                            </div>
+                            <div class="measurement-item">
+                                <span class="measurement-label">测量时间:</span>
+                                <span class="measurement-value" id="measurementTime">--</span>
+                            </div>
+                            <div class="measurement-item">
+                                <span class="measurement-label">测量时长:</span>
+                                <span class="measurement-value" id="measurementDuration">--</span>
+                            </div>
+                            <div class="measurement-item">
+                                <span class="measurement-label">位置:</span>
+                                <span class="measurement-value" id="measurementLocation">--</span>
+                            </div>
+                            <div class="measurement-item">
+                                <span class="measurement-label">备注:</span>
+                                <span class="measurement-value" id="measurementNotes">--</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 健康分析区域 -->
+                    <div class="health-analysis-section" id="healthAnalysisSection" style="display: none; margin-top: 20px;">
+                        <h3>🏥 宠物健康智能分析</h3>
+                        <div class="health-analysis-controls">
+                            <button class="btn btn-success" onclick="performHealthAnalysis()" id="healthAnalysisBtn">
+                                🩺 开始健康分析
+                            </button>
+                            <div class="analysis-config" style="margin-top: 10px;">
+                                <label for="agentEndpoint">Agent API地址:</label>
+                                <input type="text" id="agentEndpoint" placeholder="http://localhost:8000" style="margin-left: 10px; width: 200px;">
+                            </div>
+                        </div>
+
+                        <div class="health-analysis-report" id="healthAnalysisReport" style="display: none; margin-top: 20px;">
+                            <div class="report-header">
+                                <h4>📋 健康分析报告</h4>
+                                <div class="report-meta">
+                                    <span id="analysisTimestamp"></span>
+                                    <button class="btn btn-sm" onclick="exportHealthReport()">📄 导出报告</button>
+                                </div>
+                            </div>
+                            <div class="report-content" id="analysisReportContent">
+                                <div class="loading-analysis" id="analysisLoading">
+                                    <div class="loading-spinner"></div>
+                                    <p>正在分析宠物健康状况，请稍候...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 结果统计 -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">💓</div>
+                        <div class="stat-content">
+                            <div class="stat-label">平均心率</div>
+                            <div class="stat-value" id="avgHeartRate">-- bpm</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🫁</div>
+                        <div class="stat-content">
+                            <div class="stat-label">平均呼吸频率</div>
+                            <div class="stat-value" id="avgRespRate">-- bpm</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📁</div>
+                        <div class="stat-content">
+                            <div class="stat-label">处理文件数</div>
+                            <div class="stat-value" id="processedFiles">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📈</div>
+                        <div class="stat-content">
+                            <div class="stat-label">总数据点</div>
+                            <div class="stat-value" id="totalDataPoints">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 图表区域 -->
+                <div class="charts-container">
+                    <div class="chart-row">
+                        <div class="chart-container">
+                            <h3>I 通道信号</h3>
+                            <canvas id="iSignalChart"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <h3>Q 通道信号</h3>
+                            <canvas id="qSignalChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-row">
+                        <div class="chart-container">
+                            <h3>I/Q星座图</h3>
+                            <canvas id="constellationChart"></canvas>
+                        </div>
+                        <!-- 占位，保持布局 -->
+                        <div class="chart-container" style="visibility: hidden;"></div>
+                    </div>
+                    
+                    <div class="chart-row">
+                        <div class="chart-container">
+                            <h3>呼吸波形</h3>
+                            <canvas id="respiratoryChart"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <h3>心跳波形</h3>
+                            <canvas id="heartbeatChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- 动态心电图展示区域 -->
+                    <div class="ecg-section">
+                        <h3>🫀 动态生理信号监测</h3>
+                        <div class="ecg-controls">
+                            <button class="btn btn-success" id="playBtn" onclick="toggleECGPlayback()">▶️ 播放</button>
+                            <button class="btn btn-secondary" id="pauseBtn" onclick="toggleECGPlayback()" style="display: none;">⏸️ 暂停</button>
+                            <button class="btn btn-info" onclick="resetECG()">🔄 重置</button>
+                            <button class="btn btn-warning" onclick="testECG()" style="background: #ffc107; color: #000;">🧪 测试</button>
+                            <div class="speed-control">
+                                <label>播放速度:</label>
+                                <select id="speedSelect" onchange="changeECGSpeed()">
+                                    <option value="0.5">0.5x</option>
+                                    <option value="1" selected>1x</option>
+                                    <option value="2">2x</option>
+                                    <option value="4">4x</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="ecg-monitors">
+                            <!-- 呼吸波形动态监测 -->
+                            <div class="ecg-monitor respiratory-monitor">
+                                <div class="monitor-header">
+                                    <h4>🫁 呼吸波形</h4>
+                                    <div class="vital-display">
+                                        <span class="vital-label">呼吸频率:</span>
+                                        <span class="vital-value" id="currentRespRate">-- bpm</span>
+                                    </div>
+                                </div>
+                                <div class="ecg-screen" id="respiratoryECG">
+                                    <canvas id="respiratoryECGCanvas"></canvas>
+                                    <div class="ecg-grid"></div>
+                                    <div class="ecg-cursor"></div>
+                                </div>
+                            </div>
+                            
+                            <!-- 心跳波形动态监测 -->
+                            <div class="ecg-monitor heartbeat-monitor">
+                                <div class="monitor-header">
+                                    <h4>💓 心跳波形</h4>
+                                    <div class="vital-display">
+                                        <span class="vital-label">心率:</span>
+                                        <span class="vital-value" id="currentHeartRate">-- bpm</span>
+                                    </div>
+                                </div>
+                                <div class="ecg-screen" id="heartbeatECG">
+                                    <canvas id="heartbeatECGCanvas"></canvas>
+                                    <div class="ecg-grid"></div>
+                                    <div class="ecg-cursor"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-row">
+                        <div class="chart-container">
+                            <h3>心率时间序列</h3>
+                            <canvas id="heartRateTimeChart"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <h3>呼吸频率时间序列</h3>
+                            <canvas id="respRateTimeChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-row">
+                        <div class="chart-container">
+                            <h3>心率分布</h3>
+                            <canvas id="heartRateChart"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <h3>呼吸频率分布</h3>
+                            <canvas id="respRateChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI诊断报告区域 -->
+                <div class="ai-diagnosis-section">
+                    <h3>🤖 AI智能诊断报告</h3>
+                    <div class="ai-controls">
+                        <button class="btn btn-primary" onclick="showAIConfig()">⚙️ 配置Azure OpenAI</button>
+                        <button class="btn btn-success" onclick="generateDiagnosticReport()" id="generateReportBtn" disabled>🩺 生成诊断报告</button>
+                        <button class="btn btn-info" onclick="showPromptEditor()">📝 自定义Prompt</button>
+                        <button class="btn btn-warning" onclick="showRAGEditor()">📚 管理知识库</button>
+                    </div>
+                    
+                    <div class="ai-report-container" id="aiReportContainer" style="display: none;">
+                        <div class="report-header">
+                            <h4>诊断报告</h4>
+                            <div class="report-meta">
+                                <span id="reportTimestamp"></span>
+                                <button class="btn btn-sm" onclick="exportReport()">📄 导出报告</button>
+                            </div>
+                        </div>
+                        <div class="report-content" id="reportContent"></div>
+                    </div>
+                </div>
+
+                <!-- 详细结果表格 -->
+                <div class="table-container">
+                    <h3>详细处理结果</h3>
+                    <div class="table-actions">
+                        <button class="btn btn-success" onclick="exportResults()">导出CSV</button>
+                        <button class="btn btn-info" onclick="exportCharts()">导出图表</button>
+                    </div>
+                    <table id="resultsTable">
+                        <thead>
+                            <tr>
+                                <th>文件名</th>
+                                <th>数据点数</th>
+                                <th>心率 (bpm)</th>
+                                <th>呼吸频率 (bpm)</th>
+                                <th>圆心I</th>
+                                <th>圆心Q</th>
+                                <th>圆半径</th>
+                                <th>处理状态</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultsTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- 蓝牙实时图表区域 -->
+            <section class="results-section" id="bluetoothChartsSection" style="display: none;">
+                <h2>📊 蓝牙实时数据图表</h2>
+                <p style="color:#8ab4f8;margin:4px 0 14px 0;">当前蓝牙连接后的实时数据统一显示在这里。</p>
+                
+                <!-- 蓝牙数据统计 -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">💓</div>
+                        <div class="stat-content">
+                            <div class="stat-label">实时心率</div>
+                            <div class="stat-value" id="bleAvgHeartRate">-- bpm</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🫁</div>
+                        <div class="stat-content">
+                            <div class="stat-label">实时呼吸频率</div>
+                            <div class="stat-value" id="bleAvgRespRate">-- bpm</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📡</div>
+                        <div class="stat-content">
+                            <div class="stat-label">接收数据点</div>
+                            <div class="stat-value" id="bleTotalDataPoints">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">⏱️</div>
+                        <div class="stat-content">
+                            <div class="stat-label">连接时长</div>
+                            <div class="stat-value" id="bleConnectTime">0 分钟</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🌡️</div>
+                        <div class="stat-content">
+                            <div class="stat-label">当前温度</div>
+                            <div class="stat-value" id="bleAvgTemp">-- °C</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 蓝牙图表区域 -->
+                <div class="charts-container">
+                    <div class="chart-row">
+                        <div class="chart-container">
+                            <h3>蓝牙 I 通道实时信号</h3>
+                            <canvas id="bleISignalChart"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <h3>蓝牙 Q 通道实时信号</h3>
+                            <canvas id="bleQSignalChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-row">
+                        <div class="chart-container">
+                            <h3>蓝牙 I/Q 星座图</h3>
+                            <canvas id="bleConstellationChart"></canvas>
+                        </div>
+                        <!-- 占位 -->
+                        <div class="chart-container" style="visibility: hidden;"></div>
+                    </div>
+
+                    <div class="chart-row">
+                        <div class="chart-container">
+                            <h3>蓝牙 Gx/Gy/Gz 信号(陀螺仪)</h3>
+                            <canvas id="bleIMUChart"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <h3>蓝牙 Ax/Ay/Az 原始信号(加速度计)</h3>
+                            <canvas id="bleACCChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-row">
+                        <div class="chart-container">
+                            <h3>蓝牙 温度变化 (°C)</h3>
+                            <canvas id="bleTemperatureChart"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <h3>蓝牙 Ax/Ay/Az 动态变化(去基线)</h3>
+                            <canvas id="bleDynamicACCChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-row">
+                        <div class="chart-container">
+                            <h3>蓝牙呼吸波形</h3>
+                            <canvas id="bleRespiratoryChart"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <h3>蓝牙心跳波形</h3>
+                            <canvas id="bleHeartbeatChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 蓝牙动态生理信号监测（与文件上传模块等效） -->
+                <div class="ecg-section" id="bleEcgSection">
+                    <h3>🫀 蓝牙动态生理信号监测</h3>
+                    <div class="ecg-controls">
+                        <button class="btn btn-success" id="blePlayBtn" onclick="toggleBLEECGPlayback()">▶️ 播放</button>
+                        <button class="btn btn-secondary" id="blePauseBtn" onclick="toggleBLEECGPlayback()" style="display: none;">⏸️ 暂停</button>
+                        <button class="btn btn-info" onclick="resetBLEECG()">🔄 重置</button>
+                    </div>
+
+                    <div class="ecg-monitors">
+                        <div class="ecg-monitor respiratory-monitor">
+                            <div class="monitor-header">
+                                <h4>🫁 呼吸波形(蓝牙)</h4>
+                                <div class="vital-display">
+                                    <span class="vital-label">呼吸频率:</span>
+                                    <span class="vital-value" id="bleCurrentRespRate">-- bpm</span>
+                                </div>
+                            </div>
+                            <div class="ecg-screen" id="bleRespiratoryECG">
+                                <canvas id="bleRespiratoryECGCanvas"></canvas>
+                                <div class="ecg-grid"></div>
+                                <div class="ecg-cursor"></div>
+                            </div>
+                        </div>
+
+                        <div class="ecg-monitor heartbeat-monitor">
+                            <div class="monitor-header">
+                                <h4>💓 心跳波形(蓝牙)</h4>
+                                <div class="vital-display">
+                                    <span class="vital-label">心率:</span>
+                                    <span class="vital-value" id="bleCurrentHeartRate">-- bpm</span>
+                                </div>
+                            </div>
+                            <div class="ecg-screen" id="bleHeartbeatECG">
+                                <canvas id="bleHeartbeatECGCanvas"></canvas>
+                                <div class="ecg-grid"></div>
+                                <div class="ecg-cursor"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 蓝牙图表控制 -->
+                <div class="table-container">
+                    <h3>蓝牙数据控制</h3>
+                    <div class="table-actions">
+                        <button class="btn btn-warning" onclick="clearBluetoothData()">清空数据</button>
+                        <button class="btn btn-info" onclick="saveBluetoothData()">保存数据</button>
+                        <button class="btn btn-purple" onclick="if(app) app.forceReinitializeCharts();">重新初始化图表</button>
+                        <button class="btn btn-info" onclick="if(app) app.resetAdaptiveYAxis();">重置自适应Y轴</button>
+                        <button class="btn btn-success" onclick="if(app) app.forceDetailMode();">强制细节模式</button>
+                        <button class="btn btn-secondary" onclick="hideBluetoothCharts()">隐藏图表</button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="results-section" id="bleBackfillSection">
+                <h2>🕘 蓝牙补传分析</h2>
+                <p style="color:#ffb74d;margin:4px 0 14px 0;">这里只显示断开后重连时补回的历史数据，不显示当前实时数据。</p>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">🧭</div>
+                        <div class="stat-content">
+                            <div class="stat-label">当前模式</div>
+                            <div class="stat-value" id="bleBackfillMode">待检测</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📦</div>
+                        <div class="stat-content">
+                            <div class="stat-label">已补传条数</div>
+                            <div class="stat-value" id="bleBackfillCount">0 条</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">⏳</div>
+                        <div class="stat-content">
+                            <div class="stat-label">补传覆盖时长</div>
+                            <div class="stat-value" id="bleBackfillDuration">0 秒</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🛰️</div>
+                        <div class="stat-content">
+                            <div class="stat-label">当前设备滞后</div>
+                            <div class="stat-value" id="bleBackfillLag">--</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📍</div>
+                        <div class="stat-content">
+                            <div class="stat-label">断点判断</div>
+                            <div class="stat-value" id="bleBackfillCheckpoint">未启用</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🕒</div>
+                        <div class="stat-content">
+                            <div class="stat-label">当前设备时间</div>
+                            <div class="stat-value" id="bleBackfillCurrentTs">--</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🧩</div>
+                        <div class="stat-content">
+                            <div class="stat-label">重叠条数</div>
+                            <div class="stat-value" id="bleBackfillOverlap">0 条</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="charts-container">
+                    <div class="chart-row">
+                        <div class="chart-container">
+                            <h3>补传 I/Q 数据</h3>
+                            <canvas id="bleBackfillIQChart"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <h3>补传追平进度</h3>
+                            <canvas id="bleBackfillLagChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-row">
+                        <div class="chart-container">
+                            <h3>补传 Gx/Gy/Gz</h3>
+                            <canvas id="bleBackfillIMUChart"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <h3>补传 Ax/Ay/Az</h3>
+                            <canvas id="bleBackfillACCChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <h3>补传面板控制</h3>
+                    <div class="table-actions">
+                        <button class="btn btn-warning" onclick="clearBleBackfillData()">清空补传面板</button>
+                    </div>
+                </div>
+
+                <div class="resting-log-container">
+                    <div id="bleBackfillLog"></div>
+                </div>
+            </section>
+
+
+        </div>
+
+        <!-- 算法参数设置 -->
+        <aside class="settings-panel" id="settingsPanel">
+            <h3>⚙️ 算法参数</h3>
+            <div class="setting-group">
+                <label>采样率 (Hz):</label>
+                <input type="number" id="samplingRate" value="50" min="1" max="1000">
+            </div>
+            <div class="setting-group">
+                <label>心率范围 (bpm):</label>
+                <input type="number" id="heartRateMin" value="35" min="25" max="120" placeholder="最小值">
+                <input type="number" id="heartRateMax" value="260" min="100" max="300" placeholder="最大值">
+            </div>
+            <div class="setting-group">
+                <label>呼吸频率范围 (bpm):</label>
+                <input type="number" id="respRateMin" value="6" min="3" max="15" placeholder="最小值">
+                <input type="number" id="respRateMax" value="60" min="15" max="90" placeholder="最大值">
+            </div>
+            <div class="setting-group">
+                <label>滤波窗口大小:</label>
+                <input type="number" id="filterWindow" value="10" min="3" max="50">
+            </div>
+            <div class="setting-group">
+                <label>有效结果中位窗:</label>
+                <input type="number" id="heartRateSmoothing" value="3" min="3" max="9" title="仅对有效且高置信结果取最近N次中位数，不预填默认心率">
+            </div>
+            <div class="setting-group">
+                <label>心率变化阈值(bpm):</label>
+                <input type="number" id="heartRateDelta" value="25" min="10" max="50" title="超过此变化时需连续3窗确认；持续真实变化不会被永久锁死">
+            </div>
+            <button class="btn btn-primary" onclick="applySettings()">应用设置</button>
+        </aside>
+
+        <!-- 设置按钮 -->
+        <button class="settings-toggle" onclick="toggleSettings()">⚙️</button>
+    </div>
+
+    <!-- 加载指示器 -->
+    <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">正在处理数据...</div>
+    </div>
+
+    <!-- Azure OpenAI配置模态框 -->
+    <div class="modal" id="aiConfigModal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>配置Azure OpenAI</h3>
+                <span class="close" onclick="closeModal('aiConfigModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Azure OpenAI Endpoint:</label>
+                    <input type="text" id="azureEndpoint" placeholder="https://your-resource.openai.azure.com">
+                </div>
+                <div class="form-group">
+                    <label>API Key:</label>
+                    <input type="password" id="azureApiKey" placeholder="输入您的API密钥">
+                </div>
+                <div class="form-group">
+                    <label>Deployment Name:</label>
+                    <input type="text" id="azureDeployment" placeholder="gpt-4" value="gpt-4">
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-primary" onclick="saveAIConfig()">保存配置</button>
+                    <button class="btn btn-secondary" onclick="testAIConnection()">测试连接</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Prompt编辑器模态框 -->
+    <div class="modal" id="promptEditorModal" style="display: none;">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3>自定义Prompt编辑器</h3>
+                <span class="close" onclick="closeModal('promptEditorModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="prompt-selector">
+                    <label>选择Prompt模板:</label>
+                    <select id="promptSelector" onchange="loadPromptTemplate()">
+                        <option value="">-- 选择模板 --</option>
+                    </select>
+                    <button class="btn btn-sm" onclick="createNewPrompt()">新建</button>
+                </div>
+                
+                <div class="form-group">
+                    <label>Prompt名称:</label>
+                    <input type="text" id="promptName" placeholder="输入Prompt名称">
+                </div>
+                
+                <div class="form-group">
+                    <label>描述:</label>
+                    <input type="text" id="promptDescription" placeholder="简要描述这个Prompt的用途">
+                </div>
+                
+                <div class="form-group">
+                    <label>Prompt模板:</label>
+                    <textarea id="promptTemplate" rows="15" placeholder="输入您的自定义prompt模板...
+
+可用变量：
+{avgHeartRate} - 平均心率
+{avgRespiratoryRate} - 平均呼吸频率
+{heartRateRange} - 心率范围
+{heartRateVariability} - 心率变异性
+{heartRateData} - 心率数据
+{respiratoryData} - 呼吸数据
+{ragContext} - RAG检索的相关知识
+{measurementTime} - 测量时间
+{duration} - 测量时长
+{dataQuality} - 数据质量"></textarea>
+                </div>
+                
+                <div class="form-actions">
+                    <button class="btn btn-primary" onclick="savePrompt()">保存Prompt</button>
+                    <button class="btn btn-warning" onclick="deletePrompt()">删除</button>
+                    <button class="btn btn-info" onclick="previewPrompt()">预览</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RAG知识库编辑器模态框 -->
+    <div class="modal" id="ragEditorModal" style="display: none;">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3>RAG知识库管理</h3>
+                <span class="close" onclick="closeModal('ragEditorModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="rag-controls">
+                    <button class="btn btn-primary" onclick="addRAGEntry()">添加知识条目</button>
+                    <button class="btn btn-info" onclick="importRAGData()">导入知识库</button>
+                    <button class="btn btn-success" onclick="exportRAGData()">导出知识库</button>
+                </div>
+                
+                <div class="rag-list" id="ragList">
+                    <!-- RAG条目列表将在这里动态生成 -->
+                </div>
+                
+                <div class="rag-editor" id="ragEditor" style="display: none;">
+                    <h4>编辑知识条目</h4>
+                    <div class="form-group">
+                        <label>条目ID:</label>
+                        <input type="text" id="ragEntryId" placeholder="唯一标识符">
+                    </div>
+                    <div class="form-group">
+                        <label>关键词 (用逗号分隔):</label>
+                        <input type="text" id="ragKeywords" placeholder="心率,呼吸,正常范围">
+                    </div>
+                    <div class="form-group">
+                        <label>知识内容:</label>
+                        <textarea id="ragContent" rows="10" placeholder="输入相关的医学知识内容..."></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn btn-primary" onclick="saveRAGEntry()">保存</button>
+                        <button class="btn btn-secondary" onclick="cancelRAGEdit()">取消</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="radar-processor.js?v=20260721-low-bias-guard-v5"></script>
+    <script src="azure-gpt.js?v=20260213-2"></script>
+    <script src="resting-monitor.js?v=20260302-2"></script>
+    <script src="activity-monitor.js?v=20260302-2"></script>
+    <script src="sleep-monitor.js?v=20260302-2"></script>
+    <script src="pet-emotion-monitor.js?v=20260328-1"></script>
+    <script src="gps-location.js?v=20260417-2"></script>
+
+    <!-- Three.js 用于 3D 姿态可视化 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- 姿态解算模块 -->
+    <script src="attitude-solver.js?v=20260417-accvar"></script>
+
+    <script src="version.js"></script>
+    <script src="app.js?v=20260721-low-bias-guard-v5"></script>
+
+    <!-- BLE调试代码 -->
+    <script>
+        window.addEventListener('load', function() {
+            console.log('🔍 BLE调试信息:');
+            console.log('window.BLE存在:', typeof window.BLE);
+            if (window.BLE) {
+                console.log('BLE对象属性:', Object.keys(window.BLE));
+                console.log('BLE.connect方法:', typeof window.BLE.connect);
+            }
+
+            console.log('window.app存在:', typeof window.app);
+            if (window.app) {
+                console.log('app.processor存在:', typeof window.app.processor);
+                if (window.app.processor) {
+                    console.log('processor.fs:', window.app.processor.fs);
+                }
+            }
+
+            // 测试BLE连接按钮
+            const bleBtn = document.getElementById('bleConnectBtn');
+            if (bleBtn) {
+                console.log('BLE连接按钮找到:', bleBtn);
+                console.log('按钮onclick属性:', bleBtn.getAttribute('onclick'));
+                console.log('按钮onclick函数:', bleBtn.onclick);
+                console.log('bleConnect函数存在:', typeof window.bleConnect);
+            } else {
+                console.error('BLE连接按钮未找到!');
+            }
+
+            // 测试手动调用
+            if (window.bleConnect) {
+                console.log('bleConnect函数可以调用');
+                // 如果BLE对象不存在，尝试重新创建
+                if (!window.BLE) {
+                    console.warn('BLE对象不存在，尝试重新创建...');
+                    try {
+                        // 重新执行bluetooth.js的内容
+                        const script = document.createElement('script');
+                        script.src = 'bluetooth.js?v=' + Date.now();
+                        document.head.appendChild(script);
+                        script.onload = function() {
+                            console.log('BLE对象重新创建完成:', typeof window.BLE);
+                        };
+                    } catch (e) {
+                        console.error('重新创建BLE失败:', e);
+                    }
+                }
+            } else {
+                console.error('bleConnect函数不存在!');
+            }
+        });
+    </script>
+
+    <footer id="serviceUpdateFooter" style="margin-top:24px;padding:12px 16px;text-align:center;font-size:0.85em;color:#9aa8b6;border-top:1px solid rgba(173,202,218,0.15);">
+        最新更新服务时间：<span id="serviceUpdateTime">--</span>
+    </footer>
+    <script>
+        (function () {
+            var el = document.getElementById('serviceUpdateTime');
+            if (el) {
+                el.textContent = window.__SERVICE_UPDATE_TIME__ || '未知';
+            }
+        })();
+    </script>
+</body>
+</html>

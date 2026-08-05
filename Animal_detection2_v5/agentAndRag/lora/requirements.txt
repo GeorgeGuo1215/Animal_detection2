@@ -1,0 +1,19 @@
+torch
+transformers>=4.45.0
+datasets>=2.19.0
+accelerate>=0.33.0
+peft>=0.12.0
+trl>=0.10.0
+safetensors>=0.4.0
+pyyaml>=6.0.1
+
+# 评估指标：ROUGE / BLEU / BERTScore
+evaluate>=0.4.0
+rouge_score>=0.1.2
+sacrebleu>=2.4.0
+bert_score>=0.3.13
+
+# 可选：如果你要用 --load_in_4bit（Windows 上不一定好装；不行就删掉/别开 4bit）
+bitsandbytes; platform_system != "Windows"
+
+

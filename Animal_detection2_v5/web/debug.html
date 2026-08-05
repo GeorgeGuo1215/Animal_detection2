@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Q通道调试工具</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        .test-box {
+            background: #252526;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #007acc;
+        }
+        .success { border-left-color: #4ec9b0; }
+        .error { border-left-color: #f48771; }
+        .warning { border-left-color: #dcdcaa; }
+        pre {
+            background: #1e1e1e;
+            padding: 10px;
+            overflow-x: auto;
+            border-radius: 3px;
+        }
+        button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #005a9e; }
+        .result { margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Q通道数据调试工具</h1>
+    
+    <div class="test-box">
+        <h2>测试1: 手动解析你的数据</h2>
+        <button onclick="test1()">运行测试</button>
+        <div id="test1-result" class="result"></div>
+    </div>
+
+    <div class="test-box">
+        <h2>测试2: 检查ADC转换公式</h2>
+        <button onclick="test2()">运行测试</button>
+        <div id="test2-result" class="result"></div>
+    </div>
+
+    <div class="test-box">
+        <h2>测试3: 模拟完整数据流</h2>
+        <button onclick="test3()">运行测试</button>
+        <div id="test3-result" class="result"></div>
+    </div>
+
+    <script>
+        function test1() {
+            const result = document.getElementById('test1-result');
+            const testData = `[7:40:52 PM] ADC:9018 5925|Acc:0.373 -0.730 0.521|Gyr:-7.6 2.7 -2.2|T:35.4`;
+            
+            let output = `<pre>原始数据:\n${testData}\n\n`;
+            
+            // 步骤1: 定位ADC
+            const trimmed = testData.trim();
+            const idx = trimmed.indexOf('ADC:');
+            output += `步骤1 - 查找"ADC:"标签:\n  位置: ${idx}\n\n`;
+            
+            // 步骤2: 提取ADC字段
+            const seg = trimmed.slice(idx + 4);
+            output += `步骤2 - 提取ADC后的内容:\n  "${seg.substring(0, 50)}"\n\n`;
+            
+            // 步骤3: 分割到管道符
+            const firstField = seg.split('|')[0];
+            output += `步骤3 - 提取到第一个"|":\n  "${firstField}"\n\n`;
+            
+            // 步骤4: 正则匹配数字
+            const floatRe = /[+-]?(?:\d+\.\d+|\d+|\.\d+)(?:[eE][+-]?\d+)?/g;
+            const nums = firstField.match(floatRe)?.map(v => parseFloat(v)) || [];
+            output += `步骤4 - 正则匹配数字:\n  匹配结果: [${nums.join(', ')}]\n`;
+            output += `  数组长度: ${nums.length}\n\n`;
+            
+            if (nums.length >= 2) {
+                // 步骤5: 转换为电压
+                const iVal = ((nums[0] / 32767) + 1) * 3.3 / 2;
+                const qVal = ((nums[1] / 32767) + 1) * 3.3 / 2;
+                output += `步骤5 - ADC转电压:\n`;
+                output += `  I: ((${nums[0]} / 32767) + 1) * 1.65 = ${iVal.toFixed(6)}V\n`;
+                output += `  Q: ((${nums[1]} / 32767) + 1) * 1.65 = ${qVal.toFixed(6)}V\n\n`;
+                output += `<strong style="color: #4ec9b0;">✅ 测试通过！Q值 = ${qVal.toFixed(4)}V (不是0)</strong>`;
+                result.className = 'result success';
+            } else {
+                output += `<strong style="color: #f48771;">❌ 测试失败！未能提取到2个数字</strong>`;
+                result.className = 'result error';
+            }
+            
+            output += `</pre>`;
+            result.innerHTML = output;
+        }
+
+        function test2() {
+            const result = document.getElementById('test2-result');
+            let output = `<pre>测试ADC转换公式:\n\n`;
+            
+            const testCases = [
+                { adc: 9018, expected: 'I通道' },
+                { adc: 5925, expected: 'Q通道' },
+                { adc: -3455, expected: 'I通道（负值）' },
+                { adc: 1176, expected: 'Q通道（负值）' },
+                { adc: 0, expected: '中间值' },
+                { adc: 32767, expected: '最大值' },
+                { adc: -32768, expected: '最小值' }
+            ];
+            
+            testCases.forEach(({adc, expected}) => {
+                const voltage = ((adc / 32767) + 1) * 3.3 / 2;
+                output += `${expected.padEnd(20)} ADC=${String(adc).padEnd(8)} => ${voltage.toFixed(6)}V\n`;
+            });
+            
+            output += `\n<strong style="color: #4ec9b0;">✅ 公式正常工作</strong></pre>`;
+            result.innerHTML = output;
+            result.className = 'result success';
+        }
+
+        function test3() {
+            const result = document.getElementById('test3-result');
+            const testLines = [
+                `[7:40:52 PM] ADC:9018 5925|Acc:0.373 -0.730 0.521|Gyr:-7.6 2.7 -2.2|T:35.4`,
+                `[7:40:52 PM] ADC:9010 5892|Acc:0.381 -0.736 0.527|Gyr:-8.4 2.2 -2.1|T:35.4`,
+                `[7:40:52 PM] ADC:8976 5836|Acc:0.382 -0.735 0.523|Gyr:-10.3 1.0 -0.1|T:35.4`
+            ];
+            
+            let output = `<pre>模拟处理3条数据:\n\n`;
+            
+            const bufferI = [];
+            const bufferQ = [];
+            
+            testLines.forEach((line, idx) => {
+                const trimmed = line.trim();
+                const adcIdx = trimmed.indexOf('ADC:');
+                const seg = trimmed.slice(adcIdx + 4);
+                const firstField = seg.split('|')[0];
+                const floatRe = /[+-]?(?:\d+\.\d+|\d+|\.\d+)(?:[eE][+-]?\d+)?/g;
+                const nums = firstField.match(floatRe)?.map(v => parseFloat(v)) || [];
+                
+                if (nums.length >= 2) {
+                    const iVal = ((nums[0] / 32767) + 1) * 3.3 / 2;
+                    const qVal = ((nums[1] / 32767) + 1) * 3.3 / 2;
+                    bufferI.push(iVal);
+                    bufferQ.push(qVal);
+                    output += `数据 #${idx+1}:\n`;
+                    output += `  ADC: I=${nums[0]}, Q=${nums[1]}\n`;
+                    output += `  电压: I=${iVal.toFixed(4)}V, Q=${qVal.toFixed(4)}V\n`;
+                    output += `  添加到buffer成功\n\n`;
+                }
+            });
+            
+            output += `Buffer统计:\n`;
+            output += `  I长度: ${bufferI.length}\n`;
+            output += `  Q长度: ${bufferQ.length}\n`;
+            output += `  I值: [${bufferI.map(v => v.toFixed(4)).join(', ')}]\n`;
+            output += `  Q值: [${bufferQ.map(v => v.toFixed(4)).join(', ')}]\n\n`;
+            
+            if (bufferQ.every(v => v > 0)) {
+                output += `<strong style="color: #4ec9b0;">✅ 测试通过！所有Q值都正常（不是0）</strong>`;
+                result.className = 'result success';
+            } else {
+                output += `<strong style="color: #f48771;">❌ 测试失败！发现Q值为0</strong>`;
+                result.className = 'result error';
+            }
+            
+            output += `</pre>`;
+            result.innerHTML = output;
+        }
+    </script>
+</body>
+</html>

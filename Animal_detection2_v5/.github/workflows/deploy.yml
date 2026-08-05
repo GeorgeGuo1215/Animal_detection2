@@ -1,0 +1,52 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      # Pages 上 version.js 易被 CDN/浏览器强缓存；构建时写入时间与 cache-bust，
+      # 页脚时间才与「本次上线」一致。
+      - name: Stamp deploy time (HKT) and cache-bust version.js
+        run: |
+          TS=$(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M:%S HKT')
+          {
+            echo '// 构建时由 GitHub Actions 写入（HKT）。本地开发可用 web/start-server.sh 覆盖。';
+            echo "window.__SERVICE_UPDATE_TIME__ = '${TS}';";
+          } > web/version.js
+          sed -i 's|src="version.js"|src="version.js?v='"${GITHUB_RUN_ID}"'"|' web/index.html
+      
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+      
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: './web'
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

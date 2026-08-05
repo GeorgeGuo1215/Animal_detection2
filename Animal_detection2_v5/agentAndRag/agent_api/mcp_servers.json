@@ -1,0 +1,22 @@
+{
+  "servers": [
+    {
+      "name": "web_search",
+      "transport": "stdio",
+      "command": "python",
+      "args": ["-m", "mcp_servers.web_search"],
+      "env": {
+        "TAVILY_API_KEY": "${TAVILY_API_KEY}"
+      },
+      "enabled": true
+    },
+    {
+      "name": "nutritional_planner",
+      "transport": "stdio",
+      "command": "python",
+      "args": ["-m", "mcp_servers.nutritional_planner"],
+      "env": {},
+      "enabled": true
+    }
+  ]
+}

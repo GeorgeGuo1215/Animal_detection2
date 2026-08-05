@@ -1,0 +1,47 @@
+{
+  "_description": "Caloric density in kcal per gram for common pet food types",
+  "dry_kibble_standard": {
+    "kcal_per_gram": 3.5,
+    "description": "Standard dry kibble"
+  },
+  "dry_kibble_premium": {
+    "kcal_per_gram": 4.0,
+    "description": "Premium/high-protein dry kibble"
+  },
+  "dry_kibble_light": {
+    "kcal_per_gram": 2.8,
+    "description": "Light/weight management dry kibble"
+  },
+  "wet_food_standard": {
+    "kcal_per_gram": 1.0,
+    "description": "Standard wet/canned food"
+  },
+  "wet_food_premium": {
+    "kcal_per_gram": 1.3,
+    "description": "Premium wet food"
+  },
+  "raw_diet": {
+    "kcal_per_gram": 1.5,
+    "description": "Raw/BARF diet"
+  },
+  "prescription_renal": {
+    "kcal_per_gram": 3.8,
+    "description": "Prescription renal diet (dry)"
+  },
+  "prescription_gastrointestinal": {
+    "kcal_per_gram": 3.6,
+    "description": "Prescription GI diet (dry)"
+  },
+  "prescription_weight_management": {
+    "kcal_per_gram": 2.5,
+    "description": "Prescription weight management (dry)"
+  },
+  "treats_standard": {
+    "kcal_per_gram": 3.0,
+    "description": "Standard treats/snacks"
+  },
+  "default": {
+    "kcal_per_gram": 3.5,
+    "description": "Default assumption for unknown food type"
+  }
+}

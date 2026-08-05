@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECG动态显示测试</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="fft.js"></script>
+    <style>
+        body {
+            background: #1a1a1a;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            padding: 20px;
+        }
+        .test-section {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .test-title {
+            color: #00ccff;
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+        }
+        .test-info {
+            margin: 10px 0;
+            font-size: 0.9rem;
+        }
+        .success { color: #44ff44; }
+        .error { color: #ff4444; }
+        .warning { color: #ffaa44; }
+        button {
+            background: #333;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        button:hover {
+            background: #444;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 ECG动态显示测试页面</h1>
+    
+    <div class="test-section">
+        <div class="test-title">系统状态检查</div>
+        <div id="systemStatus"></div>
+        <button onclick="checkSystem()">检查系统</button>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">ECG画布测试</div>
+        <div id="canvasStatus"></div>
+        <button onclick="testCanvas()">测试画布</button>
+    </div>
+    
+    <!-- ECG监测区域 -->
+    <div class="ecg-section">
+        <h3>🫀 动态生理信号监测测试</h3>
+        <div class="ecg-controls">
+            <button class="btn btn-success" id="playBtn" onclick="toggleECGPlayback()">▶️ 播放</button>
+            <button class="btn btn-secondary" id="pauseBtn" onclick="toggleECGPlayback()" style="display: none;">⏸️ 暂停</button>
+            <button class="btn btn-info" onclick="resetECG()">🔄 重置</button>
+            <button class="btn btn-warning" onclick="testECG()" style="background: #ffc107; color: #000;">🧪 生成测试数据</button>
+        </div>
+        
+        <div class="ecg-monitors">
+            <!-- 呼吸波形动态监测 -->
+            <div class="ecg-monitor respiratory-monitor">
+                <div class="monitor-header">
+                    <h4>🫁 呼吸波形</h4>
+                    <div class="vital-display">
+                        <span class="vital-label">呼吸频率:</span>
+                        <span class="vital-value" id="currentRespRate">-- bpm</span>
+                    </div>
+                </div>
+                <div class="ecg-screen" id="respiratoryECG">
+                    <canvas id="respiratoryECGCanvas"></canvas>
+                    <div class="ecg-grid"></div>
+                    <div class="ecg-cursor"></div>
+                </div>
+            </div>
+            
+            <!-- 心跳波形动态监测 -->
+            <div class="ecg-monitor heartbeat-monitor">
+                <div class="monitor-header">
+                    <h4>💓 心跳波形</h4>
+                    <div class="vital-display">
+                        <span class="vital-label">心率:</span>
+                        <span class="vital-value" id="currentHeartRate">-- bpm</span>
+                    </div>
+                </div>
+                <div class="ecg-screen" id="heartbeatECG">
+                    <canvas id="heartbeatECGCanvas"></canvas>
+                    <div class="ecg-grid"></div>
+                    <div class="ecg-cursor"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">调试日志</div>
+        <div id="debugLog" style="height: 200px; overflow-y: auto; background: #000; padding: 10px; border: 1px solid #444;"></div>
+        <button onclick="clearLog()">清空日志</button>
+    </div>
+
+    <script src="radar-processor.js"></script>
+    <script src="app.js"></script>
+    
+    <script>
+        // 重写console.log来显示在页面上
+        const originalLog = console.log;
+        const originalError = console.error;
+        const debugLog = document.getElementById('debugLog');
+        
+        function addToLog(message, type = 'log') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = type === 'error' ? 'error' : (type === 'warn' ? 'warning' : 'success');
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            debugLog.appendChild(logEntry);
+            debugLog.scrollTop = debugLog.scrollHeight;
+        }
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addToLog(args.join(' '), 'log');
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addToLog(args.join(' '), 'error');
+        };
+        
+        function clearLog() {
+            debugLog.innerHTML = '';
+        }
+        
+        function checkSystem() {
+            const statusDiv = document.getElementById('systemStatus');
+            let html = '';
+            
+            // 检查各种组件
+            html += `<div class="${typeof FFT !== 'undefined' ? 'success' : 'error'}">FFT库: ${typeof FFT !== 'undefined' ? '✓' : '✗'}</div>`;
+            html += `<div class="${typeof RadarDataProcessor !== 'undefined' ? 'success' : 'error'}">数据处理器: ${typeof RadarDataProcessor !== 'undefined' ? '✓' : '✗'}</div>`;
+            html += `<div class="${typeof app !== 'undefined' ? 'success' : 'error'}">App实例: ${typeof app !== 'undefined' ? '✓' : '✗'}</div>`;
+            
+            if (typeof app !== 'undefined') {
+                html += `<div class="${app.ecgAnimations.respiratory ? 'success' : 'error'}">呼吸画布: ${app.ecgAnimations.respiratory ? '✓' : '✗'}</div>`;
+                html += `<div class="${app.ecgAnimations.heartbeat ? 'success' : 'error'}">心跳画布: ${app.ecgAnimations.heartbeat ? '✓' : '✗'}</div>`;
+                html += `<div class="test-info">ECG数据长度: 呼吸=${app.ecgData.respiratory.length}, 心跳=${app.ecgData.heartbeat.length}</div>`;
+            }
+            
+            statusDiv.innerHTML = html;
+        }
+        
+        function testCanvas() {
+            const statusDiv = document.getElementById('canvasStatus');
+            const respiratoryCanvas = document.getElementById('respiratoryECGCanvas');
+            const heartbeatCanvas = document.getElementById('heartbeatECGCanvas');
+            
+            let html = '';
+            html += `<div class="${respiratoryCanvas ? 'success' : 'error'}">呼吸画布元素: ${respiratoryCanvas ? '✓' : '✗'}</div>`;
+            html += `<div class="${heartbeatCanvas ? 'success' : 'error'}">心跳画布元素: ${heartbeatCanvas ? '✓' : '✗'}</div>`;
+            
+            if (respiratoryCanvas) {
+                const rect = respiratoryCanvas.getBoundingClientRect();
+                html += `<div class="test-info">呼吸画布尺寸: ${rect.width}x${rect.height}</div>`;
+            }
+            
+            if (heartbeatCanvas) {
+                const rect = heartbeatCanvas.getBoundingClientRect();
+                html += `<div class="test-info">心跳画布尺寸: ${rect.width}x${rect.height}</div>`;
+            }
+            
+            statusDiv.innerHTML = html;
+        }
+        
+        // 页面加载完成后自动检查
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                checkSystem();
+                testCanvas();
+                console.log('测试页面加载完成');
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
+

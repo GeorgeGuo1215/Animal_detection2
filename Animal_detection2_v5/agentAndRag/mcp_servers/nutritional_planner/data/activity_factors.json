@@ -1,0 +1,54 @@
+{
+  "puppy_under_4m": {
+    "factor": 3.0,
+    "description": "Puppy under 4 months, rapid growth phase"
+  },
+  "puppy_4m_to_1y": {
+    "factor": 2.0,
+    "description": "Puppy 4 months to 1 year"
+  },
+  "adult_neutered": {
+    "factor": 1.6,
+    "description": "Adult neutered/spayed, typical activity"
+  },
+  "adult_intact": {
+    "factor": 1.8,
+    "description": "Adult intact, typical activity"
+  },
+  "senior": {
+    "factor": 1.2,
+    "description": "Senior pet, reduced activity"
+  },
+  "weight_loss": {
+    "factor": 1.0,
+    "description": "Weight loss program, calorie restriction"
+  },
+  "weight_gain": {
+    "factor": 1.8,
+    "description": "Underweight pet needing weight gain"
+  },
+  "post_surgery_recovery": {
+    "factor": 1.0,
+    "description": "Post-surgery recovery, minimal activity"
+  },
+  "high_activity_working": {
+    "factor": 2.5,
+    "description": "Working/sporting dog, high activity"
+  },
+  "moderate_activity": {
+    "factor": 1.6,
+    "description": "Moderate daily exercise (1-2 hours)"
+  },
+  "light_activity": {
+    "factor": 1.4,
+    "description": "Light daily exercise (30-60 minutes)"
+  },
+  "gestation": {
+    "factor": 2.0,
+    "description": "Pregnant, mid to late gestation"
+  },
+  "lactation": {
+    "factor": 3.0,
+    "description": "Nursing mother, peak lactation"
+  }
+}

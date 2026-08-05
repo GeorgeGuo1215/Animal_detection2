@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>活动监测调试工具</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .debug-section {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            background: #007AFF;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0051D5;
+        }
+        .output {
+            background: #f0f0f0;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 4px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success { color: #34C759; }
+        .error { color: #FF2D55; }
+        .warning { color: #FF9500; }
+    </style>
+</head>
+<body>
+    <h1>🔍 活动监测模块调试工具</h1>
+
+    <div class="debug-section">
+        <h2>1. 检查依赖</h2>
+        <button onclick="checkDependencies()">检查Chart.js和ActivityMonitor</button>
+        <div id="depOutput" class="output"></div>
+    </div>
+
+    <div class="debug-section">
+        <h2>2. 检查DOM元素</h2>
+        <button onclick="checkDOMElements()">检查Canvas元素</button>
+        <div id="domOutput" class="output"></div>
+    </div>
+
+    <div class="debug-section">
+        <h2>3. 检查ActivityMonitor状态</h2>
+        <button onclick="checkMonitorStatus()">检查监测器状态</button>
+        <div id="statusOutput" class="output"></div>
+    </div>
+
+    <div class="debug-section">
+        <h2>4. 手动触发操作</h2>
+        <button onclick="manualInitCharts()">手动初始化图表</button>
+        <button onclick="manualUpdateCharts()">手动更新图表</button>
+        <button onclick="addTestData()">添加测试数据</button>
+        <div id="manualOutput" class="output"></div>
+    </div>
+
+    <div class="debug-section">
+        <h2>5. 查看数据</h2>
+        <button onclick="viewData()">查看当前数据</button>
+        <div id="dataOutput" class="output"></div>
+    </div>
+
+    <script>
+        function log(elementId, message, type = 'info') {
+            const output = document.getElementById(elementId);
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : type === 'warning' ? 'warning' : '';
+            output.innerHTML += `<div class="${className}">${message}</div>`;
+        }
+
+        function clearLog(elementId) {
+            document.getElementById(elementId).innerHTML = '';
+        }
+
+        function checkDependencies() {
+            clearLog('depOutput');
+
+            // 检查Chart.js
+            if (typeof Chart !== 'undefined') {
+                log('depOutput', '✅ Chart.js已加载: ' + Chart.version, 'success');
+            } else {
+                log('depOutput', '❌ Chart.js未加载', 'error');
+            }
+
+            // 检查ActivityMonitor
+            if (typeof ActivityMonitor !== 'undefined') {
+                log('depOutput', '✅ ActivityMonitor类已定义', 'success');
+            } else {
+                log('depOutput', '❌ ActivityMonitor类未定义', 'error');
+            }
+
+            // 检查app对象
+            if (typeof window.app !== 'undefined') {
+                log('depOutput', '✅ window.app对象存在', 'success');
+
+                if (window.app.activityMonitor) {
+                    log('depOutput', '✅ activityMonitor实例已创建', 'success');
+                    log('depOutput', `   - 图表数量: ${Object.keys(window.app.activityMonitor.charts).length}`, 'info');
+                    log('depOutput', `   - 监测启用: ${window.app.activityMonitorEnabled}`, 'info');
+                } else {
+                    log('depOutput', '⚠️ activityMonitor实例未创建', 'warning');
+                }
+            } else {
+                log('depOutput', '❌ window.app对象不存在', 'error');
+            }
+        }
+
+        function checkDOMElements() {
+            clearLog('domOutput');
+
+            const elements = [
+                'activityStepsRingChart',
+                'activityENMORingChart',
+                'activityHourlyStepsChart',
+                'activityHourlyENMOChart',
+                'activityIntensityTrendChart'
+            ];
+
+            elements.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    const visible = el.offsetParent !== null;
+                    log('domOutput', `✅ ${id}: 存在 (可见: ${visible})`, 'success');
+                } else {
+                    log('domOutput', `❌ ${id}: 不存在`, 'error');
+                }
+            });
+
+            // 检查仪表板
+            const dashboard = document.getElementById('activityDashboard');
+            if (dashboard) {
+                const visible = dashboard.style.display !== 'none';
+                log('domOutput', `📊 activityDashboard: ${visible ? '可见' : '隐藏'}`, visible ? 'success' : 'warning');
+            }
+        }
+
+        function checkMonitorStatus() {
+            clearLog('statusOutput');
+
+            if (!window.app || !window.app.activityMonitor) {
+                log('statusOutput', '❌ ActivityMonitor未初始化', 'error');
+                return;
+            }
+
+            const monitor = window.app.activityMonitor;
+            log('statusOutput', '📊 ActivityMonitor状态:', 'info');
+            log('statusOutput', `   - 总步数: ${monitor.totalSteps}`, 'info');
+            log('statusOutput', `   - 总活动量: ${monitor.totalENMO.toFixed(2)}`, 'info');
+            log('statusOutput', `   - 当前强度: ${monitor.currentIntensity}`, 'info');
+            log('statusOutput', `   - 历史记录: ${monitor.activityHistory.length}条`, 'info');
+            log('statusOutput', `   - 步数历史: ${monitor.stepHistory.length}条`, 'info');
+            log('statusOutput', `   - 加速度缓存: ${monitor.accBufferX.length}个样本`, 'info');
+            log('statusOutput', `   - 已处理索引: ${monitor.lastProcessedIndex}`, 'info');
+            log('statusOutput', `   - 图表对象: ${Object.keys(monitor.charts).length}个`, 'info');
+
+            Object.keys(monitor.charts).forEach(key => {
+                log('statusOutput', `     • ${key}: ${monitor.charts[key] ? '已创建' : '未创建'}`,
+                    monitor.charts[key] ? 'success' : 'error');
+            });
+        }
+
+        function manualInitCharts() {
+            clearLog('manualOutput');
+
+            if (!window.app || !window.app.activityMonitor) {
+                log('manualOutput', '❌ ActivityMonitor未初始化', 'error');
+                return;
+            }
+
+            try {
+                log('manualOutput', '🎨 开始初始化图表...', 'info');
+                window.app.activityMonitor.initializeCharts();
+                log('manualOutput', '✅ 图表初始化完成', 'success');
+                log('manualOutput', `   创建了 ${Object.keys(window.app.activityMonitor.charts).length} 个图表`, 'info');
+            } catch (e) {
+                log('manualOutput', `❌ 初始化失败: ${e.message}`, 'error');
+            }
+        }
+
+        function manualUpdateCharts() {
+            clearLog('manualOutput');
+
+            if (!window.app || !window.app.activityMonitor) {
+                log('manualOutput', '❌ ActivityMonitor未初始化', 'error');
+                return;
+            }
+
+            try {
+                log('manualOutput', '📊 开始更新图表...', 'info');
+                window.app.activityMonitor.updateCharts();
+                log('manualOutput', '✅ 图表更新完成', 'success');
+            } catch (e) {
+                log('manualOutput', `❌ 更新失败: ${e.message}`, 'error');
+            }
+        }
+
+        function addTestData() {
+            clearLog('manualOutput');
+
+            if (!window.app || !window.app.activityMonitor) {
+                log('manualOutput', '❌ ActivityMonitor未初始化', 'error');
+                return;
+            }
+
+            const monitor = window.app.activityMonitor;
+
+            // 添加模拟的走路数据
+            log('manualOutput', '🚶 添加模拟走路数据...', 'info');
+            for (let i = 0; i < 100; i++) {
+                const t = i / 50; // 2秒的数据
+                // 模拟走路的加速度模式 (1.5Hz步频)
+                const ax = 0.1 * Math.sin(2 * Math.PI * 1.5 * t);
+                const ay = 0.1 * Math.cos(2 * Math.PI * 1.5 * t);
+                const az = 1.0 + 0.2 * Math.sin(2 * Math.PI * 1.5 * t);
+
+                monitor.addAccelerometerData(ax, ay, az, Date.now() + i * 20);
+            }
+
+            log('manualOutput', '✅ 已添加100个测试数据点', 'success');
+            log('manualOutput', `   当前步数: ${monitor.totalSteps}`, 'info');
+            log('manualOutput', `   当前活动量: ${monitor.totalENMO.toFixed(2)}`, 'info');
+        }
+
+        function viewData() {
+            clearLog('dataOutput');
+
+            if (!window.app || !window.app.activityMonitor) {
+                log('dataOutput', '❌ ActivityMonitor未初始化', 'error');
+                return;
+            }
+
+            const monitor = window.app.activityMonitor;
+            const summary = monitor.getSummary();
+
+            log('dataOutput', '📊 当前数据摘要:', 'info');
+            log('dataOutput', JSON.stringify(summary, null, 2), 'info');
+
+            log('dataOutput', '\n📈 每小时数据:', 'info');
+            monitor.hourlyData.forEach((h, i) => {
+                if (h.steps > 0 || h.activity > 0) {
+                    log('dataOutput', `   ${i}:00 - 步数:${h.steps}, 活动量:${h.activity.toFixed(2)}, 强度:${h.intensity}`, 'info');
+                }
+            });
+        }
+
+        // 页面加载时自动检查
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                checkDependencies();
+                checkDOMElements();
+            }, 500);
+        });
+    </script>
+</body>
+</html>

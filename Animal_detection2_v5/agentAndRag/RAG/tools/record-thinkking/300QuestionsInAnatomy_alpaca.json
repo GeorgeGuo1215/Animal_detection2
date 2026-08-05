@@ -1,0 +1,1492 @@
+[
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is a function of the periosteum?\n\na) To give attachment to tendons\nb) To supply nourishment to the bone\nc) To increase bone circumference\nd) To increase bone length",
+    "output": "正确答案是 B) To supply nourishment to the bone"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "A constituent of blood that is rich in antibodies is:\n\na) thromboplastin\nb) gamma-globulin\nc) leucocytes\nd) thrombocytes (platelets) ---",
+    "output": "正确答案是 B) gamma-globulin"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is NOT a function of the blood?\n\na) To provide materials for the manufacture of glandular secretions\nb) To regulate body temperature\nc) To cushion the brain and spinal cord\nd) To arrest haemorrhage through clotting",
+    "output": "正确答案是 C) To cushion the brain and spinal cord"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The interior of the heart is lined with:\n\na) pericardium\nb) endocardium\nc) myometrium\nd) endomysium",
+    "output": "正确答案是 B) endocardium"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The blood vessels which communicate with the left atrium of the heart are called:\n\na) the pulmonary arteries\nb) the coronary veins\nc) the venae cavae\nd) the pulmonary veins",
+    "output": "正确答案是 D) the pulmonary veins"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The sino-atrial node (pacemaker of the heart) is situated in the:\n\na) wall of the right atrium\nb) atrioventricular bundle (bundle of His)\nc) atrioventricular node\nd) wall of the right ventricle ---",
+    "output": "正确答案是 A) wall of the right atrium"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The function of the lymphatic capillaries is to carry:*\n\na) food and oxygen from the bloodstream\nb) waste products from the cells to the bloodstream\nc) tissue fluid from the interstitial spaces to the lymphatic vessels\nd) intracellular fluid from the cells to the bloodstream",
+    "output": "正确答案是 C) tissue fluid from the interstitial spaces to the lymphatic vessels"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Absorption of food occurs mainly from the:*\n\na) stomach\nb) duodenum\nc) jejunum\nd) colon",
+    "output": "正确答案是 C) jejunum"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Haemopoiesis is:*\n\na) destruction of red blood cells\nb) formation of antibodies in the blood\nc) process of blood clotting\nd) production of red blood cells",
+    "output": "正确答案是 D) production of red blood cells"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Where is the ovum MOST likely to become fertilised?*\n\na) Ovary\nb) Uterine tube (Fallopian tube)\nc) Uterine horn\nd) Uterine body ---",
+    "output": "正确答案是 B) Uterine tube (Fallopian tube)"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The function of the prostate gland is to:\n\na) produce spermatazoa\nb) secrete testosterone\nc) secrete androgens\nd) secrete lubricant for spermatazoa",
+    "output": "正确答案是 D) secrete lubricant for spermatazoa"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following produces spermatazoa?\n\na) Epididymis\nb) Interstitial cells of the testis\nc) Seminal vesicle\nd) Seminiferous tubules",
+    "output": "正确答案是 D) Seminiferous tubules"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Trypsin is formed in the:\n\na) duodenum\nb) exocrine part of the pancreas\nc) islets of Langerhans\nd) stomach",
+    "output": "正确答案是 B) exocrine part of the pancreas"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "A catabolic reaction is:\n\na) the breakdown of starch to glucose with the liberation of energy\nb) where starch is broken down to glucose and where energy is necessary to bring it about\nc) the build up of starch from glucose with the liberation of energy\nd) the build up of starch from glucose and where energy is necessary to bring it about ---",
+    "output": "正确答案是 A) the breakdown of starch to glucose with the liberation of energy"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The dental formula of the kitten is:\n\na) \\( \\text{I} \\frac{3}{3} \\text{c} \\frac{1}{1} \\text{pm} \\frac{3}{3} \\text{m} \\frac{0}{0} = 28 \\)\nb) \\( \\text{I} \\frac{3}{3} \\text{c} \\frac{-1}{1} \\text{pm} \\frac{3}{3} \\text{m}\\frac{1}{1} = 30 \\)\nc) \\( \\text{I} \\frac{3}{3} \\text{c} \\frac{\\text{1}}{\\text{pm}} \\frac{3}{3} \\text{m} \\frac{1}{1} = 30 \\)\nd) \\( \\text{I} \\frac{3}{3} \\text{c} \\frac{{\\text{1}}}{\\text{pm}} \\frac{3}{3} \\text{m} \\frac{0}{0} = \\frac{26}{0} \\)",
+    "output": "正确答案是 D) \\( \\text{I} \\frac{3}{3} \\text{c} \\frac{{\\text{1}}}{\\text{pm}} \\frac{3}{3} \\text{m} \\frac{0}{0} = \\frac{26}{0} \\)"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Contraction of the quadriceps muscle produces:\n\na) extension of the hock\nb) extension of the stifle\nc) flexion of the hock\nd) flexion of the stifle",
+    "output": "正确答案是 B) extension of the stifle"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The oestrous cycle of the bitch is divided into 4 stages. In order these are:\n\na) pro oestrus, anoestrus, metoestrus, oestrus\nb) oestrus, anoestrus, metoestrus, pro oestrus\nc) pro oestrus, metoestrus, oestrus, anoestrus\nd) pro oestrus, oestrus, metoestrus, anoestrus ---",
+    "output": "正确答案是 D) pro oestrus, oestrus, metoestrus, anoestrus ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Intramembranous ossification is where:*\n\na) the femur develops from a hyaline cartilage model\nb) the femur develops from primitive connective tissue\nc) the frontal bone develops from primitive connective tissue\nd) the parietal bone develops from transitional epithelial tissue",
+    "output": "正确答案是 C) the frontal bone develops from primitive connective tissue"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The afferent lymphatic vessels:*\n\na) take lymph to the lymph nodes, enter all over its surface and all are narrower in diameter than the corresponding efferent ones\nb) take lymph away from the lymph node, leaving at the hilus and are narrower in diameter than the corresponding efferent ones\nc) take lymph to the lymph node, enter at the hilus and are wider in diameter than the corresponding efferent ones\nd) take lymph away from the lymph node leaving at the hilus and are wider in diameter than the corresponding efferent ones",
+    "output": "正确答案是 A) take lymph to the lymph nodes, enter all over its surface and all are narrower in diameter than the corresponding efferent ones"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The allantoic cavity is contained by cells originating from:*\n\na) the endoderm\nb) the ectoderm\nc) the mesoderm\nd) the periderm ---",
+    "output": "正确答案是 A) the endoderm"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Interstitial fluid is:*\n\na) the fluid filling the spaces between cells\nb) the fluid inside cells\nc) only found in oedema\nd) 60% of body weight",
+    "output": "正确答案是 A) the fluid filling the spaces between cells"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*An animal dehydrated up to 5% of its weight loss will show:*\n\na) inelastic skin\nb) dry mouth\nc) inelastic skin and dry mouth\nd) no clinical signs",
+    "output": "正确答案是 D) no clinical signs"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Renin is released from:*\n\na) the kidney\nb) the pituitary\nc) the liver\nd) the adrenals",
+    "output": "正确答案是 A) the kidney"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Energy to run the cell's various activities is the result of cell respiration, which occurs in the:*\n\na) ribosomes\nb) mitochondria\nc) Golgi bodies\nd) endoplasmic reticulum ---",
+    "output": "正确答案是 B) mitochondria"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is located in the pelvic bone?\n\na) Foramen magnum\nb) Obturator foramen\nc) Supratrochlear foramen\nd) Intraorbital foramen",
+    "output": "正确答案是 B) Obturator foramen"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "A tendon connects:\n\na) bone to bone\nb) muscle to muscle\nc) muscle to bone\nd) ligament to bone",
+    "output": "正确答案是 C) muscle to bone"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The bladder is lined with:\n\na) smooth muscle\nb) elastic connective tissue\nc) transitional epithelium\nd) serous membrane",
+    "output": "正确答案是 C) transitional epithelium"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The muscle that opens the jaw is the:\n\na) buccinator\nb) masseter\nc) digastricus\nd) temporalis ---",
+    "output": "正确答案是 C) digastricus"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The muscle that MOST completely covers the distal lateral surface of the femur is the:\n\na) gastrocnemius\nb) biceps femoris\nc) adductor\nd) semitendinosus",
+    "output": "正确答案是 B) biceps femoris"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "In the cell, the organelle responsible for storage of digestive enzymes is:\n\na) the lysosome\nb) the Golgi apparatus\nc) the endoplasmic reticulum\nd) the mitochondria",
+    "output": "正确答案是 A) the lysosome"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "How many sternebrae are there in the dog?\n\na) 8\nb) 9\nc) 10\nd) 11 ---",
+    "output": "正确答案是 A) 8"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The layers of the epidermis are, in order from most superficial:\n\na) stratum germinativum, stratum granulosum, stratum lucidum, stratum corneum\nb) stratum lucidum, stratum corneum, stratum granulosum, stratum germinativum\nc) stratum corneum, stratum lucidum, stratum granulosum, stratum germinativum\nd) stratum granulosum, stratum germinativum, stratum lucidum, stratum corneum",
+    "output": "正确答案是 C) stratum corneum, stratum lucidum, stratum granulosum, stratum germinativum"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Internal respiration is the transfer of gases between:\n\na) the blood and body cells\nb) the environment and the lungs\nc) the environment and the lungs and the body cells\nd) the bronchi and the blood",
+    "output": "正确答案是 A) the blood and body cells"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Inspiration is inhibited by:\n\na) blood CO\\(_2\\) levels\nb) carbonic acid levels\nc) diaphragmatic contraction\nd) lung distension",
+    "output": "正确答案是 D) lung distension"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The cells that detect carbonic acid levels are situated in the:\n\na) carotid arteries and aorta\nb) carotid arteries\nc) aorta\nd) venae cavae ---",
+    "output": "正确答案是 A) carotid arteries and aorta"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is not a polymorphonuclear leucocyte?\n\na) Granulocyte\nb) Neutrophil\nc) Basophil\nd) Monocyte",
+    "output": "正确答案是 D) Monocyte"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is NOT a function of the spleen?\n\na) The manufacture of red blood cells\nb) The manufacture of white blood cells\nc) The breakdown of red blood cells\nd) The manufacture of antibodies",
+    "output": "正确答案是 D) The manufacture of antibodies"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Erythrocytes are destroyed in:\n\na) the pancreas\nb) the kidney\nc) the liver\nd) the bowel ---",
+    "output": "正确答案是 C) the liver"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The outer layer of blood vessels is the:\n\na) tunica adventitia\nb) tunica media\nc) tunica intima\nd) squamous epithelial cells",
+    "output": "正确答案是 A) tunica adventitia"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which part of the myocardium is the thickest?\n\na) Right atrium\nb) Right ventricle\nc) Left atrium\nd) Left ventricle",
+    "output": "正确答案是 D) Left ventricle"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Heart muscle contraction is known as:\n\na) systole\nb) diastole\nc) emptying\nd) filling",
+    "output": "正确答案是 A) systole"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is not a superficial lymph node?\n\na) Inguinal\nb) Mesenteric\nc) Popliteal\nd) Axillary ---",
+    "output": "正确答案是 B) Mesenteric"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*An isometric contraction:*\n\na) moves a limb\nb) shortens a muscle\nc) tenses a muscle\nd) extends a limb",
+    "output": "正确答案是 C) tenses a muscle"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The pectoral muscle is formed from:*\n\na) striated muscle fibres\nb) unstrained muscle fibres\nc) smooth muscle fibres\nd) involuntary muscle fibres",
+    "output": "正确答案是 A) striated muscle fibres"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Which ONE of the following does NOT form part of the Achilles tendon?*\n\na) Quadriceps femoris\nb) Semitendinosus\nc) Biceps femoris\nd) Gastrocnemius",
+    "output": "正确答案是 A) Quadriceps femoris"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Which ONE of the following structures does NOT pass through the aortic hiatus?*\n\na) Aorta\nb) Vagal nerve trunk\nc) Azygos vein\nd) Thoracic duct ---",
+    "output": "正确答案是 B) Vagal nerve trunk"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The muscles lying dorsally to the transverse processes of the vertebra are:\n\na) crura\nb) intercostal\nc) hypaxial\nd) epaxial",
+    "output": "正确答案是 D) epaxial"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The main muscle of respiration is the diaphragm. Where is it located?\n\na) Between the thorax and the abdomen\nb) Between the ribs\nc) At the thoracic inlet\nd) Cranial to the heart",
+    "output": "正确答案是 A) Between the thorax and the abdomen"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The three main muscle types are:\n\na) striped, skeletal and visceral\nb) smooth, unstripped and visceral\nc) striated, smooth and cardiac\nd) striped, skeletal and heart",
+    "output": "正确答案是 C) striated, smooth and cardiac"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "A hip adductor is found on which side of the femur?\n\na) Cranial\nb) Caudal\nc) Lateral\nd) Medial ---",
+    "output": "正确答案是 D) Medial ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The muscle that flexes the stifle and extends the hock is the:\n\na) gastrocnemius\nb) biceps brachii\nc) triceps brachii\nd) sartorius",
+    "output": "正确答案是 A) gastrocnemius"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which muscle inserts on the olecranon?\n\na) Triceps brachii\nb) Biceps brachii\nc) Brachialis\nd) Teres major",
+    "output": "正确答案是 A) Triceps brachii"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is not a function of the skin?\n\na) Protection\nb) Secretes pheromones\nc) Excretes waste products\nd) Vitamin A production",
+    "output": "正确答案是 D) Vitamin A production"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Meibomian glands are present in the:\n\na) ear\nb) eyelid\nc) body skin\nd) tail gland ---",
+    "output": "正确答案是 B) eyelid"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Horny nail growth takes place at the:\n\na) claw sole\nb) claw fold\nc) coronary band\nd) the quick",
+    "output": "正确答案是 C) coronary band"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The epidermis is made up of:\n\na) ciliated columnar epithelium\nb) stratified squamous epithelium\nc) transitional epithelium\nd) simple squamous epithelium",
+    "output": "正确答案是 B) stratified squamous epithelium"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Milk does NOT contain:\n\na) protein\nb) lactose\nc) vitamin B\nd) vitamin D",
+    "output": "正确答案是 D) vitamin D"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is NOT a function of the integument?\n\na) Secretion and excretion\nb) Sensation\nc) Synthesis of vitamin E\nd) Temperature regulation ---",
+    "output": "正确答案是 C) Synthesis of vitamin E"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The arrector pili muscles are attached to the:\n\na) guard hairs\nb) hair beds\nc) hair clusters\nd) wool hairs",
+    "output": "正确答案是 A) guard hairs"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The oil glands of the skin are the:\n\na) anal glands\nb) mammary glands\nc) sebaceous glands\nd) sudoriferous glands",
+    "output": "正确答案是 C) sebaceous glands"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Chromosomes are made up of:\n\na) chromic fibres\nb) cilia\nc) chromatin fibres\nd) collagen fibres",
+    "output": "正确答案是 C) chromatin fibres"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Genes that can occupy the same gene locus are called:\n\na) similar\nb) genetic\nc) chromosomal\nd) allelomorphic ---",
+    "output": "正确答案是 D) allelomorphic ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "When alleles are identical they are called:\n\na) homozygous\nb) heterozygous\nc) autosomal\nd) homologous",
+    "output": "正确答案是 A) homozygous"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The outward appearance of an animal is its:\n\na) genotype\nb) phenotype\nc) autosomal\nd) homologous",
+    "output": "正确答案是 B) phenotype"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which one of the following stages of mitosis is in the correct order?\n\na) Interphase, prophase, anaphase, metaphase, telophase\nb) Interphase, prophase, metaphase, telophase, anaphase\nc) Interphase, prophase, metaphase, anaphase, telophase\nd) Interphase, prophase, telophase, anaphase, metaphase ---",
+    "output": "正确答案是 C) Interphase, prophase, metaphase, anaphase, telophase"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The gene for the tortoiseshell coat colour in cats is:\n\na) mutation\nb) epistatic\nc) sex limiting\nd) sex linked",
+    "output": "正确答案是 D) sex linked"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is in the correct sequence?\n\na) Ingestion, digestion, absorption, assimilation\nb) Digestion, absorption, assimilation, ingestion\nc) Digestion, ingestion, assimilation, absorption\nd) Ingestion, assimilation, digestion, absorption",
+    "output": "正确答案是 A) Ingestion, digestion, absorption, assimilation"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Bile is:\n\na) very acidic\nb) slightly acidic\nc) neutral\nd) alkaline ---",
+    "output": "正确答案是 D) alkaline ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Deamination is:\n\na) the conversion of glucose to glycogen\nb) the conversion of glycogen to glucose\nc) the breakdown of amino acids\nd) the conversion of amino acids",
+    "output": "正确答案是 C) the breakdown of amino acids"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Trypsin is an enzyme that:\n\na) is produced in the stomach\nb) requires an alkaline environment\nc) digests carbohydrates\nd) is the precursor of trypsinogen",
+    "output": "正确答案是 B) requires an alkaline environment"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Oxynitic cells produce:\n\na) hydrochloric acid\nb) pepsinogen\nc) renin\nd) mucus",
+    "output": "正确答案是 A) hydrochloric acid"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Glycerol is the breakdown product of:\n\na) protein\nb) carbohydrates\nc) fats\nd) minerals ---",
+    "output": "正确答案是 C) fats"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The cells that detect oxygen levels in the blood are located in:\n\na) the aorta\nb) the carotid arteries\nc) the brain stem\nd) the aorta and the carotid arteries",
+    "output": "正确答案是 D) the aorta and the carotid arteries"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What is the term used to describe the effect which stops the lungs overinflating?\n\na) The Hering-Bruer effect\nb) The Kelsey effect\nc) The medulla oblongata\nd) The rideal effect",
+    "output": "正确答案是 A) The Hering-Bruer effect"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The nucleus of a cell is an essential part of all body cells except for:\n\na) liver cells\nb) immature red blood cells\nc) kidney cells\nd) mature red blood cells",
+    "output": "正确答案是 D) mature red blood cells"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The golden brown pigment found in cells which are connected with haemoglobin breakdown is called:\n\na) melanin\nb) haemosiderin\nc) mitochondria\nd) cytoplasm ---",
+    "output": "正确答案是 B) haemosiderin"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Oxytocin and vasopressin are released from the:\n\na) adrenal glands\nb) anterior pituitary\nc) hypothalamus\nd) posterior pituitary",
+    "output": "正确答案是 D) posterior pituitary"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following statements is the most accurate? The lacrimal gland:\n\na) is ventral to the eyeball\nb) secretes fluid that drains from the orbital region into the nasal vestibule\nc) secretes fluid that enters the anterior chamber of the eye\nd) secretes fluid that enters the conjunctival sac through the caudal surface of the third eyelid",
+    "output": "正确答案是 B) secretes fluid that drains from the orbital region into the nasal vestibule"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The uveal tract consists of:\n\na) choroid, iris and retina\nb) choroid, ciliary body and iris\nc) choroid, ciliary body and lens\nd) choroid, ciliary body and retina",
+    "output": "正确答案是 B) choroid, ciliary body and iris"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Glucagon is secreted by which type of pancreatic islet cell?\n\na) Alpha cells\nb) Beta cells\nc) Gamma cells\nd) Delta cells ---",
+    "output": "正确答案是 B) Beta cells"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Rotary motion of the head is detected by which sensory structure?*\n\na) Cochlea\nb) Organ of Corti\nc) Semicircular canal\nd) Vestibule",
+    "output": "正确答案是 C) Semicircular canal"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Which ONE of these statement is TRUE?*\n\na) Thyroid hormone increases resorption of calcium from bone\nb) Thyroid hormone raises the metabolic rate of the body\nc) Thyroid hormone reduces the metabolic rate of the body\nd) Thyroid hormone reduces the resorption of calcium and phosphorous in the kidney",
+    "output": "正确答案是 B) Thyroid hormone raises the metabolic rate of the body"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Which cardiac chamber receives blood from the systemic veins?*\n\na) Right ventricle\nb) Right atrium\nc) Left atrium\nd) Left ventricle ---",
+    "output": "正确答案是 B) Right atrium"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which vessel normally carries blood with a high level of carbon dioxide?\n\na) Carotid artery\nb) Pulmonary vein\nc) Umbilical vein\nd) Vena cava",
+    "output": "正确答案是 D) Vena cava"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The average life span of a circulating erythrocyte in mammalian blood is approximately:\n\na) 90 days\nb) 100 days\nc) 110 days\nd) 120 days",
+    "output": "正确答案是 A) 90 days"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The coronary arteries are branches of the:\n\na) aorta\nb) left atrium\nc) pulmonary trunk\nd) right atrium",
+    "output": "正确答案是 A) aorta"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The hepatic portal system carries:\n\na) blood from the heart to the liver via the aorta\nb) blood from the intestines to the liver capillaries\nc) lymph from the intestines to the heart via the thoracic duct\nd) lymph from the lacteals to the hepatic vein ---",
+    "output": "正确答案是 B) blood from the intestines to the liver capillaries"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "White blood cells are divided into granulocytes and agranulocytes. Which cell is an agranulocyte?\n\na) Monocyte\nb) Neutrophil\nc) Eosinophil\nd) Basophil",
+    "output": "正确答案是 A) Monocyte"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The name of the valve that separates the left atrium and left ventricle in the heart is the:\n\na) tricuspid valve\nb) mitral valve\nc) pulmonic valve\nd) aortic valve",
+    "output": "正确答案是 B) mitral valve"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which muscle type is under voluntary control?\n\na) Smooth muscle\nb) Skeletal muscle\nc) Uterine muscle\nd) Cardiac muscle",
+    "output": "正确答案是 B) Skeletal muscle"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "A motor unit is made up of:\n\na) a neuron and tendon\nb) a muscle fibre and tendon\nc) a neuron and muscle fibre\nd) a muscle fibre and bone ---",
+    "output": "正确答案是 C) a neuron and muscle fibre"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Epaxial muscles of the vertebrae lie ______ to the transverse processes?\n\na) Dorsal\nb) Ventral\nc) Medial\nd) Lateral",
+    "output": "正确答案是 A) Dorsal"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The linea alba is the area where which muscles come together?\n\na) Epaxial muscles\nb) Quadriceps femoris muscles\nc) Thoracic muscles\nd) Abdominal muscles",
+    "output": "正确答案是 D) Abdominal muscles"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The triceps muscle of the forelimb:\n\na) extends the elbow\nb) flexes the elbow\nc) extends the shoulder\nd) flexes the shoulder",
+    "output": "正确答案是 A) extends the elbow"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The biceps muscle of the forelimb:\n\na) extends the elbow\nb) flexes the brow\nc) extends the shoulder\nd) flexes the shoulder ---",
+    "output": "正确答案是 B) flexes the brow"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is NOT part of the gluteal group of muscles?\n\na) Minimus\nb) Micrоmus\nc) Medius\nd) Maximus",
+    "output": "正确答案是 B) Micrоmus"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The gastrocnemius muscle:\n\na) extends the stifle\nb) flexes the stifle\nc) extends the tarsus\nd) flexes the tarsus",
+    "output": "正确答案是 C) extends the tarsus"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The supra spinatus muscle:\n\na) flexes the shoulder joint\nb) extends the shoulder joint\nc) flexes the elbow joint\nd) extends the elbow joint",
+    "output": "正确答案是 B) extends the shoulder joint"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "In young growing animals, growth in length of long bones occurs at the:\n\na) epithelium\nb) periosteum\nc) diaphysis\nd) epiphyseal plate ---",
+    "output": "正确答案是 D) epiphyseal plate ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The term phagocytosis is used to describe the process whereby cells:\n\na) manufacture protein\nb) manufacture carbohydrates\nc) eliminate waste products\nd) destroy invading bacteria and debris",
+    "output": "正确答案是 D) destroy invading bacteria and debris"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which is the hardest substance in the animal body?\n\na) cartilage\nb) bone\nc) dentine\nd) enamel",
+    "output": "正确答案是 D) enamel"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which two structures make up the joint capsule?\n\na) synovial membrane and hyaline cartilage\nb) synovial membrane and fibrous membrane\nc) fibrous membrane and hyaline cartilage\nd) fibrous membrane and capsular ligament",
+    "output": "正确答案是 B) synovial membrane and fibrous membrane"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The calcaneus is found:\n\na) in the hock\nb) in the stifle\nc) in the elbow\nd) in the carpus ---",
+    "output": "正确答案是 A) in the hock"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Hyaline cartilage is found in:*\n\na) intervertebral discs\nb) the mandibular symphysis\nc) fibrocartilaginous joints\nd) synovial joints",
+    "output": "正确答案是 D) synovial joints"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*An intra-articular meniscus:*\n\na) is made of elastic cartilage\nb) is found in the temporo-mandibular joint\nc) helps to stabilise a joint\nd) replaces the articular cartilage within a joint",
+    "output": "正确答案是 B) is found in the temporo-mandibular joint"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Which ONE of the following types of gland secretes directly into the bloodstream?*\n\na) Mucous\nb) Simple\nc) Compound\nd) Endocrine",
+    "output": "正确答案是 D) Endocrine"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Which ONE of the following is an example of an exocrine gland?*\n\na) Adrenal\nb) Salivary\nc) Pituitary\nd) Ovary ---",
+    "output": "正确答案是 B) Salivary"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Body tissues are all classified into four types:\n\na) epithelial, glandular, connective, bone\nb) nervous, squamous, nervous, skeletal\nc) epithelial, glandular, nervous, skeletal\nd) epithelial, connective, muscular, nervous",
+    "output": "正确答案是 D) epithelial, connective, muscular, nervous"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The predominant type of connective tissue in tendons and ligaments is:\n\na) areolar connective tissue\nb) dense fibrous connective tissue\nc) elastic connective tissue\nd) fibrocartilage",
+    "output": "正确答案是 B) dense fibrous connective tissue"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "A muscle that increases the angle between two bones is known as:\n\na) an abductor\nb) an adductor\nc) an extensor\nd) a flexor",
+    "output": "正确答案是 C) an extensor"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The femur is an example of a:\n\na) long bone\nb) short bone\nc) flat bone\nd) irregular bone ---",
+    "output": "正确答案是 A) long bone"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The scapula is an example of a:*\n\na) long bone\nb) short bone\nc) flat bone\nd) irregular bone",
+    "output": "正确答案是 C) flat bone"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The manubrium is found:*\n\na) in the lower jaw\nb) in the pelvis\nc) between the two pelvic bones\nd) in the sternum",
+    "output": "正确答案是 D) in the sternum"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*During endochondral ossification, the primary centre of ossification develops:*\n\na) in the epiphysis\nb) in the diaphysis\nc) at the epiphyseal plate\nd) in the growth cartilage",
+    "output": "正确答案是 B) in the diaphysis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Secondary centres of ossification then develop:*\n\na) in the epiphysis\nb) in the diaphysis\nc) at the epiphyseal plate\nd) in the growth cartilage ---",
+    "output": "正确答案是 A) in the epiphysis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following bones is NOT part of the axial skeleton?\n\na) The mandible\nb) The sternebrae\nc) The sacrum\nd) The phalanges",
+    "output": "正确答案是 D) The phalanges"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following bones is NOT part of the appendicular skeleton?\n\na) The fibula\nb) The calcaneus\nc) The scapula\nd) The sacrum",
+    "output": "正确答案是 D) The sacrum"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "An example of a condylar joint is:\n\na) the hip\nb) the shoulder\nc) the elbow\nd) the carpus",
+    "output": "正确答案是 D) the carpus"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "An example of a hinge joint is:\n\na) an intervertebral joint\nb) the stifle joint\nc) the hip joint\nd) the sacroiliac joint ---",
+    "output": "正确答案是 B) the stifle joint"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Simple cuboidal epithelium is found:*\n\na) in the bronchi of the respiratory tract\nb) lining the kidney tubules\nc) lining body cavities\nd) in the small intestine",
+    "output": "正确答案是 B) lining the kidney tubules"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Simple columnar epithelium is found:*\n\na) in the bronchi of the respiratory tract\nb) lining* the kidney tubules\nc) lining body cavities\nd) in the small intestine",
+    "output": "正确答案是 D) in the small intestine"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Simple squamous epithelium is found:*\n\na) in the bronchi of the respiratory tract\nb) lining *the kidney tubules*\nc) lining body cavities\nd) in the small intestine",
+    "output": "正确答案是 C) lining body cavities"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The alveoil are lined with:*\n\na) simple squamous epithelium\nb) ciliated mucous epithelium\nc) stratified squamous epithelium\nd) transitional epithelium ---",
+    "output": "正确答案是 A) simple squamous epithelium"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The following are all types of connective tissue:\n\na) loose connective tissue, fibrous connective tissue, muscle, blood\nb) areolar tissue, adipose tissue, cartilage, nerve\nc) bone, cartilage, skin, blood\nd) cartilage, dense connective tissue, bone, blood",
+    "output": "正确答案是 D) cartilage, dense connective tissue, bone, blood"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following muscle types has branching cells within its structure?\n\na) Skeletal muscle\nb) Striated muscle\nc) Smooth muscle\nd) Cardiac muscle",
+    "output": "正确答案是 D) Cardiac muscle"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following muscle types is found in the wall of the intestine?\n\na) Skeletal muscle\nb) Striated muscle\nc) Smooth muscles\nd) Cardiac muscle",
+    "output": "正确答案是 C) Smooth muscles"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is NOT a function of skin?\n\na) Temperature regulation\nb) Protection against micro-organisms\nc) Vitamin manufacture\nd) Antibody production ---",
+    "output": "正确答案是 D) Antibody production ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following breeds of dog does not moult?\n\na) The Standard poodle\nb) The Bichon Frise\nc) The Bedlington terrier\nd) All of the above",
+    "output": "正确答案是 D) All of the above"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following structures is NOT associated with the hair follicles on the dorsum (back) of the normal dog?\n\na) Sebaceous gland\nb) Sweat gland\nc) Arrector pili muscle\nd) Wool hairs",
+    "output": "正确答案是 B) Sweat gland"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Inspired air consists of:\n\na) 29% nitrogen\nb) 79% nitrogen\nc) 89% nitrogen\nd) 21% nitrogen",
+    "output": "正确答案是 B) 79% nitrogen"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is least accurate?\n\na) Nitrogen is unchanged in expired air\nb) Oxygen levels in expired air are lower\nc) Water vapour is slightly higher in inspired air\nd) Carbon dioxide levels are lower in inspired air ---",
+    "output": "正确答案是 C) Water vapour is slightly higher in inspired air"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is least accurate?\n\na) The trachea is a permanently open tube\nb) The oesophagus lies above the trachea\nc) The trachea cartilages are open on the dorsal aspect\nd) The tracheal cartilages are open on the ventral aspect",
+    "output": "正确答案是 D) The tracheal cartilages are open on the ventral aspect"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following sequences is correct with regard to what happens when the trachea splits into two?\n\na) Trachea, bronchi, bronchioles, alveolar duct, alveolar sac\nb) Trachea, bronchi, bronchioles, alveolar sac, alveolar duct\nc) Trachea, bronchioles, bronchi, alveolar sac, alveolar duct\nd) Trachea, bronchioles, bronchi, alveolar duct, alveolar sac",
+    "output": "正确答案是 A) Trachea, bronchi, bronchioles, alveolar duct, alveolar sac"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which structure does NOT lie within the mediastinum?\n\na) Heart\nb) Oesophagus\nc) Trachea\nd) Lungs ---",
+    "output": "正确答案是 D) Lungs ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which is NOT a feature of the larynx?\n\na) It produces sound\nb) It is shared by the digestive and respiratory tracts\nc) It plays a role in swallowing\nd) It forms the opening into the trachea",
+    "output": "正确答案是 B) It is shared by the digestive and respiratory tracts"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following would NOT cause a decreased respiratory rate?\n\na) Pyrexia\nb) Sleep\nc) Anaesthesia\nd) Inactivity",
+    "output": "正确答案是 A) Pyrexia"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The epithelium found lining the GI tract is known as:\n\na) Stratified squamous epithelium\nb) Simple columnar epithelium\nc) Ciliated columnar epithelium\nd) Simple squamous epithelium",
+    "output": "正确答案是 B) Simple columnar epithelium"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is NOT an exocrine gland?\n\na) Sebaceous gland\nb) Anal gland\nc) Salivary gland\nd) Thyroid gland ---",
+    "output": "正确答案是 D) Thyroid gland ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is a type of connective tissue?\n\na) Fibrocartilage\nb) Compact bone\nc) Adipose tissue\nd) All of the above",
+    "output": "正确答案是 D) All of the above"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which organ is NOT part of the upper urinary tract?\n\na) Bladder\nb) Kidney\nc) Urethra\nd) Ureter",
+    "output": "正确答案是 C) Urethra"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which structure does NOT enter or leave the hilus of the kidney?\n\na) Blood vessels\nb) Nerves\nc) Renal pelvis\nd) Uterus",
+    "output": "正确答案是 D) Uterus"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The outer portion of the kidney is:\n\na) medulla\nb) hilus\nc) renal pelvis\nd) cortex ---",
+    "output": "正确答案是 D) cortex ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which part of the nephron is NOT found in the cortex of the kidney?\n\na) Glomerulus\nb) Loop of Henle\nc) PCT\nd) DCT",
+    "output": "正确答案是 B) Loop of Henle"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Blood enters the glomerulus via:\n\na) afferent arteriole\nb) efferent arteriole\nc) renal artery\nd) afferent venule",
+    "output": "正确答案是 A) afferent arteriole"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which part of the nephron is found in the medulla of the kidney?\n\na) PCT\nb) DCT\nc) Bowman’s capsule\nd) Loop of Henle",
+    "output": "正确答案是 D) Loop of Henle"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which hormone is NOT produced by the kidney?\n\na) Erythropoietin\nb) Renin\nc) Anti-diuretic hormone\nd) Thyroxine ---",
+    "output": "正确答案是 C) Anti-diuretic hormone"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which part of the nephron acts as a filter of plasma?\n\na) PCT\nb) Glomerulus\nc) DCT\nd) Loop of Henle",
+    "output": "正确答案是 B) Glomerulus"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which hormone is responsible for increasing reabsorption of sodium?\n\na) Aldosterone\nb) Vitamin D\nc) Renin\nd) Erythropoietin",
+    "output": "正确答案是 A) Aldosterone"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is NOT a function of oestrogen?\n\na) Development of mammary glands\nb) Thickening of endometrium\nc) Maintains pregnancy\nd) Increases receptiveness during oestrus",
+    "output": "正确答案是 C) Maintains pregnancy"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which muscles help contribute to the tie?\n\na) Vaginal\nb) Cervix\nc) Vulval\nd) Vestibular ---",
+    "output": "正确答案是 D) Vestibular ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is NOT a sign of pro-oestrus?\n\na) Swollen vulva\nb) Behaviour changes\nc) Clear discharge\nd) Slightly increased receptiveness to the male",
+    "output": "正确答案是 C) Clear discharge"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The uterus is supported in the abdomen by a fold of peritoneum called the:\n\na) broad ligament\nb) round ligament\nc) myometrium\nd) ovarian ligament",
+    "output": "正确答案是 A) broad ligament"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The inner layer of the uterus is the:\n\na) myometrium\nb) myometrium\nc) endometrium\nd) endoderm",
+    "output": "正确答案是 C) endometrium"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The hormone responsible for the maintenance of pregnancy in the bitch is:\n\na) FSH: follicle stimulating hormone\nb) LH: luteinising hormone\nc) oestradiol\nd) progesterone ---",
+    "output": "正确答案是 D) progesterone ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The layer of peritoneum covering the testes is known as:\n\na) tunica externa\nb) tunica vasuclosa\nc) tunica vaginalis\nd) tunica spermatica",
+    "output": "正确答案是 C) tunica vaginalis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The sertoli cells produce:\n\na) oestrogen\nb) testosterone\nc) progesterone\nd) sperm",
+    "output": "正确答案是 A) oestrogen"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Testosterone is NOT responsible for:\n\na) male behaviour\nb) development of the prostate\nc) descent of the testes\nd) nutrition for spermatozoa",
+    "output": "正确答案是 D) nutrition for spermatozoa"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Sperm leaves the epididymis in:\n\na) afferent ducts\nb) efferent ducts\nc) vas deferens\nd) seminiferous tubules ---",
+    "output": "正确答案是 C) vas deferens"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The glans-penis consists of the:*\n\na) corpus spongiosum\nb) corpus cavernosum\nc) erectile tissue\nd) none of the above",
+    "output": "正确答案是 A) corpus spongiosum"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Which ONE of the following is the LEAST accurate?*\n\na) The dog’s penis points cranially\nb) The dog’s scrotum lies between the hind limbs\nc) The dog’s prostate lies near to the os-penis\nd) The dog’s os-penis lies dorsal to the urethra",
+    "output": "正确答案是 C) The dog’s prostate lies near to the os-penis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Another name for the interstitial cells of the testis is:*\n\na) accessory cells\nb) Leydig cells\nc) seminiferous cells\nd) Sertoli cells",
+    "output": "正确答案是 B) Leydig cells"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Spermatogenesis takes place in the:*\n\na) epididymis\nb) seminal vesicles\nc) seminiferous tubules\nd) vas deferens ---",
+    "output": "正确答案是 C) seminiferous tubules"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following has two uteri?\n\na) Snake\nb) Guinea pig\nc) Tortoise\nd) Rabbit",
+    "output": "正确答案是 D) Rabbit"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is not a function of the spleen?\n\na) Phagocytosis\nb) Storage of red blood cells\nc) Absorption of nutrients\nd) Destruction of red blood cells",
+    "output": "正确答案是 C) Absorption of nutrients"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE is not an example of lymphoid tissue?\n\na) Tonsils\nb) Thymus\nc) Spleen\nd) Villus",
+    "output": "正确答案是 D) Villus"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "A lacteal is what?\n\na) Lymphatic capillary\nb) Lymphatic duct\nc) Lymphatic vessel\nd) Lymph node ---",
+    "output": "正确答案是 A) Lymphatic capillary"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following structures produces lymphocytes?\n\na) Lymph nodes\nb) Spleen\nc) Thymus\nd) All of the above",
+    "output": "正确答案是 D) All of the above"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What do lymphocytes produce?\n\na) Tissue fluid\nb) Lymph\nc) Antibodies\nd) Antigens",
+    "output": "正确答案是 C) Antibodies"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Where is the thymus found?\n\na) Throat\nb) Abdomen\nc) Thorax\nd) Stomach",
+    "output": "正确答案是 C) Thorax"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The portion of the lymphatic duct in the abdomen is called:\n\na) thoracic duct\nb) abdominal duct\nc) afferent duct\nd) cysterna chyli ---",
+    "output": "正确答案是 D) cysterna chyli ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following lymph nodes could be palpated in the groin of the dog?\n\na) Superficial inguinal\nb) Axillary\nc) Prescapular\nd) Popliteal",
+    "output": "正确答案是 A) Superficial inguinal"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is NOT usually indicative of hypothyroidism?\n\na) Hypothermia\nb) Weight loss\nc) Reduced appetite\nd) Low exercise tolerance",
+    "output": "正确答案是 B) Weight loss"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following statements is true?\n\na) Parathormone reduces calcium resorption in the kidney\nb) Parathormone in reduced quantities may cause hyperthyroidism\nc) Parathormone decreases calcium reabsorption from the bone\nd) Parathormone increases calcium absorption from the gut ---",
+    "output": "正确答案是 D) Parathormone increases calcium absorption from the gut ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Hormones produced by this gland regulate metabolism, water balance and some sex steroids. It is the:\n\na) thyroid\nb) ovaries\nc) adrenal cortex\nd) adrenal medulla",
+    "output": "正确答案是 C) adrenal cortex"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The adrenal medulla secretes:\n\na) adrenaline\nb) epinephrine\nc) norepinephrine\nd) all of the above",
+    "output": "正确答案是 D) all of the above"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Anti-diuretic hormone is produced by:\n\na) anterior pituitary gland\nb) posterior pituitary gland\nc) kidney\nd) adrenal glands",
+    "output": "正确答案是 B) posterior pituitary gland"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following hormones is NOT produced by the anterior pituitary gland?\n\na) Relaxin\nb) Adrenocorticotrophic hormone\nc) Follicle stimulating hormone\nd) Interstitial cell stimulating hormone ---",
+    "output": "正确答案是 A) Relaxin"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which TWO hormones are produced by the pituitary gland and have a direct effect on the ovary?\n\na) Follicle-stimulating hormone and progesterone\nb) Progesterone and luteinising hormone\nc) Follicle-stimulating hormone and luteinising hormone\nd) Progesterone and oestrogen",
+    "output": "正确答案是 C) Follicle-stimulating hormone and luteinising hormone"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the salivary glands secretes ptyalin (amylase)?\n\na) Parotid\nb) Submandibular\nc) Sublingual\nd) Zygomatic",
+    "output": "正确答案是 A) Parotid"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Trypsin digests:\n\na) complex carbohydrates\nb) proteins\nc) sucrose\nd) unsaturated fatty acids",
+    "output": "正确答案是 B) proteins"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The stomach of the dog produces hydrochloric acid, mucus and:\n\na) amylase\nb) bile salts\nc) pepsin\nd) trypsin ---",
+    "output": "正确答案是 C) pepsin"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The stomach of the dog is divided into three parts, which from the entrance of the oesophagus are termed:*\n\na) cardia, fundus and pylorus\nb) fundus, cardia and pylorus\nc) fundus, pylorus and cardia\nd) pylorus, cardia and fundus",
+    "output": "正确答案是 A) cardia, fundus and pylorus"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The major site for water absorption in the gut is the:*\n\na) colon\nb) rectum\nc) small intestine\nd) stomach",
+    "output": "正确答案是 A) colon"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The function of ptyalin is:*\n\na) to maintain an alkaline pH\nb) to start the digestion of carbohydrate\nc) to stimulate the release of mucus by the gland\nd) to stimulate the secretion of bicarbonate",
+    "output": "正确答案是 B) to start the digestion of carbohydrate"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Which ONE of the following statements is INCORRECT?*\n\na) The pH of pancreatic juice is acidic\nb) The wall of the small intestine contains smooth muscle\nc) Bile is produced in the liver\nd) Bile enters the small intestine at the duodenum ---",
+    "output": "正确答案是 A) The pH of pancreatic juice is acidic"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The exocrine pancreas assists in the process of digestion by producing:\n\na) amylase, bile acids, bile salts and trypsin\nb) amylase, bile acids, pepsin and bicarbonate ions\nc) amylase, lipase, trypsin and bicarbonate ions\nd) amylase, lipase, trypsin and gastrin",
+    "output": "正确答案是 C) amylase, lipase, trypsin and bicarbonate ions"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The enzyme pepsin is produced in the:\n\na) intestinal juice and breaks down carbohydrate\nb) pancreatic juice and breaks down protein\nc) stomach and breaks down carbohydrate\nd) stomach and breaks down protein",
+    "output": "正确答案是 D) stomach and breaks down protein"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Fats that are digested and absorbed into lacteals are then carried almost directly into the:\n\na) cisterna chyli\nb) hepatic vein\nc) portal vein\nd) right azygos vein",
+    "output": "正确答案是 A) cisterna chyli"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following statements is INCORRECT?\n\na) Bile contains enzymes to aid fat digestion\nb) Bile contains pigments which are waste products of haemoglobin breakdown\nc) Bile is produced in the liver\nd) Bile contains bicarbonate and electrolytes ---",
+    "output": "正确答案是 A) Bile contains enzymes to aid fat digestion"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Chyme is:*\n\na) the mix of food, mucus and gastric secretions produced in the stomach\nb) the milky fluid contained within the thoracic duct\nc) the enzyme used to break down fats\nd) the exocrine secretion produced by the pancreas",
+    "output": "正确答案是 A) the mix of food, mucus and gastric secretions produced in the stomach"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The small intestine is divided into three sections. In which order does food pass through them?*\n\na) Duodenum, ileum, jejunum\nb) Jejunum, ileum, duodenum\nc) Ileum, duodenum, jejunum\nd) Duodenum, jejunum, ileum",
+    "output": "正确答案是 D) Duodenum, jejunum, ileum"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*In which part of the intestinal tract would you find villi?*\n\na) Stomach\nb) Small intestine\nc) Rectum\nd) Colon",
+    "output": "正确答案是 B) Small intestine"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Which ONE of the following is the correct formulae for the dog’s permanent teeth?*\n\na) I 3/3 C 1/1 PM 3/3 M 2/3\nb) I 3/3 C 1/1 PM 3/3 M 3/2\nc) I 3/3 C 1/1 PM 4/4 M 3/2\nd) I 3/3 C 1/1 PM 4/4 M 2/3 ---",
+    "output": "正确答案是 D) I 3/3 C 1/1 PM 4/4 M 2/3 ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "In the dog the carnassial tooth is:\n\na) M1 lower jaw\nb) PM3 upper jaw\nc) PM4 upper jaw\nd) M1 upper jaw",
+    "output": "正确答案是 C) PM4 upper jaw"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Vessels returning blood to the heart are generally:\n\na) capillaries\nb) veins\nc) arteries\nd) arterioles",
+    "output": "正确答案是 B) veins"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The vessels which transport blood to the capillaries are the:\n\na) venules\nb) veins\nc) arteries\nd) arterioles",
+    "output": "正确答案是 D) arterioles"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Erythrocytes are:\n\na) white blood cells\nb) red blood cells\nc) platelets\nd) both \\( a + b \\) ---",
+    "output": "正确答案是 B) red blood cells"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*A thrombocyte is:*\n\na) a red blood cell\nb) a white blood cell\nc) a blood platelet\nd) a blood parasite",
+    "output": "正确答案是 C) a blood platelet"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The normal pulse rate for a dog is:*\n\na) 60–180 bpm\nb) 60–120 bpm\nc) 70–140 bpm\nd) 80–160 bpm",
+    "output": "正确答案是 A) 60–180 bpm"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Which blood vessels contain valves?*\n\na) Arteries\nb) Veins\nc) Arterioles\nd) Both a + c",
+    "output": "正确答案是 B) Veins"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Which artery supplies the head with blood?*\n\na) Anterior vena cava\nb) Posterior vena cava\nc) Hepatic artery\nd) Aorta ---",
+    "output": "正确答案是 D) Aorta ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The right atrioventricular valve is also known as:*\n\na) the bicuspid valve\nb) the mitral valve\nc) the tricuspid valve\nd) the pulmonary valve",
+    "output": "正确答案是 C) the tricuspid valve"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Which blood vessel carries blood from the small intestine to the liver?*\n\na) Hepatic vein\nb) Hepatic artery\nc) Aorta\nd) Hepatic portal vein",
+    "output": "正确答案是 D) Hepatic portal vein"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Which ONE of the following is INCORRECT?*\n\na) Blood leaving the left ventricle is oxygenated\nb) Blood in the pulmonary vein is deoxygenated\nc) Blood leaving the liver is deoxygenated\nd) Blood entering the right atrium is deoxygenated",
+    "output": "正确答案是 B) Blood in the pulmonary vein is deoxygenated"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Oxygen forms approximately what percentage of normal inspired air?*\n\na) 20%\nb) 40%\nc) 60%\nd) 80% ---",
+    "output": "正确答案是 A) 20%"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Accommodation for near and far vision is accomplished by contraction or relaxation of the muscles in the:\n\na) ciliary body\nb) conjunctiva\nc) iris\nd) limbus",
+    "output": "正确答案是 A) ciliary body"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The vitreous body of the canine eye:\n\na) is formed by the ciliary body\nb) is located within the posterior chamber of the eye\nc) is firmly attached to the caudal part of the eye\nd) forms the tapetum lucidum",
+    "output": "正确答案是 B) is located within the posterior chamber of the eye"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The tissue found lining the pleural cavity is:\n\na) simple squamous epithelium\nb) simple cuboidal epithelium\nc) simple columnar epithelium\nd) ciliated columnar epithelium",
+    "output": "正确答案是 A) simple squamous epithelium"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The cell body of the sensory neuron within a simple reflex arc is placed:\n\na) in the dorsal horn\nb) in the ventral horn\nc) in the dorsal root ganglion\nd) in the ventral root ganglion ---",
+    "output": "正确答案是 C) in the dorsal root ganglion"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The zygomatic arch is:*\n\na) on the side of the skull\nb) attached to the pelvis\nc) the curve of the caudal border of the ribcage\nd) on the base of the skull",
+    "output": "正确答案是 A) on the side of the skull"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*An electron:*\n\na) carries a positive charge\nb) carries a negative charge\nc) has an atomic weight of 1\nd) lies within the nucleus of the atom",
+    "output": "正确答案是 B) carries a negative charge"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The nucleus of the atom is made up of:*\n\na) protons and electrons\nb) electrons and neutrons\nc) protons and neutrons\nd) protons, neutrons and electrons",
+    "output": "正确答案是 C) protons and neutrons"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Isotopes of an element have:*\n\na) the same atomic number and the same atomic weight\nb) the same atomic number and different atomic weight\nc) the same atomic weight but a different atomic number\nd) different atomic number and weight from one another ---",
+    "output": "正确答案是 B) the same atomic number and different atomic weight"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which group of vertebrae have, on average, the longest dorsal spines?\n\na) Cervical\nb) Thoracic\nc) Lumbar\nd) Sacral",
+    "output": "正确答案是 B) Thoracic"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The thoracic cavity is lined with a serous membrane called the:\n\na) peritoneum\nb) perineum\nc) pleura\nd) mediastinum",
+    "output": "正确答案是 C) pleura"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The chemical used by the mitochondria within the cells as a means of storing energy is:\n\na) adenosine triphosphate\nb) phospholipid\nc) calcium phosphate\nd) mucopolysaccharide",
+    "output": "正确答案是 A) adenosine triphosphate"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which term means a decrease in the white blood cell count?\n\na) Lymphocytosis\nb) Leucocytosis\nc) Leucopaenia\nd) Anaemia ---",
+    "output": "正确答案是 C) Leucopaenia"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Cornified stratified squamous epithelium is found:\n\na) on the skin surface\nb) lining the respiratory tract\nc) lining the major blood vessels\nd) on the surface of the eye",
+    "output": "正确答案是 A) on the skin surface"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "If the Achilles tendon is torn, the animal loses most of its ability to:\n\na) extend the stifle\nb) extend the hip\nc) extend the hock\nd) flex the hock",
+    "output": "正确答案是 C) extend the hock"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The patella is normally:\n\na) within the tendon of the gastrocnemius muscle\nb) attached to the medial meniscus of the stifle joint\nc) within the tendon of insertion of biceps femoris\nd) positioned proximal to the femoro-tibial joint space",
+    "output": "正确答案是 D) positioned proximal to the femoro-tibial joint space"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "There are a number of foramina or hiati that pass through the diaphragm. Which of them passes through the central tendinous area?\n\na) The post-caval foramen\nb) The oesophageal hiatus\nc) The aortic hiatus\nd) The azygal foramen ---",
+    "output": "正确答案是 A) The post-caval foramen"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Within bone, the blood vessels are situated:\n\na) within the lacunae\nb) in the Haversian canals\nc) only within the marrow cavity\nd) Nowhere. Bone is avascular",
+    "output": "正确答案是 B) in the Haversian canals"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following muscles is NOT a member of the hamstring group?\n\na) Semimembranosus\nb) Quadriceps femoris\nc) Semitendinosus\nd) Biceps femoris",
+    "output": "正确答案是 B) Quadriceps femoris"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The main extensor of the shoulder is:\n\na) biceps brachii\nb) brachialis\nc) triceps brachii\nd) supraspinatus",
+    "output": "正确答案是 D) supraspinatus"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The inguinal ring is a hole in the aponeurosis of which abdominal muscle?\n\na) External abdominal oblique\nb) Internal abdominal oblique\nc) Tranversus abdominis\nd) Rectus abdominis ---",
+    "output": "正确答案是 A) External abdominal oblique"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "How many pairs of mammary glands are MOST common in the bitch?\n\na) 3\nb) 4\nc) 5\nd) 6",
+    "output": "正确答案是 C) 5"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which type of joint movement decreases the angle between two bones?\n\na) Abduction\nb) Adduction\nc) Extension\nd) Flexion",
+    "output": "正确答案是 D) Flexion"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The second heart sound is produced by closure of which heart valves?\n\na) Aortic and mitral\nb) Mitral and pulmonary\nc) Pulmonary and aortic\nd) Pulmonary and tricuspid",
+    "output": "正确答案是 C) Pulmonary and aortic"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The first heart sound is produced by closure of which heart valves?\n\na) Aortic and mitral\nb) Mitral and pulmonary\nc) Mitral and tricuspid\nd) Pulmonary and aortic ---",
+    "output": "正确答案是 C) Mitral and tricuspid"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Inspiration of air into the lungs is produced by contraction of the:*\n\na) Abdominal oblique muscles\nb) Diaphragm\nc) Internal intercostal muscles\nd) Rectus abdominis muscles",
+    "output": "正确答案是 B) Diaphragm"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Which ONE of the following is not a function of the respiratory system?*\n\na) Acid-base regulation\nb) Phonation\nc) Prehension\nd) Temperature regulation",
+    "output": "正确答案是 C) Prehension"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Oxygen and carbon dioxide are transferred between inspired air and blood in the lung by the process of:*\n\na) flow down the pressure gradient\nb) diffusion\nc) ion pumping\nd) nitrogenation",
+    "output": "正确答案是 B) diffusion"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Which organ has endocrine functions and also produces many digestive enzymes?*\n\na) Kidney\nb) Liver\nc) Pancreas\nd) Spleen ---",
+    "output": "正确答案是 C) Pancreas"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Stimulation of the parasympathetic portion of the autonomic nervous system causes:*\n\na) dilation of airways in the lung\nb) dilation of the pupil of the eye\nc) increased gastrointestinal function\nd) increased blood pressure",
+    "output": "正确答案是 C) increased gastrointestinal function"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Stimulation of the sympathetic portion of the autonomic nervous system causes all of the following except:*\n\na) dilation of the pupil of the eye\nb) increased gastrointestinal function\nc) increased heart rate\nd) piloerection",
+    "output": "正确答案是 B) increased gastrointestinal function"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The part of the central nervous system that initiates conscious movements of the body is the:*\n\na) brachial plexus\nb) brain stem\nc) cerebellum\nd) spinal cord",
+    "output": "正确答案是 C) cerebellum"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Concerning neurons, which statement is least accurate?*\n\na) They cannot replicate themselves\nb) They cannot regenerate damaged processes\nc) They contain no blood vessels\nd) They have a very high oxygen requirement ---",
+    "output": "正确答案是 C) They contain no blood vessels"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Damage to which part of the nervous system is MOST likely to cause instant death in an animal?*\n\na) Brachial plexus\nb) Brain stem\nc) Cerebellum\nd) Cerebrum",
+    "output": "正确答案是 B) Brain stem"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Which structure is the MOST important direct link between the nervous and endocrine systems?*\n\na) Hypothalamus\nb) Parathyroid gland\nc) Pituitary gland\nd) Thalamus",
+    "output": "正确答案是 A) Hypothalamus"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Which hormone is produced by the anterior pituitary gland?*\n\na) Antidiuretic hormone\nb) Calcitonin\nc) Luteinising hormone\nd) Oxytocin",
+    "output": "正确答案是 C) Luteinising hormone"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Which hormone is released by the posterior pituitary gland?*\n\na) Adrenocorticotrophic hormone\nb) Calcitonin\nc) Luteinising hormone\nd) Oxytocsin ---",
+    "output": "正确答案是 D) Oxytocsin ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which hormone is produced by the corpus luteum of the ovary?\n\na) Oestrogen\nb) Luteinising hormone\nc) Oxytocin\nd) Progesterone",
+    "output": "正确答案是 D) Progesterone"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The hormone necessary for maintenance of pregnancy is:\n\na) oestrogen\nb) oxytocin\nc) progesterone\nd) prolactin",
+    "output": "正确答案是 C) progesterone"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which hormone is produced by a developing follicle in the ovary?\n\na) Oestrogen\nb) Follicle-stimulating hormone\nc) Luteinising hormone\nd) Progesterone",
+    "output": "正确答案是 A) Oestrogen"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which endocrine gland releases the hormone that causes milk letdown from the mammary gland?\n\na) Adrenal cortex\nb) Anterior pituitary gland\nc) Ovary\nd) Posterior pituitary gland ---",
+    "output": "正确答案是 D) Posterior pituitary gland ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Hormones of the adrenal medulla are released under the influence of:\n\na) adrenomedullotrophic hormone\nb) the parasympathetic nervous system\nc) the somatic nervous system\nd) the sympathetic nervous system",
+    "output": "正确答案是 D) the sympathetic nervous system"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The kidney helps control water balance in the body under the influence of:\n\na) adrenocorticotrophic hormone\nb) antidiuretic hormone\nc) calcitonin\nd) oxytocin",
+    "output": "正确答案是 B) antidiuretic hormone"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "In dogs, seminal fluid is produced by the:\n\na) prostate gland, seminal vesicles and bulbourethral glands\nb) prostate gland and seminal vesicles\nc) prostate gland\nd) seminal vesicles",
+    "output": "正确答案是 C) prostate gland"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "After spermatogenesis, spermatozoa are stored until ejaculation in the:\n\na) epididymis\nb) seminal vesicles\nc) seminiferous tubules\nd) vas deferens ---",
+    "output": "正确答案是 A) epididymis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "During which stage of the oestrous cycle do bitches allow dogs to copulate?\n\na) Anoestrus\nb) Dioestrus\nc) Oestrus\nd) Metoestrus",
+    "output": "正确答案是 C) Oestrus"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Fertilisation of an ovum by a spermatozoon normally occurs in the:\n\na) cervix\nb) oviduct\nc) uterus\nd) vagina",
+    "output": "正确答案是 B) oviduct"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The process of capacitation of spermatozoa normally occurs in the:\n\na) cervix\nb) epididymis\nc) oviduct\nd) testes",
+    "output": "正确答案是 B) epididymis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Milk letdown in the mammary gland is stimulated by:\n\na) growth hormone\nb) oxytocin\nc) progesterone\nd) prolactin ---",
+    "output": "正确答案是 B) oxytocin"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which anterior pituitary hormone stimulates spermatogenesis in males?\n\na) Follicle-stimulating hormone\nb) Growth hormone\nc) Luteinising hormone\nd) Prolactin",
+    "output": "正确答案是 A) Follicle-stimulating hormone"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which hormone is responsible for the signs of heat in a female animal?\n\na) Oestrogen\nb) Follicle-stimulating hormone\nc) Oxytocin\nd) Progesterone",
+    "output": "正确答案是 A) Oestrogen"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following statements concerning blood is TRUE?\n\na) Contains cells and plasma\nb) Is not important for CO\\(_2\\) transport\nc) Consists of cells and serum\nd) Has no excretory function",
+    "output": "正确答案是 A) Contains cells and plasma"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The major determinant of blood viscosity is the:\n\na) specific gravity of plasma\nb) plasma protein concentration\nc) lipoprotein concentration\nd) haematocrit ---",
+    "output": "正确答案是 B) plasma protein concentration"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Circulating blood volume is regulated primarily by control of:\n\na) total body water volume\nb) intracellular water volume\nc) systemic arterial blood pressure\nd) plasma protein concentration",
+    "output": "正确答案是 D) plasma protein concentration"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The proportion of body weight represented by total body water content in an extremely obese animal is:\n\na) about 60%\nb) greater than 60%\nc) as much as 75%\nd) as low as 40%",
+    "output": "正确答案是 D) as low as 40%"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Blood in the canine ejaculate may be associated with any of the following EXCEPT:\n\na) prostatitis\nb) seminal vasculitis\nc) orchitis\nd) ruptured blood vessel on the surface of the penis",
+    "output": "正确答案是 D) ruptured blood vessel on the surface of the penis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Semen is most often collected from dogs by:\n\na) electroejaculation\nb) rectal massage\nc) penile massage\nd) prostatic stimulation ---",
+    "output": "正确答案是 C) penile massage"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*In transvaginal artificial insemination in the bitch, using fresh semen, it should be deposited into the:*\n\na) uterus\nb) vestibule\nc) cervical body\nd) cranial vagina",
+    "output": "正确答案是 D) cranial vagina"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*An initial rise in plasma progesterone levels in a bitch indicates that:*\n\na) ovulation has occurred and it is too late to breed the bitch\nb) ovulation is imminent and the bitch should be mated in the next few days\nc) the bitch is pregnant\nd) the bitch is due to whelp within 3 days",
+    "output": "正确答案是 B) ovulation is imminent and the bitch should be mated in the next few days"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*In most bitches, the entire oestrous cycle spans:*\n\na) 4–7 months\nb) 21 days\nc) 7 days\nd) 28 days",
+    "output": "正确答案是 A) 4–7 months"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*In dogs, gestation lasts approximately:*\n\na) 21 days\nb) 30 days\nc) 63 days\nd) 90 days ---",
+    "output": "正确答案是 C) 63 days"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*In a vaginal smear of a bitch in oestrus, what is the predominant epithelial cell type?*\n\na) Parabasal cell\nb) Non-cornified small intermediate and superficial cell\nc) Cornified, large intermediate and superficial cell\nd) Red blood cell",
+    "output": "正确答案是 C) Cornified, large intermediate and superficial cell"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Which ONE of the following is NOT an indication for caesarean section in a queen?*\n\na) Period of more than 4 hours since delivery of the previous kitten\nb) Foul smelling, haemorrhagic vulvar discharge\nc) Constant straining to deliver kitten\nd) Non-odoriferous, brownish vulvar discharge after delivery of the second kitten",
+    "output": "正确答案是 D) Non-odoriferous, brownish vulvar discharge after delivery of the second kitten"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*Concerning reproduction in cats, which statement is LEAST accurate?*\n\na) In the Northern Hemisphere, cats are polyestrous from late January to fall\nb) In a non-pregnant cat, the corpus luteum produces progesterone for 10 days between heats\nc) Cats that have been bred but that are not pregnant may develop pseudopregnancy and show signs of pregnancy\nd) Cats that have been bred but that are not pregnant cease cycling for several months ---",
+    "output": "正确答案是 D) Cats that have been bred but that are not pregnant cease cycling for several months ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*In cats, classic signs of oestrus include all of the following with the EXCEPTION of:*\n\na) vocalisation, rear-leg treading\nb) mounting of the male by the female\nc) rubbing and rolling\nd) elevated hindquarters (lordosis), tail deflected",
+    "output": "正确答案是 B) mounting of the male by the female"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*In cats, NORMAL signs of copulation, but not necessarily conception, include all of the following with the EXCEPTION of:*\n\na) the male biting queen’s neck while holding the queen between his front legs\nb) the queen rolling and licking her vulva in a frenzied manner\nc) the queen rejecting the tom for 20–60 minutes\nd) draining of white blood-flecked mucus from the queen’s vulva",
+    "output": "正确答案是 D) draining of white blood-flecked mucus from the queen’s vulva"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*In queens, pregnancy lasts approximately:*\n\na) 21 days\nb) 65 days\nc) 90 days\nd) 120 days",
+    "output": "正确答案是 B) 65 days"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "*The function of the lens is to:*\n\na) transmit visual impulses to the brain\nb) enable light rays to focus on the retina\nc) provide nourishment to the eye\nd) dilate and contrast according to the light intensity ---",
+    "output": "正确答案是 B) enable light rays to focus on the retina"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following hormones is secreted by the posterior pituitary gland?\n\na) Prolactin\nb) Adrenocorticotrophic hormone\nc) Anti-diuretic hormone\nd) Luteinising hormone",
+    "output": "正确答案是 C) Anti-diuretic hormone"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following hormones is secreted by the medulla of the adrenal gland?\n\na) Noradrenaline\nb) Cortisol\nc) Androgens\nd) Aldosterone",
+    "output": "正确答案是 A) Noradrenaline"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following hormones is not produced by an endocrine gland?\n\na) Chorionic gonadotrophin\nb) Insulin\nc) Somatostatin\nd) Adrenaline",
+    "output": "正确答案是 A) Chorionic gonadotrophin"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is not a function of parathyroid hormone?\n\na) To stimulate osteoclast activity\nb) To inhibit osteoblast activity\nc) To increase the urinary excretion of calcium ions\nd) To stimulate the secretion of calcitriol ---",
+    "output": "正确答案是 C) To increase the urinary excretion of calcium ions"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is an example of a steroid hormone?\n\na) Thyroxin\nb) Follicle-stimulating hormone\nc) Adrenaline\nd) Cortisol",
+    "output": "正确答案是 D) Cortisol"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following hormones is NOT secreted by the pancreas?\n\na) Insulin\nb) Glucagon\nc) Somatostatin\nd) Calcitriol",
+    "output": "正确答案是 D) Calcitriol"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which of the following is the layer in the epidermis of the integument where the cells are completely keratinised?\n\na) Stratum granulosum\nb) Stratum corneum\nc) Stratum lucidem\nd) Stratum germinativum",
+    "output": "正确答案是 B) Stratum corneum"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which layer of skin contains the hair follicles, sweat and sebaceous glands?\n\na) Dermis\nb) Hypodermis\nc) Epidermis\nd) Stratum germinativum ---",
+    "output": "正确答案是 A) Dermis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Where are MOST vibrissae located?\n\na) On the tail of the animal\nb) On the head of the animal\nc) On the foot pads of the animal\nd) On the lateral surfaces of the body of the animal",
+    "output": "正确答案是 B) On the head of the animal"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is NOT a function of the sebaceous glands?\n\na) To secrete sebum\nb) To allow temperature control\nc) To produce pheromones\nd) To waterproof the hair",
+    "output": "正确答案是 B) To allow temperature control"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following statements is INCORRECT?\n\na) Mammary glands are modified sweat glands\nb) Anal glands are modified sebaceous glands\nc) Ceruminous glands are modified sweat glands\nd) Meibomian glands are modified sweat glands",
+    "output": "正确答案是 D) Meibomian glands are modified sweat glands"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which layer of skin is formed from stratified squamous epithelial cells?\n\na) Epidermis\nb) Dermis\nc) Hypodermis\nd) All of the above ---",
+    "output": "正确答案是 A) Epidermis"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which hair type forms the undercoat of an animal?\n\na) Vibrissae\nb) Wool hair\nc) Guard hair\nd) Shedding hair",
+    "output": "正确答案是 B) Wool hair"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What volume of urine is passed by the average dog per day?\n\na) 20 ml/kg body weight\nb) 50 ml/kg body weight\nc) 10 ml/kg body weight\nd) 30 ml/kg body weight",
+    "output": "正确答案是 A) 20 ml/kg body weight"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What is the normal pH of urine in the dog?\n\na) 3\nb) 6\nc) 8\nd) 8.5",
+    "output": "正确答案是 B) 6"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following is NOT a function of the kidneys in the dog?\n\na) Production of renin\nb) Excretion of water and waste materials from the body\nc) Production of erythropoietin\nd) Conversion of ammonia to urea and uric acid ---",
+    "output": "正确答案是 D) Conversion of ammonia to urea and uric acid ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "The epiglottis is composed of:\n\na) elastic cartilage\nb) hyaline cartilage\nc) spongy bone\nd) smooth muscle",
+    "output": "正确答案是 A) elastic cartilage"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following statements is CORRECT?\n\na) The trachea is lined with ciliated epithelium\nb) The trachea is strengthened by incomplete c-shaped rings of fibrocartilage\nc) The trachea is formed from striated muscle\nd) All of the above statements are correct",
+    "output": "正确答案是 A) The trachea is lined with ciliated epithelium"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What is the term given to the exchange of gases across the walls of the alveoli?\n\na) Partial pressure\nb) Osmosis\nc) Diffusion\nd) Filtration",
+    "output": "正确答案是 C) Diffusion"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following statements is INCORRECT? During inspiration:\n\na) the muscles of the diaphragm relax\nb) the external intercostal muscles contract\nc) intrathoracic pressure is decreased\nd) the volume of the thoracic cavity increases ---",
+    "output": "正确答案是 A) the muscles of the diaphragm relax"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What is the term given to the amount of air breathed in and out during normal respiration?\n\na) Residual volume\nb) Inspiratory capacity\nc) Lung capacity\nd) Tidal volume",
+    "output": "正确答案是 D) Tidal volume"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Where are the chemoreceptors located that are stimulated by a fall in oxygen content of the blood?\n\na) Medulla oblongata\nb) Lining of the lungs\nc) Aortic arch\nd) All of the above",
+    "output": "正确答案是 C) Aortic arch"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "What increases the transmission of nervous impulses by a neuron?\n\na) Increase in length of the neuron\nb) Myelination\nc) Presence of nodes of Ranvier\nd) Absence of Schwann cells",
+    "output": "正确答案是 B) Myelination"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which ONE of the following areas is located in the hind brain?\n\na) Thalamus\nb) Hypothalamus\nc) Cerebrum\nd) Pons ---",
+    "output": "正确答案是 D) Pons ---"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "From which area could you collect a sample of cerebrospinal fluid?\n\na) Dura mater\nb) Arachnoid mater\nc) Pia mater\nd) Subarachnoid",
+    "output": "正确答案是 D) Subarachnoid"
+  },
+  {
+    "instruction": "请回答以下选择题，选择正确的答案。",
+    "input": "Which one of the cranial nerves carries impulses associated with sight?\n\na) I\nb) II\nc) V\nd) VIII ---",
+    "output": "正确答案是 B) II"
+  }
+]
