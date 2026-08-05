@@ -1,41 +1,72 @@
 #!/usr/bin/env bash
-# === PetHealthAI Agent 启动脚本 (Linux) ===
+# PetMind Agent + Memory Service unified launcher for Linux.
+# Usage: bash start_agent.sh [cpu|cuda] [additional run_agent_stack arguments]
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# 加载 .env（如果存在，作为 ~/.bashrc 的补充）
-if [ -f .env ]; then
+if [[ -f .env ]]; then
     set -a
+    # shellcheck disable=SC1091
     source .env
     set +a
-    echo "[Config] Loaded .env"
+    echo "[Config] Loaded $SCRIPT_DIR/.env"
 fi
 
-# 默认值
-export OPENAI_BASE_URL="${OPENAI_BASE_URL:-https://api.deepseek.com}"
-export OPENAI_MODEL="${OPENAI_MODEL:-deepseek-chat}"
-export AGENT_ENABLE_CORS="${AGENT_ENABLE_CORS:-1}"
-export AGENT_WARMUP_DEVICE="${AGENT_WARMUP_DEVICE:-cuda}"
-export AGENT_WARMUP_RAG="${AGENT_WARMUP_RAG:-1}"
-
-echo "[Config] OPENAI_BASE_URL=$OPENAI_BASE_URL"
-echo "[Config] OPENAI_API_KEY=${OPENAI_API_KEY:+${OPENAI_API_KEY:0:10}...}"
-echo "[Config] OPENAI_MODEL=$OPENAI_MODEL"
-echo "[Config] AGENT_WARMUP_DEVICE=$AGENT_WARMUP_DEVICE"
-echo "[Config] TAVILY_API_KEY=${TAVILY_API_KEY:+${TAVILY_API_KEY:0:10}...}"
-echo ""
-
-CONDA_PYTHON="/home/sam/anaconda3/envs/AnimalDetection/bin/python"
-if [ ! -f "$CONDA_PYTHON" ]; then
-    echo "[Error] Conda env python not found: $CONDA_PYTHON"
-    echo "[Error] Please run: conda activate AnimalDetection"
+if [[ -n "${AGENT_PYTHON:-}" ]]; then
+    PYTHON_BIN="$AGENT_PYTHON"
+elif [[ -x /home/sam/anaconda3/envs/AnimalDetection/bin/python ]]; then
+    PYTHON_BIN=/home/sam/anaconda3/envs/AnimalDetection/bin/python
+elif command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="$(command -v python3)"
+elif command -v python >/dev/null 2>&1; then
+    PYTHON_BIN="$(command -v python)"
+else
+    echo "[Error] Python was not found. Set AGENT_PYTHON to the intended interpreter." >&2
     exit 1
 fi
 
-"$CONDA_PYTHON" -m agent_api.scripts.run_agent_stack \
-    --agent-host "${AGENT_HOST:-0.0.0.0}" \
-    --agent-port "${AGENT_PORT:-8000}" \
-    --memory-host "${MEMORY_HOST:-127.0.0.1}" \
-    --memory-port "${MEMORY_PORT:-8300}"
+export OPENAI_BASE_URL="${OPENAI_BASE_URL:-https://api.deepseek.com}"
+export OPENAI_MODEL="${OPENAI_MODEL:-deepseek-chat}"
+export AGENT_HOST="${AGENT_HOST:-0.0.0.0}"
+export AGENT_PORT="${AGENT_PORT:-8000}"
+export MEMORY_HOST="${MEMORY_HOST:-127.0.0.1}"
+export MEMORY_PORT="${MEMORY_PORT:-8300}"
+export AGENT_MEMORY_REQUIRED="${AGENT_MEMORY_REQUIRED:-1}"
+export AGENT_MEMORY_START_TIMEOUT="${AGENT_MEMORY_START_TIMEOUT:-180}"
+export MEMORY_WARMUP_EMBEDDING="${MEMORY_WARMUP_EMBEDDING:-1}"
+export AGENT_WARMUP_DEVICE="${AGENT_WARMUP_DEVICE:-cuda}"
+export AGENT_ENABLE_CORS="${AGENT_ENABLE_CORS:-1}"
+export AGENT_WARMUP_RAG="${AGENT_WARMUP_RAG:-1}"
+
+if [[ "${1:-}" == "cpu" || "${1:-}" == "cuda" ]]; then
+    export AGENT_WARMUP_DEVICE="$1"
+    shift
+elif [[ -n "${1:-}" && "${1:0:1}" != "-" ]]; then
+    echo "[Error] Unknown mode '$1'. Usage: ./start_agent.sh [cpu|cuda] [options]" >&2
+    exit 2
+fi
+
+if [[ "$AGENT_WARMUP_DEVICE" == "cpu" ]]; then
+    unset CUDA_VISIBLE_DEVICES || true
+fi
+
+if [[ ! -x "$PYTHON_BIN" ]] && ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+    echo "[Error] Python is not executable: $PYTHON_BIN" >&2
+    exit 1
+fi
+
+echo "[Config] Python=$PYTHON_BIN"
+echo "[Config] Agent=http://$AGENT_HOST:$AGENT_PORT"
+echo "[Config] Memory=http://$MEMORY_HOST:$MEMORY_PORT"
+echo "[Config] WarmupDevice=$AGENT_WARMUP_DEVICE"
+echo "[Config] MemoryRequired=$AGENT_MEMORY_REQUIRED"
+echo "[Config] Secrets loaded but not printed."
+
+exec "$PYTHON_BIN" -m agent_api.scripts.run_agent_stack \
+    --agent-host "$AGENT_HOST" \
+    --agent-port "$AGENT_PORT" \
+    --memory-host "$MEMORY_HOST" \
+    --memory-port "$MEMORY_PORT" \
+    "$@"
