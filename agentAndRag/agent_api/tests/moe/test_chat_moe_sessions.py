@@ -176,6 +176,9 @@ def test_browser_pages_do_not_store_or_slice_message_history():
     assert "expert-card" in routes_chat_ui._MOE_TEST_HTML
     assert "crypto.randomUUID" in routes_chat_ui._MOE_TEST_HTML
     assert "Date.now()" not in routes_chat_ui._MOE_TEST_HTML
+    assert "max-height:min(620px,68vh);overflow:auto" in routes_chat_ui._MOE_TEST_HTML
+    assert ".workbench.collapsed .trace-body{max-height:0" in routes_chat_ui._MOE_TEST_HTML
+    assert ".answer{position:relative;z-index:1" in routes_chat_ui._MOE_TEST_HTML
 
     assert "const messages = []" in routes_chat_ui._CHAT_HTML
     assert "[...messages, { role: 'user', content: text }].slice(-11)" in routes_chat_ui._CHAT_HTML
