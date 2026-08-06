@@ -56,6 +56,10 @@ agentAndRag/RAG/data/
 agentAndRag/models/
 agentAndRag/1.1.0
 **/RAG/data/
+!agentAndRag/RAG/data/
+agentAndRag/RAG/data/*
+!agentAndRag/RAG/data/category_taxonomy.json
+!agentAndRag/RAG/data/veterinary_materials_classification_2.0.xlsx
 **/大熊猫/
 *.pdf
 *.docx

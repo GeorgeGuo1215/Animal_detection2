@@ -54,22 +54,24 @@ class ExpertConfig:
 
 
 _CLINICAL_RAG_CATEGORIES = [
-    "basic.anatomy",
-    "basic.terminology",
+    "basic.*",
     "clinical.*",
     "diagnostics.*",
     "clinical_skills.*",
-    "integrative.general",
+    "integrative.*",
     "anesthesia.default",
     "immunology.default",
     "reproduction.default",
-    "infectious.placeholder",
+    "infectious.*",
     "exotic.default",
+    "equine.*",
+    "individual.*",
+    "guidelines.*",
     "zoonosis.toxoplasmosis",
 ]
 
 _NUTRITION_RAG_CATEGORIES = [
-    "nutrition.placeholder",
+    "nutrition.*",
     "equine.nutrition",
     "integrative.general",
 ]

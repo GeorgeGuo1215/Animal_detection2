@@ -102,7 +102,11 @@ def resolve_category_index_dirs(
                 continue
             all_ids.append(cid)
             idx = c.get("index_dir")
-            id_to_dir[cid] = Path(idx) if idx else (root / cid)
+            if idx:
+                idx_path = Path(idx)
+                id_to_dir[cid] = idx_path if idx_path.is_absolute() else (repo_root / idx_path)
+            else:
+                id_to_dir[cid] = root / cid
     else:
         # fallback: glob directories under category_root
         if root.exists():

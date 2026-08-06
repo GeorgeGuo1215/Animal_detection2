@@ -228,8 +228,13 @@ def _hit_from_meta(meta: dict, score: float, *, category: Optional[str], index_d
     return {
         "score": float(score),
         "source_path": meta.get("source_path"),
+        "source_file": meta.get("source_file"),
+        "book_id": meta.get("book_id"),
+        "book_title": meta.get("book_title"),
         "chunk_index": meta.get("chunk_index"),
         "n_words": meta.get("n_words"),
+        "n_units": meta.get("n_units"),
+        "chunking_version": meta.get("chunking_version"),
         "text": meta.get("text"),
         "chunk_id": meta.get("chunk_id"),
         "category": category,

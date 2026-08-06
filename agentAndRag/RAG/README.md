@@ -6,8 +6,10 @@
 
 ## 目录结构（你现在项目里实际存在的）
 
-- `RAG/data/raw/`: 原始书籍 `.mmd`（支持递归子目录）
-- `RAG/data/rag_index/`: 默认索引产物目录（也可以建多套索引目录对比 embedding）
+- `RAG/data/veterinary_materials_classification_2.0.xlsx`: 当前书号与二级分类标准（纳入 Git）
+- `RAG/data/category_taxonomy.json`: 运行时分类映射与入库审计状态（纳入 Git）
+- `RAG/data/rag_index_e5/`: 默认全量索引（本地大文件，不纳入 Git）
+- `RAG/data/rag_index_e5_by_cat/`: 专家实际使用的分类索引（本地大文件，不纳入 Git）
   - `embeddings.npy`: 文本块向量矩阵（float32，已归一化）
   - `meta.jsonl`: 每行一个 chunk 元数据（含 source_path/chunk_index/text 等），与 embeddings 行号一一对应
   - `store_config.json`: 向量维度等配置
@@ -50,17 +52,47 @@ python RAG/ingest.py --limit-books 3
 python RAG/ingest.py --embedding-model sentence-transformers/all-MiniLM-L6-v2
 ```
 
-#### 分块策略说明（已升级为“句子边界递归分块”）
+#### 分块策略说明（semantic-v2）
 
 `simple_rag/text_utils.py` 的 `chunk_text()` 现在会：
-- 先按空行做“段落/页”分段
-- 段落内优先按句号/问号/感叹号切句（中英文标点都支持）
-- 句子过长则降级为逗号/分号切分，再不行按词硬切
-- 最后按 `chunk_words/chunk_overlap_words` 合并为 chunk（并做 overlap）
+- 英文按单词、中文按汉字统一计算 lexical unit，不再依赖空白计数；
+- 保留 OCR 段落/标题边界，将相邻短段聚合到目标长度；
+- 超长段优先按句子切分，最后才按 lexical-unit span 硬切；
+- 默认目标 380 units、重叠 60 units，书尾短段并入前块而不是丢弃。
 
-这样相比纯按词/按行切：
-- chunk 更接近自然语义边界，减少“切断关键句”
-- 对问答/检索通常更稳
+旧实现逐段应用最短长度，导致旧索引中位块长仅 92；semantic-v2 会聚合
+相邻短段，本次全量重建后的中位块长为 345。
+
+### 2.1) 按分类表全量重建（生产推荐）
+
+先输出到临时目录，验证成功后再切换运行时目录：
+
+```bash
+python -m RAG.tools.rebuild_category_indexes \
+  --xlsx RAG/data/veterinary_materials_classification_2.0.xlsx \
+  --source-root /path/to/DeepSeek-OCR-vllm/output \
+  --full-index-out RAG/data/rag_index_e5_v2_build \
+  --category-root-out RAG/data/rag_index_e5_by_cat_v2_build \
+  --taxonomy-out RAG/data/category_taxonomy_v2_build.json \
+  --device cuda --batch-size 64 \
+  --allow-missing 084 \
+  --exclude-book '005=MMD与书名分类不符' \
+  --exclude-book '078=多语混合，翻译质检前不入库'
+```
+
+脚本优先选择 `<book_id>/<book_id>.mmd`，其次精确匹配 Excel F 列原文件名；
+排除 `*_det.mmd`，不使用数字前缀模糊猜测。相同分类内的完全重复正文会按
+SHA1 自动保留一个规范书号；相同正文跨分类时会停止并要求人工核对。
+
+逐书检索和类别隔离验证：
+
+```bash
+python -m RAG.tools.validate_category_indexes \
+  --taxonomy RAG/data/category_taxonomy_v2_build.json \
+  --category-root RAG/data/rag_index_e5_by_cat_v2_build \
+  --device cuda --top-k 5 \
+  --output RAG/data/retrieval_validation_v2.json
+```
 
 ### 3) 查询（检索 topK 片段）
 

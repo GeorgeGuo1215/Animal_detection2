@@ -20,9 +20,9 @@ def main() -> None:
         default="intfloat/multilingual-e5-small",
         help="sentence-transformers 模型名或本地路径（默认 multilingual-e5-small）",
     )
-    parser.add_argument("--chunk-words", type=int, default=800)
-    parser.add_argument("--chunk-overlap-words", type=int, default=150)
-    parser.add_argument("--min-chunk-words", type=int, default=40)
+    parser.add_argument("--chunk-words", type=int, default=380)
+    parser.add_argument("--chunk-overlap-words", type=int, default=60)
+    parser.add_argument("--min-chunk-words", type=int, default=30)
     parser.add_argument("--limit-books", type=int, default=None, help="只入库前 N 本（用于快速验证）")
     parser.add_argument("--batch-size", type=int, default=32, help="embedding 批大小（CPU 建议 16~64）")
     parser.add_argument("--device", type=str, default=None, help="例如 cpu / cuda（默认让 sentence-transformers 自己选）")

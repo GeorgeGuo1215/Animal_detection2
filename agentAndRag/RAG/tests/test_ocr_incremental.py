@@ -16,23 +16,33 @@ for p in (str(_AGENTANDRAG), str(_OCR_HF)):
 
 from batch_ocr_to_vllm_layout import PAGE_SPLIT, discover_books  # noqa: E402
 from RAG.simple_rag.vector_store import NumpyVectorStore, StoreConfig  # noqa: E402
+from RAG.simple_rag.text_utils import chunk_text, word_count  # noqa: E402
 from RAG.tools.append_books_to_category_indexes import (  # noqa: E402
     book_id_from_source,
 )
 from RAG.tools.copy_ocr_mmd_to_raw import copy_books  # noqa: E402
+from RAG.tools.rebuild_category_indexes import (  # noqa: E402
+    CatalogBook,
+    resolve_book_sources,
+)
 
 
 def test_discover_books_subdir_and_bare(tmp_path: Path):
     (tmp_path / "089").mkdir()
-    (tmp_path / "089" / "b.pdf").write_bytes(b"%PDF-1.4")
-    (tmp_path / "089" / "a.pdf").write_bytes(b"%PDF-1.4")
+    (tmp_path / "089" / "b.pdf").write_bytes(b"%PDF-b")
+    (tmp_path / "089" / "a.pdf").write_bytes(b"%PDF-a")
     (tmp_path / "080.pdf").write_bytes(b"%PDF-1.4")
+    (tmp_path / "batch" / "084" / "volume-1").mkdir(parents=True)
+    (tmp_path / "batch" / "084" / "volume-1" / "guide.pdf").write_bytes(b"%PDF-1.4")
+    (tmp_path / "batch" / "084" / "volume-2").mkdir(parents=True)
+    (tmp_path / "batch" / "084" / "volume-2" / "duplicate.pdf").write_bytes(b"%PDF-1.4")
     (tmp_path / "ignore.txt").write_text("x", encoding="utf-8")
     books = discover_books(tmp_path)
     ids = [b["id"] for b in books]
-    assert ids == ["080", "089"]
+    assert ids == ["080", "084", "089"]
+    assert [p.name for p in books[1]["pdfs"]] == ["guide.pdf"]
     # 子文件夹多 PDF 按文件名排序
-    names = [p.name for p in books[1]["pdfs"]]
+    names = [p.name for p in books[2]["pdfs"]]
     assert names == ["a.pdf", "b.pdf"]
 
 
@@ -71,3 +81,36 @@ def test_vector_store_append_skips_dup_chunk_id(tmp_path: Path):
     assert store.add(v, [meta]) == 1
     assert store.add(v, [meta]) == 0
     assert store.size == 1
+
+
+def test_semantic_chunker_aggregates_short_paragraphs_and_counts_chinese():
+    text = "\n\n".join(f"第{i}段猫犬临床观察显示需要持续复查。" for i in range(30))
+    chunks = chunk_text(
+        source_path=Path("books/999.mmd"),
+        source_sha1="abc",
+        clean_text=text,
+        chunk_words=120,
+        chunk_overlap_words=20,
+        min_chunk_words=20,
+    )
+    assert 2 <= len(chunks) < 10
+    assert all(chunk.n_words >= 20 for chunk in chunks)
+    assert word_count("猫犬abc treatment") == 4
+
+
+def test_source_resolution_never_uses_unrelated_numeric_prefix(tmp_path: Path):
+    wrong = tmp_path / "84 old toxoplasmosis"
+    wrong.mkdir()
+    (wrong / "84 old toxoplasmosis.mmd").write_text("wrong book", encoding="utf-8")
+    books = [
+        CatalogBook(
+            book_id="084",
+            title="AAHA指南系列",
+            mmd="AAHA指南系列",
+            source_name="",
+            category_ids=["guidelines.general"],
+        )
+    ]
+    resolved, missing = resolve_book_sources(source_root=tmp_path, books=books)
+    assert not resolved
+    assert [row["book_id"] for row in missing] == ["084"]

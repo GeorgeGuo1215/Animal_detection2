@@ -28,6 +28,7 @@ _CATEGORY_IDS: Dict[Tuple[str, str], str] = {
     ("基础医学", "兽医术语"): "basic.terminology",
     ("基础医学", "生理学"): "basic.physiology",
     ("基础医学", "病理学"): "basic.pathology",
+    ("基础医学", "组织学"): "basic.histology",
     ("基础医学", "微生物"): "basic.microbiology",
     ("基础医学", "药理基础"): "basic.pharmacology_fundamentals",
     ("临床医学", "综合内科学"): "clinical.internal_medicine",
@@ -38,12 +39,14 @@ _CATEGORY_IDS: Dict[Tuple[str, str], str] = {
     ("临床医学", "眼科学"): "clinical.ophthalmology",
     ("临床医学", "神经病学"): "clinical.neurology",
     ("临床医学", "肿瘤学"): "clinical.oncology",
+    ("临床医学", "综合临床参考"): "clinical.reference",
     ("诊断医学", "临床病理与细胞学"): "diagnostics.clinical_pathology",
     ("诊断医学", "影像诊断"): "diagnostics.imaging",
     ("诊断医学", "鉴别诊断"): "diagnostics.differential",
     ("诊断医学", "实验室诊断"): "diagnostics.laboratory",
     ("药学", "Papich兽医药物手册"): "pharmacy.papich",
     ("药学", "兽医药理学（技师）"): "pharmacy.applied_pharmacology",
+    ("药学", "药理与临床治疗"): "pharmacy.clinical_therapeutics",
     ("麻醉与镇痛", "默认"): "anesthesia.default",
     ("免疫与疫苗", "默认"): "immunology.default",
     ("兽医繁殖与产科学", "默认"): "reproduction.default",
@@ -52,8 +55,11 @@ _CATEGORY_IDS: Dict[Tuple[str, str], str] = {
     ("综合医学", "综合兽医学"): "integrative.general",
     ("临床技能与护理", "临床技能与操作"): "clinical_skills.techniques",
     ("临床技能与护理", "护理学"): "clinical_skills.nursing",
+    ("临床技能与护理", "麻醉与镇痛"): "anesthesia.default",
     ("感染病、寄生虫与公共卫生", "无"): "infectious.placeholder",
+    ("感染病、寄生虫与公共卫生", "默认"): "infectious.general",
     ("营养学", "无"): "nutrition.placeholder",
+    ("营养学", "默认"): "nutrition.general",
     ("特殊动物医学", "默认"): "exotic.default",
     ("大型动物与马医学", "大动物内科"): "equine.large_animal_internal",
     ("大型动物与马医学", "运动医学"): "equine.sports_medicine",
@@ -66,6 +72,9 @@ _CATEGORY_IDS: Dict[Tuple[str, str], str] = {
     ("大型动物与马医学", "马肿瘤"): "equine.oncology",
     ("大型动物与马医学", "马临床并发症"): "equine.complications",
     ("人兽共患病", "动物和人类的弓形虫病"): "zoonosis.toxoplasmosis",
+    ("综合医学（中兽医辅助）", "综合兽医学"): "integrative.tcm_support",
+    ("个体差异医学", "遗传与品种易感性"): "individual.genetics_breed",
+    ("指南、共识与循证医学", "默认"): "guidelines.general",
     ("个体差异医学", "这里可以放品种、年龄、性别和特发病倾向相关的资料，如果有"): "individual.placeholder",
     ("中兽医学", "这个一般没有专门写小动物的书"): "tcm.placeholder",
     ("指南、共识与循证医学", "感觉是一些医生共识、规范、系统的东西"): "guidelines.placeholder",
@@ -91,6 +100,7 @@ class BookEntry:
     book_id: str
     mmd: str
     title: str
+    source_name: str = ""
     source_path: Optional[str] = None
 
 
@@ -110,8 +120,9 @@ def _repo_rag_root() -> Path:
 
 
 def _default_xlsx() -> Path:
-    # 优先分类 2.0（新增资料目录）；否则回退旧路径
+    # 优先仓库内受版本控制的分类标准；否则回退本机历史路径。
     candidates = [
+        _repo_rag_root() / "data" / "veterinary_materials_classification_2.0.xlsx",
         Path(r"C:\Users\ROG\Downloads\小动物agent知识库新增资料\兽医医学资料分类2.0.xlsx"),
         Path(
             r"C:\Users\ROG\xwechat_files\wxid_69gt4wibd3wv22_ddff\msg\file\2026-07\兽医医学资料分类(1).xlsx"
@@ -181,6 +192,7 @@ def parse_taxonomy_from_rows(rows: Sequence[Sequence[str]]) -> OrderedDict[str, 
         book_id = str(c or "").strip()
         mmd = str(d or "").strip()
         title = str(e or f or "").strip()
+        source_name = str(f or "").strip()
         if book_id == "无" and not mmd:
             continue
         if not (book_id or mmd):
@@ -191,7 +203,9 @@ def parse_taxonomy_from_rows(rows: Sequence[Sequence[str]]) -> OrderedDict[str, 
         if not l2:
             l2 = "默认"
         spec = _ensure(cur_l1, l2)
-        spec.books.append(BookEntry(book_id=book_id, mmd=mmd, title=title))
+        spec.books.append(
+            BookEntry(book_id=book_id, mmd=mmd, title=title, source_name=source_name)
+        )
     return cats
 
 

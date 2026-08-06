@@ -125,6 +125,9 @@ def search(
         {
             "score": float(score),
             "source_path": meta.get("source_path"),
+            "source_file": meta.get("source_file"),
+            "book_id": meta.get("book_id"),
+            "book_title": meta.get("book_title"),
             "chunk_index": meta.get("chunk_index"),
             "n_words": meta.get("n_words"),
             "text": meta.get("text"),

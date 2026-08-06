@@ -11,7 +11,11 @@ _RE_MD_IMAGE = re.compile(r"!\[[^\]]*\]\([^)]+\)")
 _RE_HTML_TAG = re.compile(r"<[^>]+>")
 _RE_PAGE_SPLIT = re.compile(r"<---\s*Page Split\s*--->", re.IGNORECASE)
 _RE_WHITESPACE = re.compile(r"[ \t]+")
-_RE_SENT_SPLIT = re.compile(r"(?<=[。！？.!?])\s+")
+_RE_SENT_SPLIT = re.compile(r"(?<=[。！？.!?])(?:\s+|(?=[\u3400-\u9fffA-Z]))")
+_RE_LEXICAL_UNIT = re.compile(
+    r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]"
+    r"|[A-Za-z0-9]+(?:['’.-][A-Za-z0-9]+)*"
+)
 
 
 def sha1_bytes(data: bytes) -> str:
@@ -73,8 +77,35 @@ def iter_pages(clean_text: str) -> Iterator[str]:
 
 
 def word_count(text: str) -> int:
-    # 简单按空白切分；对英文书够用。中文也能工作（会偏小）。
-    return len([w for w in re.split(r"\s+", text.strip()) if w])
+    """返回适合中英混排 OCR 文本的近似 lexical-unit 数。"""
+    return len(_RE_LEXICAL_UNIT.findall(text or ""))
+
+
+def _hard_split_by_units(text: str, max_units: int) -> list[str]:
+    """在没有可靠句界时按 lexical-unit span 切分，并保留原始标点。"""
+    s = (text or "").strip()
+    matches = list(_RE_LEXICAL_UNIT.finditer(s))
+    if not matches or len(matches) <= max_units:
+        return [s] if s else []
+    out: list[str] = []
+    for start in range(0, len(matches), max_units):
+        end = min(start + max_units, len(matches))
+        char_start = 0 if start == 0 else matches[start].start()
+        char_end = len(s) if end == len(matches) else matches[end - 1].end()
+        part = s[char_start:char_end].strip()
+        if part:
+            out.append(part)
+    return out
+
+
+def _tail_by_units(text: str, max_units: int) -> str:
+    s = (text or "").strip()
+    if max_units <= 0:
+        return ""
+    matches = list(_RE_LEXICAL_UNIT.finditer(s))
+    if len(matches) <= max_units:
+        return s
+    return s[matches[-max_units].start() :].strip()
 
 
 def split_sentences(text: str) -> list[str]:
@@ -153,15 +184,14 @@ def recursive_sentence_chunks(
     # 3) overlap（按词近似）
     out: list[str] = []
     for i, block in enumerate(merged):
-        words = [w for w in re.split(r"\s+", block.strip()) if w]
-        if len(words) < min_chunk_words:
+        units = word_count(block)
+        if units < min_chunk_words:
             continue
         if chunk_overlap_words <= 0 or i == 0:
-            out.append(" ".join(words))
+            out.append(block.strip())
         else:
-            prev_words = [w for w in re.split(r"\s+", merged[i - 1].strip()) if w]
-            tail = prev_words[-chunk_overlap_words:] if prev_words else []
-            out.append(" ".join(tail + words))
+            tail = _tail_by_units(merged[i - 1], chunk_overlap_words)
+            out.append("\n\n".join(x for x in (tail, block.strip()) if x))
     return out
 
 
@@ -185,31 +215,60 @@ def chunk_text(
     min_chunk_words: int,
 ) -> list[TextChunk]:
     """
-    递归分块（句子边界优先）：
-    - 先按空行分段（页/段落）
-    - 段内用 recursive_sentence_chunks 做句子递归分块
+    语义分块（v2）：聚合相邻短段，超长段按句子/lexical unit 切分，
+    并为中英混排文本保留有限重叠。
     """
     assert chunk_words > 0
     assert 0 <= chunk_overlap_words < chunk_words
 
-    paragraphs = [p for p in iter_pages(clean_text) if p]
+    paragraphs = [p for p in iter_pages(clean_text) if p.strip()]
+    pieces: list[str] = []
+    for paragraph in paragraphs:
+        if word_count(paragraph) <= chunk_words:
+            pieces.append(paragraph.strip())
+            continue
+        for sentence in split_sentences(paragraph):
+            if word_count(sentence) <= chunk_words:
+                pieces.append(sentence)
+            else:
+                pieces.extend(_hard_split_by_units(sentence, chunk_words))
 
     merged: list[str] = []
-    for p in paragraphs:
-        merged.extend(
-            recursive_sentence_chunks(
-                text=p,
-                chunk_words=chunk_words,
-                chunk_overlap_words=chunk_overlap_words,
-                min_chunk_words=min_chunk_words,
-            )
-        )
+    cur: list[str] = []
+    cur_units = 0
+
+    def flush() -> None:
+        nonlocal cur, cur_units
+        if not cur:
+            return
+        block = "\n\n".join(x.strip() for x in cur if x.strip()).strip()
+        if block:
+            merged.append(block)
+        tail = _tail_by_units(block, chunk_overlap_words)
+        cur = [tail] if tail else []
+        cur_units = word_count(tail)
+
+    for piece in pieces:
+        units = word_count(piece)
+        if cur and cur_units + units > chunk_words:
+            flush()
+        cur.append(piece)
+        cur_units += units
+    if cur:
+        block = "\n\n".join(x.strip() for x in cur if x.strip()).strip()
+        if block:
+            merged.append(block)
+
+    # 书尾短段并入前块，避免丢失正文；短文档则至少保留一个块。
+    if len(merged) >= 2 and word_count(merged[-1]) < min_chunk_words:
+        tail = merged.pop()
+        merged[-1] = f"{merged[-1]}\n\n{tail}".strip()
 
     chunks: list[TextChunk] = []
     for i, block in enumerate(merged):
         text = block.strip()
-        n_words = len([w for w in re.split(r"\s+", text.strip()) if w])
-        if n_words < min_chunk_words:
+        n_words = word_count(text)
+        if n_words < min_chunk_words and len(merged) > 1:
             continue
 
         chunk_id = hashlib.sha1(
@@ -230,5 +289,3 @@ def chunk_text(
 
 def iter_mmd_files(raw_dir: Path) -> Iterable[Path]:
     return sorted(raw_dir.rglob("*.mmd"))
-
-

@@ -9,7 +9,7 @@
     images_ocr/       # 同页渲染备份 page_XXXX.jpg
 
 特性:
-  - 子文件夹 = 一书多 PDF（按文件名排序合并）
+  - 三位书号目录下递归发现 PDF；一书多 PDF 按相对路径排序合并
   - 裸 PDF = 一书
   - 按书 / 按页断点续传（processing_log.json）
   - 适合本地隔夜跑，无需 IDE 挂着监测
@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import gc
+import hashlib
 import io
 import json
 import os
@@ -65,30 +66,51 @@ def _parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+def _file_sha1(path: Path) -> str:
+    digest = hashlib.sha1()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 def discover_books(source: Path) -> List[Dict[str, Any]]:
-    """返回 [{id, pdfs: [Path,...]}]，按 id 排序。"""
+    """递归发现三位书号对应的 PDF，返回按书号排序的任务。
+
+    支持 ``084/a.pdf``、``084/volume-1/a.pdf`` 以及根目录 ``084.pdf``。
+    书号取 PDF 相对路径中最靠近文件的三位数字目录；没有数字目录时，
+    才使用 PDF 文件名。这样分类/批次目录可以任意嵌套而不会漏书。
+    """
     books: Dict[str, List[Path]] = {}
     if not source.is_dir():
         raise FileNotFoundError(f"源目录不存在: {source}")
 
-    for child in sorted(source.iterdir()):
-        name = child.name
-        if child.is_dir() and re.fullmatch(r"\d{3}", name):
-            seen = set()
-            pdfs: List[Path] = []
-            for p in sorted(child.iterdir(), key=lambda x: x.name.lower()):
-                if p.is_file() and p.suffix.lower() == ".pdf":
-                    key = p.name.lower()
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    pdfs.append(p)
-            if pdfs:
-                books[name] = pdfs
-        elif child.is_file() and child.suffix.lower() == ".pdf":
-            stem = child.stem
-            if re.fullmatch(r"\d{3}", stem):
-                books[stem] = [child]
+    for pdf in source.rglob("*"):
+        if not pdf.is_file() or pdf.suffix.lower() != ".pdf":
+            continue
+        rel = pdf.relative_to(source)
+        book_id: Optional[str] = None
+        for part in reversed(rel.parts[:-1]):
+            if re.fullmatch(r"\d{3}", part):
+                book_id = part
+                break
+        if book_id is None and re.fullmatch(r"\d{3}", pdf.stem):
+            book_id = pdf.stem
+        if book_id is not None:
+            books.setdefault(book_id, []).append(pdf)
+
+    for book_id, pdfs in books.items():
+        by_path = {str(path.resolve()).casefold(): path for path in pdfs}
+        ordered = sorted(
+            by_path.values(), key=lambda path: str(path.relative_to(source)).casefold()
+        )
+        # 下载目录中常同时保留命名版 PDF 和多个完全相同的 download.pdf。
+        # 按内容去重，避免同一指南被重复 OCR/拼入全书 MMD。
+        by_sha1: Dict[str, Path] = {}
+        for path in ordered:
+            digest = _file_sha1(path)
+            by_sha1.setdefault(digest, path)
+        books[book_id] = list(by_sha1.values())
 
     return [{"id": bid, "pdfs": books[bid]} for bid in sorted(books.keys())]
 

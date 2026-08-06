@@ -1,11 +1,12 @@
-"""将全量索引中「新增书」的 chunks 增量追加到涉及的 by_cat 子库（不重切全库）。
+"""将全量索引中「新增书」的 chunks 增量追加到涉及的 by_cat 子库（旧流程）。
 
 用法（conda RAG）:
   # 先: ingest 只含新增 mmd 的 raw（或 raw 里已有新增文件且 ingest 跳过旧 chunk）
   python -m RAG.tools.append_books_to_category_indexes --book-ids 089,080
   python -m RAG.tools.append_books_to_category_indexes --xlsx PATH --book-ids 068,069
 
-不写 chunk 统计；L2 按 Excel 解析，不做纠偏。
+新资料优先使用 ``rebuild_category_indexes``，它包含规范源解析、去重、分类
+审计和逐书验证。本脚本只保留给已经进入主索引的单书追加场景。
 """
 from __future__ import annotations
 
@@ -29,7 +30,7 @@ def _repo_rag() -> Path:
 
 
 def _default_xlsx() -> Path:
-    return Path(r"C:\Users\ROG\Downloads\小动物agent知识库新增资料\兽医医学资料分类2.0.xlsx")
+    return _repo_rag() / "data" / "veterinary_materials_classification_2.0.xlsx"
 
 
 def book_id_from_source(source_path: str) -> Optional[str]:

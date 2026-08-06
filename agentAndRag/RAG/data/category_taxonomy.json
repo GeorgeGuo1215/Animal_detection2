@@ -1,0 +1,2398 @@
+{
+  "version": 2,
+  "generated_at": "2026-08-06T05:47:25.624823+00:00",
+  "classification_file": "veterinary_materials_classification_2.0.xlsx",
+  "embedding_model": "intfloat/multilingual-e5-small",
+  "dim": 384,
+  "chunking": {
+    "version": "semantic-v2",
+    "target_units": 380,
+    "overlap_units": 60,
+    "min_units": 30,
+    "unit": "English word or CJK character"
+  },
+  "source_index": "RAG/data/rag_index_e5",
+  "out_root": "RAG/data/rag_index_e5_by_cat",
+  "matched_books": 79,
+  "unmatched_books": [
+    {
+      "book_id": "084",
+      "title": "AAHA指南系列",
+      "mmd": "AAHA指南系列",
+      "source_name": "",
+      "category_ids": [
+        "guidelines.general"
+      ]
+    }
+  ],
+  "excluded_books": [
+    {
+      "book_id": "078",
+      "title": "Côté's clinical veterinary advisor\nDogs and cats\neditors-in-chief, Leah A. Cohn, Etienne Côté.",
+      "reason": "西班牙语原文，需完成全量医学翻译和术语质检后再入库",
+      "source_file": "078.mmd",
+      "category_ids": [
+        "clinical.reference"
+      ]
+    },
+    {
+      "book_id": "005",
+      "title": "Complications in Equine Practice",
+      "reason": "MMD正文标题为 Advances in Reproduction，且与 008 内容 SHA1 完全相同；与分类表书名/类别不符",
+      "category_ids": [
+        "equine.complications"
+      ]
+    }
+  ],
+  "total_chunks": 110964,
+  "books": [
+    {
+      "book_id": "048",
+      "title": "Miller's Anatomy of the Dog - E-Book _ Miller's Anatomy of -- Howard Edward Evans, Alexander de Lahunta, Malcolm E_ -- Elsevier Inc_, Health Sciences -- 9780323266239 -- b5a794bc5dea3229ed04830f7878657f -- Anna’s Archive",
+      "source_file": "Miller's Anatomy of the Dog - E-Book _ Miller's Anatomy of -- Howard Edward Evans, Alexander de Lahunta, Malcolm E_ -- Elsevier Inc_, Health Sciences -- 9780323266239 -- b5a794bc5dea3229ed04830f7878657f -- Anna’s Archive.mmd",
+      "source_sha1": "9d92c0195ffa82df4929fe80ccfb57b59a7ccd1b",
+      "source_bytes": 3880096,
+      "chunk_count": 2288,
+      "category_ids": [
+        "basic.anatomy"
+      ]
+    },
+    {
+      "book_id": "036",
+      "title": "Dyce, Sack and Wensing's Textbook of Veterinary Anatomy - -- Baljit Singh BVSc & AH  MVSc  PhD  FAAA  3M National -- Hardcover, 2017 -- Saunders -- 9780323442640 -- 550f6b0b560a97bcb926dcb7686c382c -- Anna’s Archive",
+      "source_file": "Dyce, Sack and Wensing's Textbook of Veterinary Anatomy - -- Baljit Singh BVSc & AH  MVSc  PhD  FAAA  3M National -- Hardcover, 2017 -- Saunders -- 9780323442640 -- 550f6b0b560a97bcb926dcb7686c382c -- Anna’s Archive.mmd",
+      "source_sha1": "fa3b4208d546ade25626141154d57a833d3fa291",
+      "source_bytes": 2861975,
+      "chunk_count": 1669,
+      "category_ids": [
+        "basic.anatomy"
+      ]
+    },
+    {
+      "book_id": "039",
+      "title": "Guide to the Dissection of the Dog - E-Book (_Net -- Evans, Howard E_, Lahunta, Alexander de -- 8th edition, 2017 -- Saunders Elsevier -- 9780323391658 -- 9783169e12d6e81a8a12dc8ad814fbbf -- Anna’s Archive",
+      "source_file": "Guide to the Dissection of the Dog - E-Book (_Net -- Evans, Howard E_, Lahunta, Alexander de -- 8th edition, 2017 -- Saunders Elsevier -- 9780323391658 -- 9783169e12d6e81a8a12dc8ad814fbbf -- Anna’s Archive.mmd",
+      "source_sha1": "50a852b5f5be73262965fb0487fab6b57a9f7929",
+      "source_bytes": 776290,
+      "chunk_count": 440,
+      "category_ids": [
+        "basic.anatomy"
+      ]
+    },
+    {
+      "book_id": "027",
+      "title": "Atlas of Normal Radiographic Anatomy and Anatomic Variants -- Donald E_ Thrall DVM  PhD  DACVR, Ian D_ Robertson BVSc -- Second edition, St_ Louis, -- 9780323312257",
+      "source_file": "Atlas of Normal Radiographic Anatomy and Anatomic Variants -- Donald E_ Thrall DVM  PhD  DACVR, Ian D_ Robertson BVSc -- Second edition, St_ Louis, -- 9780323312257.mmd",
+      "source_sha1": "f58b49d9006928a569c28cc8c57c8041f62ad4f0",
+      "source_bytes": 509855,
+      "chunk_count": 280,
+      "category_ids": [
+        "basic.anatomy",
+        "diagnostics.imaging"
+      ]
+    },
+    {
+      "book_id": "064",
+      "title": "Veterinary Medical Terminology -- Dawn E_ Christenson LVT -- 3e, 2019 --",
+      "source_file": "Veterinary Medical Terminology -- Dawn E_ Christenson LVT -- 3e, 2019 --.mmd",
+      "source_sha1": "58684242620a9fb20bfd30b69297db8479ed3fb1",
+      "source_bytes": 1887914,
+      "chunk_count": 1171,
+      "category_ids": [
+        "basic.terminology"
+      ]
+    },
+    {
+      "book_id": "068",
+      "title": "Jubb, Kennedy, and Palmer's pathology of domestic animals. Volume 2",
+      "source_file": "068.mmd",
+      "source_sha1": "87476b33da2f012515037a00597e4c95fc82bc38",
+      "source_bytes": 4290343,
+      "chunk_count": 1285,
+      "category_ids": [
+        "basic.pathology"
+      ]
+    },
+    {
+      "book_id": "069",
+      "title": "Jubb, Kennedy, and Palmer's pathology of domestic animals. Volume 3",
+      "source_file": "069.mmd",
+      "source_sha1": "3cd0769d2a79d01951ca3e0db707d4ea41c30573",
+      "source_bytes": 3082590,
+      "chunk_count": 1036,
+      "category_ids": [
+        "basic.pathology"
+      ]
+    },
+    {
+      "book_id": "073",
+      "title": "B. Young, G. O'Dowd & P. Woodford, & Sylvia Wright; Wheater's Functional Histology: A Text and Colour Atlas, Churchill Livingstone; 7th edition 2023",
+      "source_file": "073.mmd",
+      "source_sha1": "de060c0edf57c1523cf6c73531ab27adeba610bf",
+      "source_bytes": 1366582,
+      "chunk_count": 548,
+      "category_ids": [
+        "basic.histology"
+      ]
+    },
+    {
+      "book_id": "037",
+      "title": "Ettinger's Textbook of Veterinary Internal Medicine -- Stephen J_ Ettinger, Etienne Côté, Edward C_ Feldman -- 9, 2024 -- x -- 9780323779319 -- f3432353f05589dae345a44f89d7c211 -- Anna’s Archive",
+      "source_file": "Ettinger's Textbook of Veterinary Internal Medicine -- Stephen J_ Ettinger, Etienne Côté, Edward C_ Feldman -- 9, 2024 -- x -- 9780323779319 -- f3432353f05589dae345a44f89d7c211 -- Anna’s Archive.mmd",
+      "source_sha1": "3386d6554eb4dcc149e445c066d4356b5589d95e",
+      "source_bytes": 15268111,
+      "chunk_count": 6716,
+      "category_ids": [
+        "clinical.internal_medicine"
+      ]
+    },
+    {
+      "book_id": "033",
+      "title": "Common Diseases of Companion Animals, 4th Edition -- Alleice Summers -- 4e édition, St_ Louis, Missouri, 2020 -- Elsevier_Mosby -- 9780323596572 -- 1b02b55b8f4662c12fbba402a6a6a68b -- Anna’s Archive",
+      "source_file": "Common Diseases of Companion Animals, 4th Edition -- Alleice Summers -- 4e édition, St_ Louis, Missouri, 2020 -- Elsevier_Mosby -- 9780323596572 -- 1b02b55b8f4662c12fbba402a6a6a68b -- Anna’s Archive.mmd",
+      "source_sha1": "bf69ad3357c3c3e6d78b27f9f285a624b20ca214",
+      "source_bytes": 1654403,
+      "chunk_count": 806,
+      "category_ids": [
+        "clinical.internal_medicine"
+      ]
+    },
+    {
+      "book_id": "058",
+      "title": "Stephen J. Ettinger_ Edward C. Feldman_ Étienne Côté - Textbook of Veterinary Internal Medicine (2017, Saunders) - libgen.li",
+      "source_file": "Stephen J. Ettinger_ Edward C. Feldman_ Étienne Côté - Textbook of Veterinary Internal Medicine (2017, Saunders) - libgen.li.mmd",
+      "source_sha1": "bb121478926c510a4d8f583215bbe7f374ead08a",
+      "source_bytes": 17766716,
+      "chunk_count": 8066,
+      "category_ids": [
+        "clinical.internal_medicine"
+      ]
+    },
+    {
+      "book_id": "055",
+      "title": "Small animal medical differential diagnosis _ a book of -- Mark Thompson DVM  DABVP(Canine and Feline) -- 4, PS, 2024 -- Saunders -- 9780323875905 -- 8ebfe5ba4beee695f2abc0b3f0efe911 -- Anna’s Archive",
+      "source_file": "Small animal medical differential diagnosis _ a book of -- Mark Thompson DVM  DABVP(Canine and Feline) -- 4, PS, 2024 -- Saunders -- 9780323875905 -- 8ebfe5ba4beee695f2abc0b3f0efe911 -- Anna’s Archive.mmd",
+      "source_sha1": "4797c5c3140d67ce10616d68aad9b82ed78312cc",
+      "source_bytes": 555478,
+      "chunk_count": 187,
+      "category_ids": [
+        "clinical.internal_medicine"
+      ]
+    },
+    {
+      "book_id": "056",
+      "title": "Small Animal Surgery 5th Edition -- Theresa Welch Fossum; Laura Pardi Duprey -- 5th Edition -- Elsevier - Health Sciences Division; Mosby -- 9780323443449 -- 09c0d1c4aca17f4d96d26831fc438507 -- Anna’s Archive",
+      "source_file": "Small Animal Surgery 5th Edition -- Theresa Welch Fossum; Laura Pardi Duprey -- 5th Edition -- Elsevier - Health Sciences Division; Mosby -- 9780323443449 -- 09c0d1c4aca17f4d96d26831fc438507 -- Anna’s Archive.mmd",
+      "source_sha1": "16de567b640034f44ec6e2cf9b650592a32b8081",
+      "source_bytes": 7281363,
+      "chunk_count": 3749,
+      "category_ids": [
+        "clinical.surgery"
+      ]
+    },
+    {
+      "book_id": "066",
+      "title": "Veterinary Surgery_ Small Animal Expert Consult, 2-Volume -- Spencer A Johnston; Karen M Tobias; Jeffrey N Peck; Marc -- 2, 2017 -- Saunders -- 9780323320498 -- 9cc6d5508c5033d11e840889a2684f96 -- Anna’s Archive",
+      "source_file": "Veterinary Surgery_ Small Animal Expert Consult, 2-Volume -- Spencer A Johnston; Karen M Tobias; Jeffrey N Peck; Marc -- 2, 2017 -- Saunders -- 9780323320498 -- 9cc6d5508c5033d11e840889a2684f96 -- Anna’s Archive.mmd",
+      "source_sha1": "7845f6446182e7a01ca52b1c267dc00f47c35c77",
+      "source_bytes": 16605212,
+      "chunk_count": 8629,
+      "category_ids": [
+        "clinical.surgery"
+      ]
+    },
+    {
+      "book_id": "024",
+      "title": "89  Wound Management Wounds with Special Challenges",
+      "source_file": "89  Wound Management Wounds with Special Challenges.mmd",
+      "source_sha1": "b44297637d5d12c5415f9405d76160ba43594c85",
+      "source_bytes": 72885,
+      "chunk_count": 40,
+      "category_ids": [
+        "clinical.surgery"
+      ]
+    },
+    {
+      "book_id": "052",
+      "title": "Small Animal Critical Care Medicine 3rd Edition -- Deborah Silverstein, Deborah Silverstein, DVM, DACVECC, Kate -- 3, 2023 -- Saunders -- 9780323764698 --",
+      "source_file": "Small Animal Critical Care Medicine 3rd Edition -- Deborah Silverstein, Deborah Silverstein, DVM, DACVECC, Kate -- 3, 2023 -- Saunders -- 9780323764698 --.mmd",
+      "source_sha1": "f58ad566315dbac8ead99d8660247a128c21d0a7",
+      "source_bytes": 7591750,
+      "chunk_count": 3378,
+      "category_ids": [
+        "clinical.emergency_critical"
+      ]
+    },
+    {
+      "book_id": "045",
+      "title": "Manual of Canine and Feline Cardiology -- Smith DVM  DACVIM (Internal Medicine & Cardiology), Francis -- 5, 2015 -- Saunders -- 9780323188029 --",
+      "source_file": "Manual of Canine and Feline Cardiology -- Smith DVM  DACVIM (Internal Medicine & Cardiology), Francis -- 5, 2015 -- Saunders -- 9780323188029 --.mmd",
+      "source_sha1": "b2bd27fadf286ed18d93340f6751ced21bd21137",
+      "source_bytes": 1714236,
+      "chunk_count": 746,
+      "category_ids": [
+        "clinical.cardiology"
+      ]
+    },
+    {
+      "book_id": "031",
+      "title": "Clinical Echocardiography of the Dog and Cat, 1e -- Eric de Madron, Valérie Chetboul, Claudio Bussadori -- 1, FR, 2015 -- Elsevier Masson -- 9780323316507 --",
+      "source_file": "Clinical Echocardiography of the Dog and Cat, 1e -- Eric de Madron, Valérie Chetboul, Claudio Bussadori -- 1, FR, 2015 -- Elsevier Masson -- 9780323316507 --.mmd",
+      "source_sha1": "6a9a425a8d6d667438ed43a4533d2b4e109b0947",
+      "source_bytes": 950783,
+      "chunk_count": 459,
+      "category_ids": [
+        "clinical.cardiology"
+      ]
+    },
+    {
+      "book_id": "053",
+      "title": "Small Animal Dermatology for Technicians and Nurses -- Kim Horne (editor), Marcia Schwassmann (editor), Dawn Logas -- Reprint, 2019 -- John Wiley & -- 9780470958155 -- 42dd9c099e028c80276a9cd356dfcbbf -- Anna’s Archive",
+      "source_file": "Small Animal Dermatology for Technicians and Nurses -- Kim Horne (editor), Marcia Schwassmann (editor), Dawn Logas -- Reprint, 2019 -- John Wiley & -- 9780470958155 -- 42dd9c099e028c80276a9cd356dfcbbf -- Anna’s Archive.mmd",
+      "source_sha1": "8bb65c5d994235d3f6cb8cb2db63e2117cb937dd",
+      "source_bytes": 458139,
+      "chunk_count": 253,
+      "category_ids": [
+        "clinical.dermatology"
+      ]
+    },
+    {
+      "book_id": "061",
+      "title": "Updates in Dermatology, An Issue of Veterinary Clinics_ -- Campbell DVM  MS  DAVCVIM  DACVD, Karen L_ -- Veterinary clinics of North America -- v_ 36, -- 9781416034674",
+      "source_file": "Updates in Dermatology, An Issue of Veterinary Clinics_ -- Campbell DVM  MS  DAVCVIM  DACVD, Karen L_ -- Veterinary clinics of North America -- v_ 36, -- 9781416034674.mmd",
+      "source_sha1": "c3c7ce124e3e2a6d53846111420624b066b04923",
+      "source_bytes": 758999,
+      "chunk_count": 409,
+      "category_ids": [
+        "clinical.dermatology"
+      ]
+    },
+    {
+      "book_id": "050",
+      "title": "Slatter’s Fundamentals of Veterinary Ophthalmology - E-Book -- David Maggs BVSc(Hons)  DAVCO, Paul Miller DVM  DACVO, Ron -- 5th ed, St_ Louis, Mo, -- 9780323241960 --",
+      "source_file": "Slatter’s Fundamentals of Veterinary Ophthalmology - E-Book -- David Maggs BVSc(Hons)  DAVCO, Paul Miller DVM  DACVO, Ron -- 5th ed, St_ Louis, Mo, -- 9780323241960 --.mmd",
+      "source_sha1": "4ac4b8cff4a5ab8e5952891805bb5c18725b675d",
+      "source_bytes": 2334896,
+      "chunk_count": 1223,
+      "category_ids": [
+        "clinical.ophthalmology"
+      ]
+    },
+    {
+      "book_id": "034",
+      "title": "Current concepts in the diagnosis and treatment of brain -- R_ A_ LeCouteur -- Journal of Small Animal Practice, #9, 40, pages 411-416, -- John Wiley -- 10_1111_j_1748-5827_1999_tb03113_x -- 1b1916eaab8edf2972e9b98fb62492aa --",
+      "source_file": "Current concepts in the diagnosis and treatment of brain -- R_ A_ LeCouteur -- Journal of Small Animal Practice, #9, 40, pages 411-416, -- John Wiley -- 10_1111_j_1748-5827_1999_tb03113_x -- 1b1916eaab8edf2972e9b98fb62492aa --.mmd",
+      "source_sha1": "4b6833eb08dad938ae82228cdc6d074bd31c9c7f",
+      "source_bytes": 32059,
+      "chunk_count": 19,
+      "category_ids": [
+        "clinical.neurology"
+      ]
+    },
+    {
+      "book_id": "071",
+      "title": "Withrow and MacEwen's small animal clinical oncology  (0-323-59496-4, 978-0-323-59496-7), Sixth edition. / Vail, David M..\nElsevier, 2020.",
+      "source_file": "071.mmd",
+      "source_sha1": "84db01548c1dcd55e6e4f70b9d688b24dba259f5",
+      "source_bytes": 5152114,
+      "chunk_count": 1956,
+      "category_ids": [
+        "clinical.oncology"
+      ]
+    },
+    {
+      "book_id": "079",
+      "title": "Saunders manual of small animal practice",
+      "source_file": "079.mmd",
+      "source_sha1": "97d7e0ad66fc9fa25fe405ea84f094128355fc90",
+      "source_bytes": 8546165,
+      "chunk_count": 2277,
+      "category_ids": [
+        "clinical.reference"
+      ]
+    },
+    {
+      "book_id": "083",
+      "title": "Blackwell's five-minute veterinary consult",
+      "source_file": "083.mmd",
+      "source_sha1": "0451d12c1860490355fa3b7505fb958d0481ab8c",
+      "source_bytes": 21794726,
+      "chunk_count": 6303,
+      "category_ids": [
+        "clinical.reference"
+      ]
+    },
+    {
+      "book_id": "030",
+      "title": "Canine And Feline Cytology_ A Color Atlas And Interpretation -- Rose E_ Raskin DVM  PhD  DACVP, Denny Meyer DVM  DACVIM -- 3, 2015 -- Saunders -- 9780323243636 --",
+      "source_file": "Canine And Feline Cytology_ A Color Atlas And Interpretation -- Rose E_ Raskin DVM  PhD  DACVP, Denny Meyer DVM  DACVIM -- 3, 2015 -- Saunders -- 9780323243636 --.mmd",
+      "source_sha1": "10a79ff08cd7f68dcab85725014115847301463f",
+      "source_bytes": 1957059,
+      "chunk_count": 1043,
+      "category_ids": [
+        "diagnostics.clinical_pathology"
+      ]
+    },
+    {
+      "book_id": "060",
+      "title": "Thrall's Textbook of Veterinary Diagnostic Radiology -- Gabriela S_ Seiler, Donald E_ Thrall -- 8, 2024 -- Elsevier - Health Sciences Division -- 9780323932356 -- 938c839fedb507f8d23fa09244860afb -- Anna’s Archive",
+      "source_file": "Thrall's Textbook of Veterinary Diagnostic Radiology -- Gabriela S_ Seiler, Donald E_ Thrall -- 8, 2024 -- Elsevier - Health Sciences Division -- 9780323932356 -- 938c839fedb507f8d23fa09244860afb -- Anna’s Archive.mmd",
+      "source_sha1": "396b6ccec53ce1f59d26190dc204a55bce024a72",
+      "source_bytes": 3805844,
+      "chunk_count": 2011,
+      "category_ids": [
+        "diagnostics.imaging"
+      ]
+    },
+    {
+      "book_id": "044",
+      "title": "Lavin's Radiography for Veterinary Technicians E-Book_ -- Marg Brown, Marg Brown, RVT, BEd Ad Ed, Lois Brown -- 7th, 2021 -- Elsevier - Health -- 9780323763707 -- 2a6b1fb6c5b0c8f3529c3e665abaaf62 -- Anna’s Archive",
+      "source_file": "Lavin's Radiography for Veterinary Technicians E-Book_ -- Marg Brown, Marg Brown, RVT, BEd Ad Ed, Lois Brown -- 7th, 2021 -- Elsevier - Health -- 9780323763707 -- 2a6b1fb6c5b0c8f3529c3e665abaaf62 -- Anna’s Archive.mmd",
+      "source_sha1": "e223f9f5a83b9ef09c3565b86c26e1d41187d501",
+      "source_bytes": 1892389,
+      "chunk_count": 1024,
+      "category_ids": [
+        "diagnostics.imaging"
+      ]
+    },
+    {
+      "book_id": "054",
+      "title": "Small Animal Diagnostic Ultrasound 4th -- John S_ Mattoon; Thomas G_ Nyland; Rance K_ Sellon; DVM; -- 4, 2021 -- Elsevier - Health Sciences Division -- 9780323533379 -- 786961c75bb4e4104c904b92cca9dbcd -- Anna’s Archive",
+      "source_file": "Small Animal Diagnostic Ultrasound 4th -- John S_ Mattoon; Thomas G_ Nyland; Rance K_ Sellon; DVM; -- 4, 2021 -- Elsevier - Health Sciences Division -- 9780323533379 -- 786961c75bb4e4104c904b92cca9dbcd -- Anna’s Archive.mmd",
+      "source_sha1": "90bf4b31ff1232d38be918ef64623b5dfc63b4fb",
+      "source_bytes": 2949171,
+      "chunk_count": 1547,
+      "category_ids": [
+        "diagnostics.imaging"
+      ]
+    },
+    {
+      "book_id": "059",
+      "title": "Textbook of veterinary diagnostic radiology -- Donald E Thrall; William R Widmer -- 7_ ed_, 2018 -- Elsevier - Health Sciences Division; Saunders -- 9780323482462 -- e5bb16c07b852b002562dbd1c7a16de6 -- Anna’s Archive",
+      "source_file": "Textbook of veterinary diagnostic radiology -- Donald E Thrall; William R Widmer -- 7_ ed_, 2018 -- Elsevier - Health Sciences Division; Saunders -- 9780323482462 -- e5bb16c07b852b002562dbd1c7a16de6 -- Anna’s Archive.mmd",
+      "source_sha1": "97647d122281fc04b7d6ab815f6870c9dc847242",
+      "source_bytes": 3608776,
+      "chunk_count": 1959,
+      "category_ids": [
+        "diagnostics.imaging"
+      ]
+    },
+    {
+      "book_id": "047",
+      "title": "Mark S. Thompson - Small Animal Medical Differential Diagnosis_ A Book of Lists (2017, Saunders) - libgen.li",
+      "source_file": "Mark S. Thompson - Small Animal Medical Differential Diagnosis_ A Book of Lists (2017, Saunders) - libgen.li.mmd",
+      "source_sha1": "b63c5094e5ed013eda038d5263a2900a7e56c1b5",
+      "source_bytes": 533282,
+      "chunk_count": 175,
+      "category_ids": [
+        "diagnostics.differential"
+      ]
+    },
+    {
+      "book_id": "043",
+      "title": "Laboratory Procedures for Veterinary Technicians, 7e -- Margi Sirois EdD  MS  RVT -- 7, 2019 -- Mosby, Incorporated -- 9780323595384 -- 7074354a96a5021a94ab26f9e9737358 -- Anna’s Archive",
+      "source_file": "Laboratory Procedures for Veterinary Technicians, 7e -- Margi Sirois EdD  MS  RVT -- 7, 2019 -- Mosby, Incorporated -- 9780323595384 -- 7074354a96a5021a94ab26f9e9737358 -- Anna’s Archive.mmd",
+      "source_sha1": "4c6a2b38514b17ac66f54730331ceb066762985b",
+      "source_bytes": 917704,
+      "chunk_count": 409,
+      "category_ids": [
+        "diagnostics.laboratory"
+      ]
+    },
+    {
+      "book_id": "042",
+      "title": "Laboratory Manual for Laboratory Procedures for Veterinary -- Margi Sirois EdD  MS  RVT  LAT -- 6, PT, 2014 -- Elsevier mosby -- 9780323169264 -- 5160613534d83d511bae28eeaa935809 -- Anna’s Archive",
+      "source_file": "Laboratory Manual for Laboratory Procedures for Veterinary -- Margi Sirois EdD  MS  RVT  LAT -- 6, PT, 2014 -- Elsevier mosby -- 9780323169264 -- 5160613534d83d511bae28eeaa935809 -- Anna’s Archive.mmd",
+      "source_sha1": "deb033ee22f27c47056313d0115573f00b0ad08f",
+      "source_bytes": 177289,
+      "chunk_count": 87,
+      "category_ids": [
+        "diagnostics.laboratory"
+      ]
+    },
+    {
+      "book_id": "072",
+      "title": "Cowell and Tyler's diagnostic cytology and hematology of the dog and cat  (0-323-53314-0, 978-0-323-53314-0), Fifth edition. / Valenciano, Amy C..\nElsevier, 2020.",
+      "source_file": "072.mmd",
+      "source_sha1": "1485286ee29a0c42090a84d5a945e0b7724af482",
+      "source_bytes": 2166562,
+      "chunk_count": 776,
+      "category_ids": [
+        "diagnostics.laboratory"
+      ]
+    },
+    {
+      "book_id": "049",
+      "title": "Papich Handbook of Veterinary Drugs - E-Book_ Small and -- Mark G_ Papich -- 5th ed, Philadelphia, 2020 -- Elsevier - Health Sciences Division -- 9780323709583 -- 08af272d65184849b67b8203fdd4c74e -- Anna’s Archive",
+      "source_file": "Papich Handbook of Veterinary Drugs - E-Book_ Small and -- Mark G_ Papich -- 5th ed, Philadelphia, 2020 -- Elsevier - Health Sciences Division -- 9780323709583 -- 08af272d65184849b67b8203fdd4c74e -- Anna’s Archive.mmd",
+      "source_sha1": "ccc12b762302330d13774de2acd391f26093f9ee",
+      "source_bytes": 2854281,
+      "chunk_count": 1391,
+      "category_ids": [
+        "pharmacy.papich"
+      ]
+    },
+    {
+      "book_id": "026",
+      "title": "Applied Pharmacology for Veterinary Technicians, 6th Edition -- Martini-Johnson, Lisa -- ed9ce84d6d793edb0a2eae909359da7f -- Anna’s Archive",
+      "source_file": "Applied Pharmacology for Veterinary Technicians, 6th Edition -- Martini-Johnson, Lisa -- ed9ce84d6d793edb0a2eae909359da7f -- Anna’s Archive.mmd",
+      "source_sha1": "98eee5ad428f250343fdc6e61f0b9ea522461ac4",
+      "source_bytes": 1869573,
+      "chunk_count": 851,
+      "category_ids": [
+        "pharmacy.applied_pharmacology"
+      ]
+    },
+    {
+      "book_id": "070",
+      "title": "Small animal clinical pharmacology & therapeutics\n[edited by] Dawn Merton Boothe.",
+      "source_file": "070.mmd",
+      "source_sha1": "090417bd0df10e9205f7f43499697b29263bd83a",
+      "source_bytes": 4571784,
+      "chunk_count": 1396,
+      "category_ids": [
+        "pharmacy.clinical_therapeutics"
+      ]
+    },
+    {
+      "book_id": "062",
+      "title": "Vaccines for Veterinarians -- Ian R_ Tizard PhD  BSc  BVMS -- 1, US, 2020 -- Elsevier - Health Sciences Division -- 9780323682992 -- ed8ceffbbcc0d2716bf93eaf646322c4 -- Anna’s Archive",
+      "source_file": "Vaccines for Veterinarians -- Ian R_ Tizard PhD  BSc  BVMS -- 1, US, 2020 -- Elsevier - Health Sciences Division -- 9780323682992 -- ed8ceffbbcc0d2716bf93eaf646322c4 -- Anna’s Archive.mmd",
+      "source_sha1": "a78162364fdb4cbabc210fe3f1450b8a82acb0ff",
+      "source_bytes": 1054490,
+      "chunk_count": 571,
+      "category_ids": [
+        "immunology.default"
+      ]
+    },
+    {
+      "book_id": "065",
+      "title": "Veterinary Reproduction & Obstetrics 10th Edition -- David E_ Noakes, Timothy J_ Parkinson, Gary C_ W_ England -- 10th ed, S_ l, 2019 -- Elsevier - -- 9780702072338 -- d661c242c6980467294754d435d26bfa -- Anna’s Archive",
+      "source_file": "Veterinary Reproduction & Obstetrics 10th Edition -- David E_ Noakes, Timothy J_ Parkinson, Gary C_ W_ England -- 10th ed, S_ l, 2019 -- Elsevier - -- 9780702072338 -- d661c242c6980467294754d435d26bfa -- Anna’s Archive.mmd",
+      "source_sha1": "b3ed6289969d0c3db421c695e66ae0f5f084da58",
+      "source_bytes": 4611269,
+      "chunk_count": 2452,
+      "category_ids": [
+        "reproduction.default"
+      ]
+    },
+    {
+      "book_id": "029",
+      "title": "Behavior Problems of the Dog and Cat - E-Book -- Gary M_ Landsberg, Wayne L_ Hunthausen, Lowell J_ Ackerman -- 3rd ed, Oxford, 2012 -- Elsevier - -- 9780702043352 -- 20a559692df40141bd6009fcb9f10e52 -- Anna’s Archive",
+      "source_file": "Behavior Problems of the Dog and Cat - E-Book -- Gary M_ Landsberg, Wayne L_ Hunthausen, Lowell J_ Ackerman -- 3rd ed, Oxford, 2012 -- Elsevier - -- 9780702043352 -- 20a559692df40141bd6009fcb9f10e52 -- Anna’s Archive.mmd",
+      "source_sha1": "d0e5da5668bcba3736aab877077fd057e4920242",
+      "source_bytes": 2961475,
+      "chunk_count": 1619,
+      "category_ids": [
+        "behavior.dog_cat_problems"
+      ]
+    },
+    {
+      "book_id": "067",
+      "title": "猫行为健康和福利 = Feline behavioral health and welfare -- (美)伊罗娜·罗丹(Ilona Rodan), (英)莎拉▪赫尔斯(Sarah Heath) -- Di 1 ban, Beijing, 2018 -- 中国农业科学技术出版社 -- 9787511635853 --",
+      "source_file": "猫行为健康和福利 = Feline behavioral health and welfare -- (美)伊罗娜·罗丹(Ilona Rodan), (英)莎拉▪赫尔斯(Sarah Heath) -- Di 1 ban, Beijing, 2018 -- 中国农业科学技术出版社 -- 9787511635853 --.mmd",
+      "source_sha1": "53b0feb8f4deab7156192a58252ed42a15ee5c91",
+      "source_bytes": 1457705,
+      "chunk_count": 1518,
+      "category_ids": [
+        "behavior.feline_welfare"
+      ]
+    },
+    {
+      "book_id": "051",
+      "title": "Small Animal Clinical Techniques -- Susan Meric Taylor -- 2, 2016 -- Elsevier - Health Sciences Division -- 9780323312165 --",
+      "source_file": "Small Animal Clinical Techniques -- Susan Meric Taylor -- 2, 2016 -- Elsevier - Health Sciences Division -- 9780323312165 --.mmd",
+      "source_sha1": "b847f50841dc9e323e086190a7b748177309a80c",
+      "source_bytes": 462563,
+      "chunk_count": 208,
+      "category_ids": [
+        "clinical_skills.techniques"
+      ]
+    },
+    {
+      "book_id": "004",
+      "title": "66  300 questions and answers in diagnostic aids for veterinary nurses",
+      "source_file": "66  300 questions and answers in diagnostic aids for veterinary nurses.mmd",
+      "source_sha1": "088ffbf08c4b785b8f7714e7386827892c7dfe14",
+      "source_bytes": 61060,
+      "chunk_count": 32,
+      "category_ids": [
+        "clinical_skills.nursing"
+      ]
+    },
+    {
+      "book_id": "032",
+      "title": "Clinical Procedures in Veterinary Nursing -- Aspinall BVSc  MRCVS, Victoria -- Third edition, Edinburgh, 2014 -- Butterworth-Heinemann Elsevier -- 9780702051104 -- a652886c878436b407af2fd58dc608b0 -- Anna’s Archive",
+      "source_file": "Clinical Procedures in Veterinary Nursing -- Aspinall BVSc  MRCVS, Victoria -- Third edition, Edinburgh, 2014 -- Butterworth-Heinemann Elsevier -- 9780702051104 -- a652886c878436b407af2fd58dc608b0 -- Anna’s Archive.mmd",
+      "source_sha1": "a02b70b85fd438dded72fba210b97a759edac992",
+      "source_bytes": 1081510,
+      "chunk_count": 549,
+      "category_ids": [
+        "clinical_skills.nursing"
+      ]
+    },
+    {
+      "book_id": "057",
+      "title": "Small Animal Surgical Nursing, 3rd Edition -- Unknown -- Third edition, St_ Louis, Missouri, 2017 -- Elsevier - Health Sciences Division -- 9780323077354 -- 8e96f4fd007ccc2f2e214946ba9cb870 -- Anna’s Archive",
+      "source_file": "Small Animal Surgical Nursing, 3rd Edition -- Unknown -- Third edition, St_ Louis, Missouri, 2017 -- Elsevier - Health Sciences Division -- 9780323077354 -- 8e96f4fd007ccc2f2e214946ba9cb870 -- Anna’s Archive.mmd",
+      "source_sha1": "3b654ed9adb2331562ac357281540fc961556077",
+      "source_bytes": 1157810,
+      "chunk_count": 619,
+      "category_ids": [
+        "clinical_skills.nursing"
+      ]
+    },
+    {
+      "book_id": "074",
+      "title": "Greene's infectious diseases of the dog and cat  (0-323-50934-7, 978-0-323-50934-3), Fifth edition. / Sykes, Jane E..\nElsevier, 2023",
+      "source_file": "074.mmd",
+      "source_sha1": "8d44209d7b114438c94a43de410f8ef0ae558637",
+      "source_bytes": 10987385,
+      "chunk_count": 2851,
+      "category_ids": [
+        "infectious.general"
+      ]
+    },
+    {
+      "book_id": "075",
+      "title": "Georgis' parasitology for veterinarians  (0-323-54396-0, 978-0-323-54396-5), Eleventh edition. / Bowman, Dwight D..\nElsevier, 2021.",
+      "source_file": "075.mmd",
+      "source_sha1": "40ddbf1a698310cc9854860e5b94342b40331780",
+      "source_bytes": 2764913,
+      "chunk_count": 807,
+      "category_ids": [
+        "infectious.general"
+      ]
+    },
+    {
+      "book_id": "076",
+      "title": "Small animal clinical nutrition\n[editors, Michael S. Hand and others]",
+      "source_file": "076.mmd",
+      "source_sha1": "2f8297fb3ba6dc02b3a5b415676c4dbfc688392b",
+      "source_bytes": 6270761,
+      "chunk_count": 1680,
+      "category_ids": [
+        "nutrition.general"
+      ]
+    },
+    {
+      "book_id": "077",
+      "title": "Applied veterinary clinical nutrition  (1-119-37514-2, 978-1-119-37514-2), Second edition. / Fascetti, Andrea J..\nWiley-Blackwell, 2023",
+      "source_file": "077.mmd",
+      "source_sha1": "3d09b0192647c12c7cef4dd48a51eb891a8929de",
+      "source_bytes": 2330011,
+      "chunk_count": 616,
+      "category_ids": [
+        "nutrition.general"
+      ]
+    },
+    {
+      "book_id": "028",
+      "title": "Avian Medicine, 3e -- Jaime Samour MVZ  PhD  Dip ECAMS -- Third edition, St_ Louis, Mo, 2016 -- Elsevier - Health Sciences Division; Mosby Ltd_ -- 9780723438328 --",
+      "source_file": "Avian Medicine, 3e -- Jaime Samour MVZ  PhD  Dip ECAMS -- Third edition, St_ Louis, Mo, 2016 -- Elsevier - Health Sciences Division; Mosby Ltd_ -- 9780723438328 --.mmd",
+      "source_sha1": "4df57666f2dc9a1c5fcd5d8629c22d3abbeb710f",
+      "source_bytes": 3028771,
+      "chunk_count": 1510,
+      "category_ids": [
+        "exotic.default"
+      ]
+    },
+    {
+      "book_id": "035",
+      "title": "Current therapy in exotic pet practice -- Jr_ Thomas N_ Tully; Mark A_ Mitchell -- St_ Louis, Missouri, 2016 -- Elsevier - Health Sciences Division -- 9781455740840 --",
+      "source_file": "Current therapy in exotic pet practice -- Jr_ Thomas N_ Tully; Mark A_ Mitchell -- St_ Louis, Missouri, 2016 -- Elsevier - Health Sciences Division -- 9781455740840 --.mmd",
+      "source_sha1": "de94e79ca4c4480bd44bd0bfc2edb7c163d7f0b0",
+      "source_bytes": 3063969,
+      "chunk_count": 1531,
+      "category_ids": [
+        "exotic.default"
+      ]
+    },
+    {
+      "book_id": "038",
+      "title": "Ferrets, rabbits, and rodents _ clinical medicine and -- Katherine Quesenberry DVM MPH  Diplomate ABVP, Christoph -- 4, 2020 -- Elsevier - Health -- 9780323484312 -- f7c825a234d9ad2c7c8cf5a57529c2ee -- Anna’s Archive",
+      "source_file": "Ferrets, rabbits, and rodents _ clinical medicine and -- Katherine Quesenberry DVM MPH  Diplomate ABVP, Christoph -- 4, 2020 -- Elsevier - Health -- 9780323484312 -- f7c825a234d9ad2c7c8cf5a57529c2ee -- Anna’s Archive.mmd",
+      "source_sha1": "162a6c6a82d01488882cc23169853a0c05b94f15",
+      "source_bytes": 3207038,
+      "chunk_count": 1654,
+      "category_ids": [
+        "exotic.default"
+      ]
+    },
+    {
+      "book_id": "041",
+      "title": "Laboratory animal and exotic pet medicine _ principles and -- Margi Sirois -- Second edition, St_ Louis, Missouri, 2016 -- Elsevier - Health Sciences -- 9780323172998 --",
+      "source_file": "Laboratory animal and exotic pet medicine _ principles and -- Margi Sirois -- Second edition, St_ Louis, Missouri, 2016 -- Elsevier - Health Sciences -- 9780323172998 --.mmd",
+      "source_sha1": "90adcbb846d46226718e5b1ec41d1a688550c28a",
+      "source_bytes": 982131,
+      "chunk_count": 531,
+      "category_ids": [
+        "exotic.default"
+      ]
+    },
+    {
+      "book_id": "023",
+      "title": "88  Large Animal Internal Medicine, 6th Edition -- Bradford P_ Smith, David C Van Metre & Nicola Pusterla -- 6, 2019 -- Elsevier - Health Sciences -- 9780323554435 -- d2cca8ce85200090bbe947a21d77cf07 -- Anna’s Archive",
+      "source_file": "88  Large Animal Internal Medicine, 6th Edition -- Bradford P_ Smith, David C Van Metre & Nicola Pusterla -- 6, 2019 -- Elsevier - Health Sciences -- 9780323554435 -- d2cca8ce85200090bbe947a21d77cf07 -- Anna’s Archive.mmd",
+      "source_sha1": "cfe7049b19d0180e5a591b75967e3e2abc499c1e",
+      "source_bytes": 16127698,
+      "chunk_count": 7945,
+      "category_ids": [
+        "equine.large_animal_internal"
+      ]
+    },
+    {
+      "book_id": "006",
+      "title": "69 Management of lameness causes in sport horses  muscle, tendon, joint, and bone disorders",
+      "source_file": "69 Management of lameness causes in sport horses  muscle, tendon, joint, and bone disorders.mmd",
+      "source_sha1": "4ff3548b8c01a30e5a6dec053e5b85a47e774a68",
+      "source_bytes": 611357,
+      "chunk_count": 229,
+      "category_ids": [
+        "equine.sports_medicine"
+      ]
+    },
+    {
+      "book_id": "010",
+      "title": "74  Kenneth Hinchcliff, Andris Kaneps, Raymond Geor - Equine Sports Medicine and Surgery, 1e (2004, Saunders Ltd.) - libgen.li",
+      "source_file": "74  Kenneth Hinchcliff, Andris Kaneps, Raymond Geor - Equine Sports Medicine and Surgery, 1e (2004, Saunders Ltd.) - libgen.li.mmd",
+      "source_sha1": "42cdf42d4a766332277645c6e2da8bdd3c61b3c4",
+      "source_bytes": 6526273,
+      "chunk_count": 3237,
+      "category_ids": [
+        "equine.sports_medicine"
+      ]
+    },
+    {
+      "book_id": "011",
+      "title": "75  Bradford Bentz - Understanding Equine Colic (2004, Eclipse Press) - libgen.li",
+      "source_file": "75  Bradford Bentz - Understanding Equine Colic (2004, Eclipse Press) - libgen.li.mmd",
+      "source_sha1": "6d20c7e714055bec3f34421ccfa62bb3dbb91244",
+      "source_bytes": 304600,
+      "chunk_count": 170,
+      "category_ids": [
+        "equine.colic"
+      ]
+    },
+    {
+      "book_id": "012",
+      "title": "76  Practical Guide to Equine Colic -- unknown -- 5e0af1718455db5ee78963f8a19a51e8 -- Anna’s Archive",
+      "source_file": "76  Practical Guide to Equine Colic -- unknown -- 5e0af1718455db5ee78963f8a19a51e8 -- Anna’s Archive.mmd",
+      "source_sha1": "418bae174d542ff2e99e8e67fb65592838956a90",
+      "source_bytes": 1243892,
+      "chunk_count": 538,
+      "category_ids": [
+        "equine.colic"
+      ]
+    },
+    {
+      "book_id": "013",
+      "title": "77  The Glass Horse, Equine Colic, Supplemental Text -- unknown -- a805e2baaa8c1cfa0a8d6526b2cd4e14 -- Anna’s Archive",
+      "source_file": "77  The Glass Horse, Equine Colic, Supplemental Text -- unknown -- a805e2baaa8c1cfa0a8d6526b2cd4e14 -- Anna’s Archive.mmd",
+      "source_sha1": "c05f27a0c6ed12730ccb3ec13c2a0dac7035a2dd",
+      "source_bytes": 128481,
+      "chunk_count": 70,
+      "category_ids": [
+        "equine.colic"
+      ]
+    },
+    {
+      "book_id": "014",
+      "title": "78 Handbook of Equine Colic",
+      "source_file": "78 Handbook of Equine Colic.mmd",
+      "source_sha1": "501b90d8f535b9c0403e16328fd8958ba4126860",
+      "source_bytes": 400324,
+      "chunk_count": 219,
+      "category_ids": [
+        "equine.colic"
+      ]
+    },
+    {
+      "book_id": "016",
+      "title": "80 The Equine Acute Abdomen, 3rd Edition",
+      "source_file": "80 The Equine Acute Abdomen, 3rd Edition.mmd",
+      "source_sha1": "f1e5bc10c3c74cdbb119db9c9ce11a975c7bb39c",
+      "source_bytes": 3804099,
+      "chunk_count": 1825,
+      "category_ids": [
+        "equine.colic"
+      ]
+    },
+    {
+      "book_id": "017",
+      "title": "81  Nathaniel A. White (Author)_ James N. Moore (Author)_ Tim S. Mai - Equine Acute Abdomen (2009, Lea & Febiger, CRC Press) [10.1201_b16168] - libgen.li",
+      "source_file": "81  Nathaniel A. White (Author)_ James N. Moore (Author)_ Tim S. Mai - Equine Acute Abdomen (2009, Lea & Febiger, CRC Press) [10.1201_b16168] - libgen.li.mmd",
+      "source_sha1": "41becaa7cc52c14a31199d2e0ccb148320143445",
+      "source_bytes": 2593573,
+      "chunk_count": 1406,
+      "category_ids": [
+        "equine.colic"
+      ]
+    },
+    {
+      "book_id": "020",
+      "title": "85  Equine Neurology",
+      "source_file": "85  Equine Neurology.mmd",
+      "source_sha1": "ba305d8891db90e0cc4ce159f9c5740bea3755f7",
+      "source_bytes": 865337,
+      "chunk_count": 418,
+      "category_ids": [
+        "equine.neurology"
+      ]
+    },
+    {
+      "book_id": "021",
+      "title": "86  Martin Furr, Stephen Reed - Equine Neurology (2015, Wiley-Blackwell) - libgen.li",
+      "source_file": "86  Martin Furr, Stephen Reed - Equine Neurology (2015, Wiley-Blackwell) - libgen.li.mmd",
+      "source_sha1": "055cd08bd2a1a67626644df3bff892d1d2689f3f",
+      "source_bytes": 2267703,
+      "chunk_count": 1146,
+      "category_ids": [
+        "equine.neurology"
+      ]
+    },
+    {
+      "book_id": "009",
+      "title": "72  ECG Interpretation in Equine Practice -- Unknown -- 123447cbe510aa453d79cb990672b00b -- Anna’s Archive",
+      "source_file": "72  ECG Interpretation in Equine Practice -- Unknown -- 123447cbe510aa453d79cb990672b00b -- Anna’s Archive.mmd",
+      "source_sha1": "618f0060374a8a7ac161399ec8ffb3c789eba391",
+      "source_bytes": 163860,
+      "chunk_count": 82,
+      "category_ids": [
+        "equine.cardiology"
+      ]
+    },
+    {
+      "book_id": "008",
+      "title": "71  Reproduction, An Issue of Veterinary Clinics_ Equine",
+      "source_file": "71  Reproduction, An Issue of Veterinary Clinics_ Equine.mmd",
+      "source_sha1": "d5e1bc126dcc4e8fd76aa400725858ed72a5f43e",
+      "source_bytes": 564972,
+      "chunk_count": 260,
+      "category_ids": [
+        "equine.reproduction"
+      ]
+    },
+    {
+      "book_id": "022",
+      "title": "87  [Enuco 2007-jan] Lindner, Arno (editor) - Applied equine nutrition and training_ Equine NUtrition COnference (ENUCO) 2007 (2007, Wageningen Academic Publishers) [10.3920_978-90-8686-607-6] - libgen.li",
+      "source_file": "87  [Enuco 2007-jan] Lindner, Arno (editor) - Applied equine nutrition and training_ Equine NUtrition COnference (ENUCO) 2007 (2007, Wageningen Academic Publishers) [10.3920_978-90-8686-607-6] - libgen.li.mmd",
+      "source_sha1": "3751e5c162a5552fa49f25e4d0714cd31bf3d485",
+      "source_bytes": 462845,
+      "chunk_count": 166,
+      "category_ids": [
+        "equine.nutrition"
+      ]
+    },
+    {
+      "book_id": "018",
+      "title": "83  Infectious Diseases of the Horse (J.H. van der Kolk, E.J.B. Veldhuis Kroeze) (Z-Library)",
+      "source_file": "83  Infectious Diseases of the Horse (J.H. van der Kolk, E.J.B. Veldhuis Kroeze) (Z-Library).mmd",
+      "source_sha1": "0bb101f52d9f7b56d18fd84f945594d3d42f684d",
+      "source_bytes": 1345894,
+      "chunk_count": 653,
+      "category_ids": [
+        "equine.infectious"
+      ]
+    },
+    {
+      "book_id": "007",
+      "title": "70  Clinical Equine Oncology -- Knottenbelt, Derek C_, Snalune, Katie, Patterson Kane, Janet -- 7a285499cb8d6cdac66a57c591110650 -- Anna’s Archive",
+      "source_file": "70  Clinical Equine Oncology -- Knottenbelt, Derek C_, Snalune, Katie, Patterson Kane, Janet -- 7a285499cb8d6cdac66a57c591110650 -- Anna’s Archive.mmd",
+      "source_sha1": "6b7cd6af551972fd3b11a393524bfb85f24b0e46",
+      "source_bytes": 3333413,
+      "chunk_count": 1608,
+      "category_ids": [
+        "equine.oncology"
+      ]
+    },
+    {
+      "book_id": "019",
+      "title": "84  J. P. DUBEY - TOXOPLASMOSIS OF ANIMALS AND HUMANS (2021, CRC PRESS) - libgen.li",
+      "source_file": "84  J. P. DUBEY - TOXOPLASMOSIS OF ANIMALS AND HUMANS (2021, CRC PRESS) - libgen.li.mmd",
+      "source_sha1": "d6cd1f1c59e920463c0c2c8cc57451b798643d04",
+      "source_bytes": 2011536,
+      "chunk_count": 861,
+      "category_ids": [
+        "zoonosis.toxoplasmosis"
+      ]
+    },
+    {
+      "book_id": "040",
+      "title": "Integrative Veterinary Medicine -- Mushtaq A_ Memon, Huisheng Xie, (eds_) -- John Wiley & Sons, Inc_, Hoboken, NJ, 2023 -- Wiley-Blackwell --",
+      "source_file": "Integrative Veterinary Medicine -- Mushtaq A_ Memon, Huisheng Xie, (eds_) -- John Wiley & Sons, Inc_, Hoboken, NJ, 2023 -- Wiley-Blackwell --.mmd",
+      "source_sha1": "1fc05259e7fdace7e4c8cdc5726349e10157c3c4",
+      "source_bytes": 1031138,
+      "chunk_count": 509,
+      "category_ids": [
+        "integrative.tcm_support"
+      ]
+    },
+    {
+      "book_id": "082",
+      "title": "Xie's Chinese Veterinary Herbology",
+      "source_file": "082.mmd",
+      "source_sha1": "0ce8197549fa2a202d32646058ad248536660954",
+      "source_bytes": 2422446,
+      "chunk_count": 673,
+      "category_ids": [
+        "integrative.tcm_support"
+      ]
+    },
+    {
+      "book_id": "080",
+      "title": "Breed Predispositions to Disease in Dogs and Cats\nAuthor(s):\nAlex Gough, Alison Thomas, Dan O'Neill",
+      "source_file": "080.mmd",
+      "source_sha1": "26d5a38b4e52b129a422d66cb2affe5cbca99591",
+      "source_bytes": 1441241,
+      "chunk_count": 271,
+      "category_ids": [
+        "individual.genetics_breed"
+      ]
+    },
+    {
+      "book_id": "085",
+      "title": "WSAVA指南系列",
+      "source_file": "085.mmd",
+      "source_sha1": "3466945a6262b397f4be6de2e1287ab666508b3a",
+      "source_bytes": 1913309,
+      "chunk_count": 856,
+      "category_ids": [
+        "guidelines.general"
+      ]
+    },
+    {
+      "book_id": "086",
+      "title": "BSAVA指南系列",
+      "source_file": "086.mmd",
+      "source_sha1": "b21011310e723a90b96337ef3c3a374d5b3b32b8",
+      "source_bytes": 3005598,
+      "chunk_count": 1063,
+      "category_ids": [
+        "guidelines.general"
+      ]
+    },
+    {
+      "book_id": "087",
+      "title": "ISFM指南系列",
+      "source_file": "087.mmd",
+      "source_sha1": "58cc1e2c80b973689bda2ceca53c6f07d8458fb9",
+      "source_bytes": 222160,
+      "chunk_count": 126,
+      "category_ids": [
+        "guidelines.general"
+      ]
+    },
+    {
+      "book_id": "088",
+      "title": "ACVIM指南系列",
+      "source_file": "088.mmd",
+      "source_sha1": "f346080e840efac9435899402866ac5c39c332d2",
+      "source_bytes": 661817,
+      "chunk_count": 226,
+      "category_ids": [
+        "guidelines.general"
+      ]
+    },
+    {
+      "book_id": "089",
+      "title": "RECOVER指南系列",
+      "source_file": "089.mmd",
+      "source_sha1": "8c9cb1cc8786cb7a8bfc4c0db6c971049f242834",
+      "source_bytes": 84108,
+      "chunk_count": 31,
+      "category_ids": [
+        "guidelines.general"
+      ]
+    },
+    {
+      "book_id": "025",
+      "title": "Anesthesia and Analgesia for Veterinary Technicians - E-Book -- Thomas, John A_ (John Alfred), 1956- author, Lerche, -- Elsevier Inc_, Health Sciences -- 9780323249713 -- a4e72dbc89b3e50737b2432cd435f1d7 -- Anna’s Archive",
+      "source_file": "Anesthesia and Analgesia for Veterinary Technicians - E-Book -- Thomas, John A_ (John Alfred), 1956- author, Lerche, -- Elsevier Inc_, Health Sciences -- 9780323249713 -- a4e72dbc89b3e50737b2432cd435f1d7 -- Anna’s Archive.mmd",
+      "source_sha1": "030488e1c82bb64e4eed150814e91166a11641ac",
+      "source_bytes": 2020598,
+      "chunk_count": 1026,
+      "category_ids": [
+        "anesthesia.default"
+      ]
+    }
+  ],
+  "categories": [
+    {
+      "id": "basic.anatomy",
+      "zh_l1": "基础医学",
+      "zh_l2": "解剖学",
+      "book_ids": [
+        "048",
+        "036",
+        "039",
+        "027"
+      ],
+      "books": [
+        {
+          "book_id": "048",
+          "mmd": "048.mmd",
+          "title": "Miller's Anatomy of the Dog - E-Book _ Miller's Anatomy of -- Howard Edward Evans, Alexander de Lahunta, Malcolm E_ -- Elsevier Inc_, Health Sciences -- 9780323266239 -- b5a794bc5dea3229ed04830f7878657f -- Anna’s Archive",
+          "source_path": "books/048.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "036",
+          "mmd": "036.mmd",
+          "title": "Dyce, Sack and Wensing's Textbook of Veterinary Anatomy - -- Baljit Singh BVSc & AH  MVSc  PhD  FAAA  3M National -- Hardcover, 2017 -- Saunders -- 9780323442640 -- 550f6b0b560a97bcb926dcb7686c382c -- Anna’s Archive",
+          "source_path": "books/036.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "039",
+          "mmd": "039.mmd",
+          "title": "Guide to the Dissection of the Dog - E-Book (_Net -- Evans, Howard E_, Lahunta, Alexander de -- 8th edition, 2017 -- Saunders Elsevier -- 9780323391658 -- 9783169e12d6e81a8a12dc8ad814fbbf -- Anna’s Archive",
+          "source_path": "books/039.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "027",
+          "mmd": "027.mmd",
+          "title": "Atlas of Normal Radiographic Anatomy and Anatomic Variants -- Donald E_ Thrall DVM  PhD  DACVR, Ian D_ Robertson BVSc -- Second edition, St_ Louis, -- 9780323312257",
+          "source_path": "books/027.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/048.mmd",
+        "books/036.mmd",
+        "books/039.mmd",
+        "books/027.mmd"
+      ],
+      "chunk_count": 4677,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/basic.anatomy"
+    },
+    {
+      "id": "basic.terminology",
+      "zh_l1": "基础医学",
+      "zh_l2": "兽医术语",
+      "book_ids": [
+        "064"
+      ],
+      "books": [
+        {
+          "book_id": "064",
+          "mmd": "064.mmd",
+          "title": "Veterinary Medical Terminology -- Dawn E_ Christenson LVT -- 3e, 2019 --",
+          "source_path": "books/064.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/064.mmd"
+      ],
+      "chunk_count": 1171,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/basic.terminology"
+    },
+    {
+      "id": "basic.physiology",
+      "zh_l1": "基础医学",
+      "zh_l2": "生理学",
+      "book_ids": [],
+      "books": [],
+      "source_paths": [],
+      "chunk_count": 0,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/basic.physiology"
+    },
+    {
+      "id": "basic.pathology",
+      "zh_l1": "基础医学",
+      "zh_l2": "病理学",
+      "book_ids": [
+        "068",
+        "069"
+      ],
+      "books": [
+        {
+          "book_id": "068",
+          "mmd": "贾布、肯尼迪和帕尔默的家畜病理学。第二卷",
+          "title": "Jubb, Kennedy, and Palmer's pathology of domestic animals. Volume 2",
+          "source_path": "books/068.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "069",
+          "mmd": "贾布、肯尼迪和帕尔默的家畜病理学。第三卷",
+          "title": "Jubb, Kennedy, and Palmer's pathology of domestic animals. Volume 3",
+          "source_path": "books/069.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/068.mmd",
+        "books/069.mmd"
+      ],
+      "chunk_count": 2321,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/basic.pathology"
+    },
+    {
+      "id": "basic.histology",
+      "zh_l1": "基础医学",
+      "zh_l2": "组织学",
+      "book_ids": [
+        "073"
+      ],
+      "books": [
+        {
+          "book_id": "073",
+          "mmd": "功能组织学",
+          "title": "B. Young, G. O'Dowd & P. Woodford, & Sylvia Wright; Wheater's Functional Histology: A Text and Colour Atlas, Churchill Livingstone; 7th edition 2023",
+          "source_path": "books/073.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/073.mmd"
+      ],
+      "chunk_count": 548,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/basic.histology"
+    },
+    {
+      "id": "basic.microbiology",
+      "zh_l1": "基础医学",
+      "zh_l2": "微生物",
+      "book_ids": [],
+      "books": [],
+      "source_paths": [],
+      "chunk_count": 0,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/basic.microbiology"
+    },
+    {
+      "id": "basic.pharmacology_fundamentals",
+      "zh_l1": "基础医学",
+      "zh_l2": "药理基础",
+      "book_ids": [],
+      "books": [],
+      "source_paths": [],
+      "chunk_count": 0,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/basic.pharmacology_fundamentals"
+    },
+    {
+      "id": "clinical.internal_medicine",
+      "zh_l1": "临床医学",
+      "zh_l2": "综合内科学",
+      "book_ids": [
+        "037",
+        "033",
+        "058",
+        "055"
+      ],
+      "books": [
+        {
+          "book_id": "037",
+          "mmd": "037.mmd",
+          "title": "Ettinger's Textbook of Veterinary Internal Medicine -- Stephen J_ Ettinger, Etienne Côté, Edward C_ Feldman -- 9, 2024 -- x -- 9780323779319 -- f3432353f05589dae345a44f89d7c211 -- Anna’s Archive",
+          "source_path": "books/037.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "033",
+          "mmd": "033.mmd",
+          "title": "Common Diseases of Companion Animals, 4th Edition -- Alleice Summers -- 4e édition, St_ Louis, Missouri, 2020 -- Elsevier_Mosby -- 9780323596572 -- 1b02b55b8f4662c12fbba402a6a6a68b -- Anna’s Archive",
+          "source_path": "books/033.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "058",
+          "mmd": "058.mmd",
+          "title": "Stephen J. Ettinger_ Edward C. Feldman_ Étienne Côté - Textbook of Veterinary Internal Medicine (2017, Saunders) - libgen.li",
+          "source_path": "books/058.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "055",
+          "mmd": "055.mmd",
+          "title": "Small animal medical differential diagnosis _ a book of -- Mark Thompson DVM  DABVP(Canine and Feline) -- 4, PS, 2024 -- Saunders -- 9780323875905 -- 8ebfe5ba4beee695f2abc0b3f0efe911 -- Anna’s Archive",
+          "source_path": "books/055.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/037.mmd",
+        "books/033.mmd",
+        "books/058.mmd",
+        "books/055.mmd"
+      ],
+      "chunk_count": 15775,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/clinical.internal_medicine"
+    },
+    {
+      "id": "clinical.surgery",
+      "zh_l1": "临床医学",
+      "zh_l2": "外科学",
+      "book_ids": [
+        "056",
+        "066",
+        "024"
+      ],
+      "books": [
+        {
+          "book_id": "056",
+          "mmd": "056.mmd",
+          "title": "Small Animal Surgery 5th Edition -- Theresa Welch Fossum; Laura Pardi Duprey -- 5th Edition -- Elsevier - Health Sciences Division; Mosby -- 9780323443449 -- 09c0d1c4aca17f4d96d26831fc438507 -- Anna’s Archive",
+          "source_path": "books/056.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "066",
+          "mmd": "066.mmd",
+          "title": "Veterinary Surgery_ Small Animal Expert Consult, 2-Volume -- Spencer A Johnston; Karen M Tobias; Jeffrey N Peck; Marc -- 2, 2017 -- Saunders -- 9780323320498 -- 9cc6d5508c5033d11e840889a2684f96 -- Anna’s Archive",
+          "source_path": "books/066.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "024",
+          "mmd": "024.mmd",
+          "title": "89  Wound Management Wounds with Special Challenges",
+          "source_path": "books/024.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/056.mmd",
+        "books/066.mmd",
+        "books/024.mmd"
+      ],
+      "chunk_count": 12418,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/clinical.surgery"
+    },
+    {
+      "id": "clinical.emergency_critical",
+      "zh_l1": "临床医学",
+      "zh_l2": "急诊与重症",
+      "book_ids": [
+        "052"
+      ],
+      "books": [
+        {
+          "book_id": "052",
+          "mmd": "052.mmd",
+          "title": "Small Animal Critical Care Medicine 3rd Edition -- Deborah Silverstein, Deborah Silverstein, DVM, DACVECC, Kate -- 3, 2023 -- Saunders -- 9780323764698 --",
+          "source_path": "books/052.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/052.mmd"
+      ],
+      "chunk_count": 3378,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/clinical.emergency_critical"
+    },
+    {
+      "id": "clinical.cardiology",
+      "zh_l1": "临床医学",
+      "zh_l2": "心脏病学",
+      "book_ids": [
+        "045",
+        "031",
+        "046"
+      ],
+      "books": [
+        {
+          "book_id": "045",
+          "mmd": "045.mmd",
+          "title": "Manual of Canine and Feline Cardiology -- Smith DVM  DACVIM (Internal Medicine & Cardiology), Francis -- 5, 2015 -- Saunders -- 9780323188029 --",
+          "source_path": "books/045.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "031",
+          "mmd": "031.mmd",
+          "title": "Clinical Echocardiography of the Dog and Cat, 1e -- Eric de Madron, Valérie Chetboul, Claudio Bussadori -- 1, FR, 2015 -- Elsevier Masson -- 9780323316507 --",
+          "source_path": "books/031.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "046",
+          "mmd": "046.mmd",
+          "title": "Manual of Canine and Feline Cardiology -- Smith DVM  DACVIM (Internal Medicine & Cardiology), Francis -- 5, 2015 -- Saunders -- 9780323188029 -- 6d2f258e1d7299e9223ad02c5b21e539 -- Anna’s Archive",
+          "source_path": null,
+          "status": "deduplicated",
+          "alias_of": "045"
+        }
+      ],
+      "source_paths": [
+        "books/045.mmd",
+        "books/031.mmd"
+      ],
+      "chunk_count": 1205,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/clinical.cardiology"
+    },
+    {
+      "id": "clinical.dermatology",
+      "zh_l1": "临床医学",
+      "zh_l2": "皮肤病学",
+      "book_ids": [
+        "053",
+        "061"
+      ],
+      "books": [
+        {
+          "book_id": "053",
+          "mmd": "053.mmd",
+          "title": "Small Animal Dermatology for Technicians and Nurses -- Kim Horne (editor), Marcia Schwassmann (editor), Dawn Logas -- Reprint, 2019 -- John Wiley & -- 9780470958155 -- 42dd9c099e028c80276a9cd356dfcbbf -- Anna’s Archive",
+          "source_path": "books/053.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "061",
+          "mmd": "061.mmd",
+          "title": "Updates in Dermatology, An Issue of Veterinary Clinics_ -- Campbell DVM  MS  DAVCVIM  DACVD, Karen L_ -- Veterinary clinics of North America -- v_ 36, -- 9781416034674",
+          "source_path": "books/061.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/053.mmd",
+        "books/061.mmd"
+      ],
+      "chunk_count": 662,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/clinical.dermatology"
+    },
+    {
+      "id": "clinical.ophthalmology",
+      "zh_l1": "临床医学",
+      "zh_l2": "眼科学",
+      "book_ids": [
+        "050"
+      ],
+      "books": [
+        {
+          "book_id": "050",
+          "mmd": "050.mmd",
+          "title": "Slatter’s Fundamentals of Veterinary Ophthalmology - E-Book -- David Maggs BVSc(Hons)  DAVCO, Paul Miller DVM  DACVO, Ron -- 5th ed, St_ Louis, Mo, -- 9780323241960 --",
+          "source_path": "books/050.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/050.mmd"
+      ],
+      "chunk_count": 1223,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/clinical.ophthalmology"
+    },
+    {
+      "id": "clinical.neurology",
+      "zh_l1": "临床医学",
+      "zh_l2": "神经病学",
+      "book_ids": [
+        "034"
+      ],
+      "books": [
+        {
+          "book_id": "034",
+          "mmd": "034.mmd",
+          "title": "Current concepts in the diagnosis and treatment of brain -- R_ A_ LeCouteur -- Journal of Small Animal Practice, #9, 40, pages 411-416, -- John Wiley -- 10_1111_j_1748-5827_1999_tb03113_x -- 1b1916eaab8edf2972e9b98fb62492aa --",
+          "source_path": "books/034.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/034.mmd"
+      ],
+      "chunk_count": 19,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/clinical.neurology"
+    },
+    {
+      "id": "clinical.oncology",
+      "zh_l1": "临床医学",
+      "zh_l2": "肿瘤学",
+      "book_ids": [
+        "071"
+      ],
+      "books": [
+        {
+          "book_id": "071",
+          "mmd": "Withrow 和 MacEwen 的《小动物临床肿瘤学 》",
+          "title": "Withrow and MacEwen's small animal clinical oncology  (0-323-59496-4, 978-0-323-59496-7), Sixth edition. / Vail, David M..\nElsevier, 2020.",
+          "source_path": "books/071.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/071.mmd"
+      ],
+      "chunk_count": 1956,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/clinical.oncology"
+    },
+    {
+      "id": "clinical.reference",
+      "zh_l1": "临床医学",
+      "zh_l2": "综合临床参考",
+      "book_ids": [
+        "078",
+        "079",
+        "083"
+      ],
+      "books": [
+        {
+          "book_id": "078",
+          "mmd": "科特的临床兽医顾问",
+          "title": "Côté's clinical veterinary advisor\nDogs and cats\neditors-in-chief, Leah A. Cohn, Etienne Côté.",
+          "source_path": null,
+          "status": "missing"
+        },
+        {
+          "book_id": "079",
+          "mmd": "桑德斯小动物操作手册",
+          "title": "Saunders manual of small animal practice",
+          "source_path": "books/079.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "083",
+          "mmd": "",
+          "title": "Blackwell's five-minute veterinary consult",
+          "source_path": "books/083.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/079.mmd",
+        "books/083.mmd"
+      ],
+      "chunk_count": 8580,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/clinical.reference"
+    },
+    {
+      "id": "diagnostics.clinical_pathology",
+      "zh_l1": "诊断医学",
+      "zh_l2": "临床病理与细胞学",
+      "book_ids": [
+        "030"
+      ],
+      "books": [
+        {
+          "book_id": "030",
+          "mmd": "030.mmd",
+          "title": "Canine And Feline Cytology_ A Color Atlas And Interpretation -- Rose E_ Raskin DVM  PhD  DACVP, Denny Meyer DVM  DACVIM -- 3, 2015 -- Saunders -- 9780323243636 --",
+          "source_path": "books/030.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/030.mmd"
+      ],
+      "chunk_count": 1043,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/diagnostics.clinical_pathology"
+    },
+    {
+      "id": "diagnostics.imaging",
+      "zh_l1": "诊断医学",
+      "zh_l2": "影像诊断",
+      "book_ids": [
+        "060",
+        "044",
+        "054",
+        "027",
+        "059"
+      ],
+      "books": [
+        {
+          "book_id": "060",
+          "mmd": "060.mmd",
+          "title": "Thrall's Textbook of Veterinary Diagnostic Radiology -- Gabriela S_ Seiler, Donald E_ Thrall -- 8, 2024 -- Elsevier - Health Sciences Division -- 9780323932356 -- 938c839fedb507f8d23fa09244860afb -- Anna’s Archive",
+          "source_path": "books/060.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "044",
+          "mmd": "044.mmd",
+          "title": "Lavin's Radiography for Veterinary Technicians E-Book_ -- Marg Brown, Marg Brown, RVT, BEd Ad Ed, Lois Brown -- 7th, 2021 -- Elsevier - Health -- 9780323763707 -- 2a6b1fb6c5b0c8f3529c3e665abaaf62 -- Anna’s Archive",
+          "source_path": "books/044.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "054",
+          "mmd": "054.mmd",
+          "title": "Small Animal Diagnostic Ultrasound 4th -- John S_ Mattoon; Thomas G_ Nyland; Rance K_ Sellon; DVM; -- 4, 2021 -- Elsevier - Health Sciences Division -- 9780323533379 -- 786961c75bb4e4104c904b92cca9dbcd -- Anna’s Archive",
+          "source_path": "books/054.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "027",
+          "mmd": "027.mmd",
+          "title": "Atlas of Normal Radiographic Anatomy and Anatomic Variants -- Donald E_ Thrall DVM  PhD  DACVR, Ian D_ Robertson BVSc -- Second edition, St_ Louis, -- 9780323312257",
+          "source_path": "books/027.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "059",
+          "mmd": "059.mmd",
+          "title": "Textbook of veterinary diagnostic radiology -- Donald E Thrall; William R Widmer -- 7_ ed_, 2018 -- Elsevier - Health Sciences Division; Saunders -- 9780323482462 -- e5bb16c07b852b002562dbd1c7a16de6 -- Anna’s Archive",
+          "source_path": "books/059.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/060.mmd",
+        "books/044.mmd",
+        "books/054.mmd",
+        "books/027.mmd",
+        "books/059.mmd"
+      ],
+      "chunk_count": 6821,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/diagnostics.imaging"
+    },
+    {
+      "id": "diagnostics.differential",
+      "zh_l1": "诊断医学",
+      "zh_l2": "鉴别诊断",
+      "book_ids": [
+        "047"
+      ],
+      "books": [
+        {
+          "book_id": "047",
+          "mmd": "047.mmd",
+          "title": "Mark S. Thompson - Small Animal Medical Differential Diagnosis_ A Book of Lists (2017, Saunders) - libgen.li",
+          "source_path": "books/047.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/047.mmd"
+      ],
+      "chunk_count": 175,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/diagnostics.differential"
+    },
+    {
+      "id": "diagnostics.laboratory",
+      "zh_l1": "诊断医学",
+      "zh_l2": "实验室诊断",
+      "book_ids": [
+        "043",
+        "042",
+        "072"
+      ],
+      "books": [
+        {
+          "book_id": "043",
+          "mmd": "043.mmd",
+          "title": "Laboratory Procedures for Veterinary Technicians, 7e -- Margi Sirois EdD  MS  RVT -- 7, 2019 -- Mosby, Incorporated -- 9780323595384 -- 7074354a96a5021a94ab26f9e9737358 -- Anna’s Archive",
+          "source_path": "books/043.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "042",
+          "mmd": "042.mmd",
+          "title": "Laboratory Manual for Laboratory Procedures for Veterinary -- Margi Sirois EdD  MS  RVT  LAT -- 6, PT, 2014 -- Elsevier mosby -- 9780323169264 -- 5160613534d83d511bae28eeaa935809 -- Anna’s Archive",
+          "source_path": "books/042.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "072",
+          "mmd": "考威尔和泰勒的《狗和猫的诊断细胞学与血液学 》",
+          "title": "Cowell and Tyler's diagnostic cytology and hematology of the dog and cat  (0-323-53314-0, 978-0-323-53314-0), Fifth edition. / Valenciano, Amy C..\nElsevier, 2020.",
+          "source_path": "books/072.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/043.mmd",
+        "books/042.mmd",
+        "books/072.mmd"
+      ],
+      "chunk_count": 1272,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/diagnostics.laboratory"
+    },
+    {
+      "id": "pharmacy.papich",
+      "zh_l1": "药学",
+      "zh_l2": "Papich兽医药物手册",
+      "book_ids": [
+        "049"
+      ],
+      "books": [
+        {
+          "book_id": "049",
+          "mmd": "049.mmd",
+          "title": "Papich Handbook of Veterinary Drugs - E-Book_ Small and -- Mark G_ Papich -- 5th ed, Philadelphia, 2020 -- Elsevier - Health Sciences Division -- 9780323709583 -- 08af272d65184849b67b8203fdd4c74e -- Anna’s Archive",
+          "source_path": "books/049.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/049.mmd"
+      ],
+      "chunk_count": 1391,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/pharmacy.papich"
+    },
+    {
+      "id": "pharmacy.applied_pharmacology",
+      "zh_l1": "药学",
+      "zh_l2": "兽医药理学（技师）",
+      "book_ids": [
+        "026"
+      ],
+      "books": [
+        {
+          "book_id": "026",
+          "mmd": "026.mmd",
+          "title": "Applied Pharmacology for Veterinary Technicians, 6th Edition -- Martini-Johnson, Lisa -- ed9ce84d6d793edb0a2eae909359da7f -- Anna’s Archive",
+          "source_path": "books/026.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/026.mmd"
+      ],
+      "chunk_count": 851,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/pharmacy.applied_pharmacology"
+    },
+    {
+      "id": "pharmacy.clinical_therapeutics",
+      "zh_l1": "药学",
+      "zh_l2": "药理与临床治疗",
+      "book_ids": [
+        "070"
+      ],
+      "books": [
+        {
+          "book_id": "070",
+          "mmd": "小动物临床药理学与治疗",
+          "title": "Small animal clinical pharmacology & therapeutics\n[edited by] Dawn Merton Boothe.",
+          "source_path": "books/070.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/070.mmd"
+      ],
+      "chunk_count": 1396,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/pharmacy.clinical_therapeutics"
+    },
+    {
+      "id": "anesthesia.default",
+      "zh_l1": "麻醉与镇痛",
+      "zh_l2": "默认",
+      "book_ids": [
+        "025"
+      ],
+      "books": [
+        {
+          "book_id": "025",
+          "mmd": "025.mmd",
+          "title": "Anesthesia and Analgesia for Veterinary Technicians - E-Book -- Thomas, John A_ (John Alfred), 1956- author, Lerche, -- Elsevier Inc_, Health Sciences -- 9780323249713 -- a4e72dbc89b3e50737b2432cd435f1d7 -- Anna’s Archive",
+          "source_path": "books/025.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/025.mmd"
+      ],
+      "chunk_count": 1026,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/anesthesia.default"
+    },
+    {
+      "id": "immunology.default",
+      "zh_l1": "免疫与疫苗",
+      "zh_l2": "默认",
+      "book_ids": [
+        "062",
+        "063"
+      ],
+      "books": [
+        {
+          "book_id": "062",
+          "mmd": "062.mmd",
+          "title": "Vaccines for Veterinarians -- Ian R_ Tizard PhD  BSc  BVMS -- 1, US, 2020 -- Elsevier - Health Sciences Division -- 9780323682992 -- ed8ceffbbcc0d2716bf93eaf646322c4 -- Anna’s Archive",
+          "source_path": "books/062.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "063",
+          "mmd": "063.mmd",
+          "title": "Vaccines for Veterinarians -- Ian R_ Tizard PhD  BSc  BVMS -- 1, US, 2020 -- Elsevier - Health Sciences Division -- 9780323682992 -- ed8ceffbbcc0d2716bf93eaf646322c4 -- Anna’s Archive (1)",
+          "source_path": null,
+          "status": "deduplicated",
+          "alias_of": "062"
+        }
+      ],
+      "source_paths": [
+        "books/062.mmd"
+      ],
+      "chunk_count": 571,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/immunology.default"
+    },
+    {
+      "id": "reproduction.default",
+      "zh_l1": "兽医繁殖与产科学",
+      "zh_l2": "默认",
+      "book_ids": [
+        "065"
+      ],
+      "books": [
+        {
+          "book_id": "065",
+          "mmd": "065.mmd",
+          "title": "Veterinary Reproduction & Obstetrics 10th Edition -- David E_ Noakes, Timothy J_ Parkinson, Gary C_ W_ England -- 10th ed, S_ l, 2019 -- Elsevier - -- 9780702072338 -- d661c242c6980467294754d435d26bfa -- Anna’s Archive",
+          "source_path": "books/065.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/065.mmd"
+      ],
+      "chunk_count": 2452,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/reproduction.default"
+    },
+    {
+      "id": "behavior.dog_cat_problems",
+      "zh_l1": "行为学",
+      "zh_l2": "犬猫行为问题",
+      "book_ids": [
+        "029"
+      ],
+      "books": [
+        {
+          "book_id": "029",
+          "mmd": "029.mmd",
+          "title": "Behavior Problems of the Dog and Cat - E-Book -- Gary M_ Landsberg, Wayne L_ Hunthausen, Lowell J_ Ackerman -- 3rd ed, Oxford, 2012 -- Elsevier - -- 9780702043352 -- 20a559692df40141bd6009fcb9f10e52 -- Anna’s Archive",
+          "source_path": "books/029.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/029.mmd"
+      ],
+      "chunk_count": 1619,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/behavior.dog_cat_problems"
+    },
+    {
+      "id": "behavior.feline_welfare",
+      "zh_l1": "行为学",
+      "zh_l2": "猫行为健康与福利",
+      "book_ids": [
+        "067"
+      ],
+      "books": [
+        {
+          "book_id": "067",
+          "mmd": "067.mmd",
+          "title": "猫行为健康和福利 = Feline behavioral health and welfare -- (美)伊罗娜·罗丹(Ilona Rodan), (英)莎拉▪赫尔斯(Sarah Heath) -- Di 1 ban, Beijing, 2018 -- 中国农业科学技术出版社 -- 9787511635853 --",
+          "source_path": "books/067.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/067.mmd"
+      ],
+      "chunk_count": 1518,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/behavior.feline_welfare"
+    },
+    {
+      "id": "integrative.general",
+      "zh_l1": "综合医学",
+      "zh_l2": "综合兽医学",
+      "book_ids": [],
+      "books": [],
+      "source_paths": [],
+      "chunk_count": 0,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/integrative.general"
+    },
+    {
+      "id": "clinical_skills.techniques",
+      "zh_l1": "临床技能与护理",
+      "zh_l2": "临床技能与操作",
+      "book_ids": [
+        "051"
+      ],
+      "books": [
+        {
+          "book_id": "051",
+          "mmd": "051.mmd",
+          "title": "Small Animal Clinical Techniques -- Susan Meric Taylor -- 2, 2016 -- Elsevier - Health Sciences Division -- 9780323312165 --",
+          "source_path": "books/051.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/051.mmd"
+      ],
+      "chunk_count": 208,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/clinical_skills.techniques"
+    },
+    {
+      "id": "clinical_skills.nursing",
+      "zh_l1": "临床技能与护理",
+      "zh_l2": "护理学",
+      "book_ids": [
+        "004",
+        "032",
+        "057"
+      ],
+      "books": [
+        {
+          "book_id": "004",
+          "mmd": "004.mmd",
+          "title": "66  300 questions and answers in diagnostic aids for veterinary nurses",
+          "source_path": "books/004.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "032",
+          "mmd": "032.mmd",
+          "title": "Clinical Procedures in Veterinary Nursing -- Aspinall BVSc  MRCVS, Victoria -- Third edition, Edinburgh, 2014 -- Butterworth-Heinemann Elsevier -- 9780702051104 -- a652886c878436b407af2fd58dc608b0 -- Anna’s Archive",
+          "source_path": "books/032.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "057",
+          "mmd": "057.mmd",
+          "title": "Small Animal Surgical Nursing, 3rd Edition -- Unknown -- Third edition, St_ Louis, Missouri, 2017 -- Elsevier - Health Sciences Division -- 9780323077354 -- 8e96f4fd007ccc2f2e214946ba9cb870 -- Anna’s Archive",
+          "source_path": "books/057.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/004.mmd",
+        "books/032.mmd",
+        "books/057.mmd"
+      ],
+      "chunk_count": 1200,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/clinical_skills.nursing"
+    },
+    {
+      "id": "infectious.placeholder",
+      "zh_l1": "感染病、寄生虫与公共卫生",
+      "zh_l2": "无",
+      "book_ids": [],
+      "books": [],
+      "source_paths": [],
+      "chunk_count": 0,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/infectious.placeholder"
+    },
+    {
+      "id": "infectious.general",
+      "zh_l1": "感染病、寄生虫与公共卫生",
+      "zh_l2": "默认",
+      "book_ids": [
+        "074",
+        "075"
+      ],
+      "books": [
+        {
+          "book_id": "074",
+          "mmd": "狗和猫的传染病",
+          "title": "Greene's infectious diseases of the dog and cat  (0-323-50934-7, 978-0-323-50934-3), Fifth edition. / Sykes, Jane E..\nElsevier, 2023",
+          "source_path": "books/074.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "075",
+          "mmd": "兽医寄生虫学",
+          "title": "Georgis' parasitology for veterinarians  (0-323-54396-0, 978-0-323-54396-5), Eleventh edition. / Bowman, Dwight D..\nElsevier, 2021.",
+          "source_path": "books/075.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/074.mmd",
+        "books/075.mmd"
+      ],
+      "chunk_count": 3658,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/infectious.general"
+    },
+    {
+      "id": "nutrition.placeholder",
+      "zh_l1": "营养学",
+      "zh_l2": "无",
+      "book_ids": [],
+      "books": [],
+      "source_paths": [],
+      "chunk_count": 0,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/nutrition.placeholder"
+    },
+    {
+      "id": "nutrition.general",
+      "zh_l1": "营养学",
+      "zh_l2": "默认",
+      "book_ids": [
+        "076",
+        "077"
+      ],
+      "books": [
+        {
+          "book_id": "076",
+          "mmd": "小动物临床营养",
+          "title": "Small animal clinical nutrition\n[editors, Michael S. Hand and others]",
+          "source_path": "books/076.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "077",
+          "mmd": "应用兽医临床营养",
+          "title": "Applied veterinary clinical nutrition  (1-119-37514-2, 978-1-119-37514-2), Second edition. / Fascetti, Andrea J..\nWiley-Blackwell, 2023",
+          "source_path": "books/077.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/076.mmd",
+        "books/077.mmd"
+      ],
+      "chunk_count": 2296,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/nutrition.general"
+    },
+    {
+      "id": "exotic.default",
+      "zh_l1": "特殊动物医学",
+      "zh_l2": "默认",
+      "book_ids": [
+        "028",
+        "035",
+        "038",
+        "041"
+      ],
+      "books": [
+        {
+          "book_id": "028",
+          "mmd": "028.mmd",
+          "title": "Avian Medicine, 3e -- Jaime Samour MVZ  PhD  Dip ECAMS -- Third edition, St_ Louis, Mo, 2016 -- Elsevier - Health Sciences Division; Mosby Ltd_ -- 9780723438328 --",
+          "source_path": "books/028.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "035",
+          "mmd": "035.mmd",
+          "title": "Current therapy in exotic pet practice -- Jr_ Thomas N_ Tully; Mark A_ Mitchell -- St_ Louis, Missouri, 2016 -- Elsevier - Health Sciences Division -- 9781455740840 --",
+          "source_path": "books/035.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "038",
+          "mmd": "038.mmd",
+          "title": "Ferrets, rabbits, and rodents _ clinical medicine and -- Katherine Quesenberry DVM MPH  Diplomate ABVP, Christoph -- 4, 2020 -- Elsevier - Health -- 9780323484312 -- f7c825a234d9ad2c7c8cf5a57529c2ee -- Anna’s Archive",
+          "source_path": "books/038.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "041",
+          "mmd": "041.mmd",
+          "title": "Laboratory animal and exotic pet medicine _ principles and -- Margi Sirois -- Second edition, St_ Louis, Missouri, 2016 -- Elsevier - Health Sciences -- 9780323172998 --",
+          "source_path": "books/041.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/028.mmd",
+        "books/035.mmd",
+        "books/038.mmd",
+        "books/041.mmd"
+      ],
+      "chunk_count": 5226,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/exotic.default"
+    },
+    {
+      "id": "equine.large_animal_internal",
+      "zh_l1": "大型动物与马医学",
+      "zh_l2": "大动物内科",
+      "book_ids": [
+        "023"
+      ],
+      "books": [
+        {
+          "book_id": "023",
+          "mmd": "023.mmd",
+          "title": "88  Large Animal Internal Medicine, 6th Edition -- Bradford P_ Smith, David C Van Metre & Nicola Pusterla -- 6, 2019 -- Elsevier - Health Sciences -- 9780323554435 -- d2cca8ce85200090bbe947a21d77cf07 -- Anna’s Archive",
+          "source_path": "books/023.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/023.mmd"
+      ],
+      "chunk_count": 7945,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/equine.large_animal_internal"
+    },
+    {
+      "id": "equine.sports_medicine",
+      "zh_l1": "大型动物与马医学",
+      "zh_l2": "运动医学",
+      "book_ids": [
+        "006",
+        "010"
+      ],
+      "books": [
+        {
+          "book_id": "006",
+          "mmd": "006.mmd",
+          "title": "69 Management of lameness causes in sport horses  muscle, tendon, joint, and bone disorders",
+          "source_path": "books/006.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "010",
+          "mmd": "010.mmd",
+          "title": "74  Kenneth Hinchcliff, Andris Kaneps, Raymond Geor - Equine Sports Medicine and Surgery, 1e (2004, Saunders Ltd.) - libgen.li",
+          "source_path": "books/010.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/006.mmd",
+        "books/010.mmd"
+      ],
+      "chunk_count": 3466,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/equine.sports_medicine"
+    },
+    {
+      "id": "equine.colic",
+      "zh_l1": "大型动物与马医学",
+      "zh_l2": "马腹痛",
+      "book_ids": [
+        "011",
+        "012",
+        "013",
+        "014",
+        "015",
+        "016",
+        "017"
+      ],
+      "books": [
+        {
+          "book_id": "011",
+          "mmd": "011.mmd",
+          "title": "75  Bradford Bentz - Understanding Equine Colic (2004, Eclipse Press) - libgen.li",
+          "source_path": "books/011.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "012",
+          "mmd": "012.mmd",
+          "title": "76  Practical Guide to Equine Colic -- unknown -- 5e0af1718455db5ee78963f8a19a51e8 -- Anna’s Archive",
+          "source_path": "books/012.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "013",
+          "mmd": "013.mmd",
+          "title": "77  The Glass Horse, Equine Colic, Supplemental Text -- unknown -- a805e2baaa8c1cfa0a8d6526b2cd4e14 -- Anna’s Archive",
+          "source_path": "books/013.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "014",
+          "mmd": "014.mmd",
+          "title": "78 Handbook of Equine Colic",
+          "source_path": "books/014.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "015",
+          "mmd": "015.mmd",
+          "title": "79  Southwood, Louise L. (editor) - Practical Guide to Equine Colic_ Southwood_Practical Guide to Equine Colic (2012, John Wiley & Sons, Inc,.) [10.1002_9781118704783] - libgen.li",
+          "source_path": null,
+          "status": "deduplicated",
+          "alias_of": "012"
+        },
+        {
+          "book_id": "016",
+          "mmd": "016.mmd",
+          "title": "80 The Equine Acute Abdomen, 3rd Edition",
+          "source_path": "books/016.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "017",
+          "mmd": "017.mmd",
+          "title": "81  Nathaniel A. White (Author)_ James N. Moore (Author)_ Tim S. Mai - Equine Acute Abdomen (2009, Lea & Febiger, CRC Press) [10.1201_b16168] - libgen.li",
+          "source_path": "books/017.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/011.mmd",
+        "books/012.mmd",
+        "books/013.mmd",
+        "books/014.mmd",
+        "books/016.mmd",
+        "books/017.mmd"
+      ],
+      "chunk_count": 4228,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/equine.colic"
+    },
+    {
+      "id": "equine.neurology",
+      "zh_l1": "大型动物与马医学",
+      "zh_l2": "神经病学",
+      "book_ids": [
+        "020",
+        "021"
+      ],
+      "books": [
+        {
+          "book_id": "020",
+          "mmd": "020.mmd",
+          "title": "85  Equine Neurology",
+          "source_path": "books/020.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "021",
+          "mmd": "021.mmd",
+          "title": "86  Martin Furr, Stephen Reed - Equine Neurology (2015, Wiley-Blackwell) - libgen.li",
+          "source_path": "books/021.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/020.mmd",
+        "books/021.mmd"
+      ],
+      "chunk_count": 1564,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/equine.neurology"
+    },
+    {
+      "id": "equine.cardiology",
+      "zh_l1": "大型动物与马医学",
+      "zh_l2": "心脏学",
+      "book_ids": [
+        "009"
+      ],
+      "books": [
+        {
+          "book_id": "009",
+          "mmd": "009.mmd",
+          "title": "72  ECG Interpretation in Equine Practice -- Unknown -- 123447cbe510aa453d79cb990672b00b -- Anna’s Archive",
+          "source_path": "books/009.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/009.mmd"
+      ],
+      "chunk_count": 82,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/equine.cardiology"
+    },
+    {
+      "id": "equine.reproduction",
+      "zh_l1": "大型动物与马医学",
+      "zh_l2": "繁殖学",
+      "book_ids": [
+        "008"
+      ],
+      "books": [
+        {
+          "book_id": "008",
+          "mmd": "008.mmd",
+          "title": "71  Reproduction, An Issue of Veterinary Clinics_ Equine",
+          "source_path": "books/008.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/008.mmd"
+      ],
+      "chunk_count": 260,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/equine.reproduction"
+    },
+    {
+      "id": "equine.nutrition",
+      "zh_l1": "大型动物与马医学",
+      "zh_l2": "马营养",
+      "book_ids": [
+        "022"
+      ],
+      "books": [
+        {
+          "book_id": "022",
+          "mmd": "022.mmd",
+          "title": "87  [Enuco 2007-jan] Lindner, Arno (editor) - Applied equine nutrition and training_ Equine NUtrition COnference (ENUCO) 2007 (2007, Wageningen Academic Publishers) [10.3920_978-90-8686-607-6] - libgen.li",
+          "source_path": "books/022.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/022.mmd"
+      ],
+      "chunk_count": 166,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/equine.nutrition"
+    },
+    {
+      "id": "equine.infectious",
+      "zh_l1": "大型动物与马医学",
+      "zh_l2": "传染病",
+      "book_ids": [
+        "018"
+      ],
+      "books": [
+        {
+          "book_id": "018",
+          "mmd": "018.mmd",
+          "title": "83  Infectious Diseases of the Horse (J.H. van der Kolk, E.J.B. Veldhuis Kroeze) (Z-Library)",
+          "source_path": "books/018.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/018.mmd"
+      ],
+      "chunk_count": 653,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/equine.infectious"
+    },
+    {
+      "id": "equine.oncology",
+      "zh_l1": "大型动物与马医学",
+      "zh_l2": "马肿瘤",
+      "book_ids": [
+        "007"
+      ],
+      "books": [
+        {
+          "book_id": "007",
+          "mmd": "007.mmd",
+          "title": "70  Clinical Equine Oncology -- Knottenbelt, Derek C_, Snalune, Katie, Patterson Kane, Janet -- 7a285499cb8d6cdac66a57c591110650 -- Anna’s Archive",
+          "source_path": "books/007.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/007.mmd"
+      ],
+      "chunk_count": 1608,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/equine.oncology"
+    },
+    {
+      "id": "equine.complications",
+      "zh_l1": "大型动物与马医学",
+      "zh_l2": "马临床并发症",
+      "book_ids": [
+        "005"
+      ],
+      "books": [
+        {
+          "book_id": "005",
+          "mmd": "005.mmd",
+          "title": "68 Complications in Equine Practice, An Issue of Veterinary Clinics of North America Equine Practice",
+          "source_path": null,
+          "status": "excluded",
+          "reason": "MMD正文标题为 Advances in Reproduction，且与 008 内容 SHA1 完全相同；与分类表书名/类别不符"
+        }
+      ],
+      "source_paths": [],
+      "chunk_count": 0,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/equine.complications"
+    },
+    {
+      "id": "zoonosis.toxoplasmosis",
+      "zh_l1": "人兽共患病",
+      "zh_l2": "动物和人类的弓形虫病",
+      "book_ids": [
+        "019"
+      ],
+      "books": [
+        {
+          "book_id": "019",
+          "mmd": "019.mmd",
+          "title": "84  J. P. DUBEY - TOXOPLASMOSIS OF ANIMALS AND HUMANS (2021, CRC PRESS) - libgen.li",
+          "source_path": "books/019.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/019.mmd"
+      ],
+      "chunk_count": 861,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/zoonosis.toxoplasmosis"
+    },
+    {
+      "id": "integrative.tcm_support",
+      "zh_l1": "综合医学（中兽医辅助）",
+      "zh_l2": "综合兽医学",
+      "book_ids": [
+        "040",
+        "082"
+      ],
+      "books": [
+        {
+          "book_id": "040",
+          "mmd": "040.mmd",
+          "title": "Integrative Veterinary Medicine -- Mushtaq A_ Memon, Huisheng Xie, (eds_) -- John Wiley & Sons, Inc_, Hoboken, NJ, 2023 -- Wiley-Blackwell --",
+          "source_path": "books/040.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "082",
+          "mmd": "中草药学",
+          "title": "Xie's Chinese Veterinary Herbology",
+          "source_path": "books/082.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/040.mmd",
+        "books/082.mmd"
+      ],
+      "chunk_count": 1182,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/integrative.tcm_support"
+    },
+    {
+      "id": "individual.genetics_breed",
+      "zh_l1": "个体差异医学",
+      "zh_l2": "遗传与品种易感性",
+      "book_ids": [
+        "080"
+      ],
+      "books": [
+        {
+          "book_id": "080",
+          "mmd": "犬和猫的品种易感性疾病",
+          "title": "Breed Predispositions to Disease in Dogs and Cats\nAuthor(s):\nAlex Gough, Alison Thomas, Dan O'Neill",
+          "source_path": "books/080.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/080.mmd"
+      ],
+      "chunk_count": 271,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/individual.genetics_breed"
+    },
+    {
+      "id": "guidelines.general",
+      "zh_l1": "指南、共识与循证医学",
+      "zh_l2": "默认",
+      "book_ids": [
+        "084",
+        "085",
+        "086",
+        "087",
+        "088",
+        "089"
+      ],
+      "books": [
+        {
+          "book_id": "084",
+          "mmd": "AAHA指南系列",
+          "title": "AAHA指南系列",
+          "source_path": null,
+          "status": "missing"
+        },
+        {
+          "book_id": "085",
+          "mmd": "WSAVA指南系列",
+          "title": "WSAVA指南系列",
+          "source_path": "books/085.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "086",
+          "mmd": "BSAVA指南系列",
+          "title": "BSAVA指南系列",
+          "source_path": "books/086.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "087",
+          "mmd": "ISFM指南系列",
+          "title": "ISFM指南系列",
+          "source_path": "books/087.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "088",
+          "mmd": "ACVIM指南系列",
+          "title": "ACVIM指南系列",
+          "source_path": "books/088.mmd",
+          "status": "indexed"
+        },
+        {
+          "book_id": "089",
+          "mmd": "RECOVER指南系列",
+          "title": "RECOVER指南系列",
+          "source_path": "books/089.mmd",
+          "status": "indexed"
+        }
+      ],
+      "source_paths": [
+        "books/085.mmd",
+        "books/086.mmd",
+        "books/087.mmd",
+        "books/088.mmd",
+        "books/089.mmd"
+      ],
+      "chunk_count": 2302,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/guidelines.general"
+    },
+    {
+      "id": "individual.placeholder",
+      "zh_l1": "个体差异医学",
+      "zh_l2": "这里可以放品种、年龄、性别和特发病倾向相关的资料，如果有",
+      "book_ids": [],
+      "books": [],
+      "source_paths": [],
+      "chunk_count": 0,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/individual.placeholder"
+    },
+    {
+      "id": "tcm.placeholder",
+      "zh_l1": "中兽医学",
+      "zh_l2": "这个一般没有专门写小动物的书",
+      "book_ids": [],
+      "books": [],
+      "source_paths": [],
+      "chunk_count": 0,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/tcm.placeholder"
+    },
+    {
+      "id": "guidelines.placeholder",
+      "zh_l1": "指南、共识与循证医学",
+      "zh_l2": "感觉是一些医生共识、规范、系统的东西",
+      "book_ids": [],
+      "books": [],
+      "source_paths": [],
+      "chunk_count": 0,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/guidelines.placeholder"
+    },
+    {
+      "id": "profession.placeholder",
+      "zh_l1": "兽医职业",
+      "zh_l2": "涉及职业道德、沟通技巧之类的，不知道要不要放进去，可能没有专门的书籍？但会有类似一百个沟通小技巧",
+      "book_ids": [],
+      "books": [],
+      "source_paths": [],
+      "chunk_count": 0,
+      "index_dir": "RAG/data/rag_index_e5_by_cat/profession.placeholder"
+    }
+  ],
+  "resolved_source_records": 84,
+  "deduplicated_books": [
+    {
+      "book_id": "046",
+      "alias_of": "045",
+      "title": "Manual of Canine and Feline Cardiology -- Smith DVM  DACVIM (Internal Medicine & Cardiology), Francis -- 5, 2015 -- Saunders -- 9780323188029 -- 6d2f258e1d7299e9223ad02c5b21e539 -- Anna’s Archive",
+      "reason": "exact_source_sha1_duplicate",
+      "source_sha1": "b2bd27fadf286ed18d93340f6751ced21bd21137",
+      "category_ids": [
+        "clinical.cardiology"
+      ]
+    },
+    {
+      "book_id": "063",
+      "alias_of": "062",
+      "title": "Vaccines for Veterinarians -- Ian R_ Tizard PhD  BSc  BVMS -- 1, US, 2020 -- Elsevier - Health Sciences Division -- 9780323682992 -- ed8ceffbbcc0d2716bf93eaf646322c4 -- Anna’s Archive (1)",
+      "reason": "exact_source_sha1_duplicate",
+      "source_sha1": "a78162364fdb4cbabc210fe3f1450b8a82acb0ff",
+      "category_ids": [
+        "immunology.default"
+      ]
+    },
+    {
+      "book_id": "015",
+      "alias_of": "012",
+      "title": "79  Southwood, Louise L. (editor) - Practical Guide to Equine Colic_ Southwood_Practical Guide to Equine Colic (2012, John Wiley & Sons, Inc,.) [10.1002_9781118704783] - libgen.li",
+      "reason": "exact_source_sha1_duplicate",
+      "source_sha1": "418bae174d542ff2e99e8e67fb65592838956a90",
+      "category_ids": [
+        "equine.colic"
+      ]
+    }
+  ]
+}

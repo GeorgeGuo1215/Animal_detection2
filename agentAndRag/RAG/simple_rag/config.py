@@ -13,14 +13,14 @@ class RagConfig:
     index_dir: Path
 
     # embedding 模型（sentence-transformers）
-    embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    embedding_model: str = "intfloat/multilingual-e5-small"
 
     # 分块参数（按“词”近似）
-    chunk_words: int = 800
-    chunk_overlap_words: int = 150
+    chunk_words: int = 380
+    chunk_overlap_words: int = 60
 
     # 过滤太短的块，避免垃圾块占索引
-    min_chunk_words: int = 40
+    min_chunk_words: int = 30
 
 
 def default_config(repo_root: Path) -> RagConfig:
