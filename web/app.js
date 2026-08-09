@@ -117,6 +117,8 @@ class RadarWebApp {
         this.vitalsPeriodSec = 1;
         this.vitalsSpectrumChart = null;
         this.lastVitalsResult = null;
+        // 独立 IMU 心率/呼吸率模块；不复用或修改毫米波预测状态。
+        this.imuVitalsPanel = null;
 
         // 全局禁用 Chart.js 动画（避免实时曲线渲染卡顿）
         if (typeof Chart !== 'undefined') {
@@ -192,6 +194,7 @@ class RadarWebApp {
         this.initializeBLEECG();
         this.initializeFileECG();
         this.updateBleBackfillUI();
+        this.initializeImuVitalsPanel();
 
         // 初始化BLE事件
         this.initializeBLE();
@@ -483,6 +486,43 @@ class RadarWebApp {
     /**
      * 初始化 BLE 事件
      */
+    initializeImuVitalsPanel() {
+        try {
+            if (typeof window.ImuVitalsPanel !== 'function') {
+                console.warn('IMU vitals panel 未加载，原有功能继续运行');
+                return;
+            }
+            this.imuVitalsPanel = new window.ImuVitalsPanel({
+                workerUrl: 'imu/dist/imu-vitals.worker.js?v=20260809-1',
+                sampleRateHz: this.bleTargetFs || 50
+            });
+        } catch (error) {
+            this.imuVitalsPanel = null;
+            console.error('IMU vitals panel 初始化失败，已隔离该模块:', error);
+        }
+    }
+
+    startImuVitalsSession(reason = 'ble_connected') {
+        try { this.imuVitalsPanel?.startSession(reason); }
+        catch (error) { console.error('IMU vitals 会话启动失败:', error); }
+    }
+
+    resetImuVitalsSession(reason = 'manual') {
+        try { this.imuVitalsPanel?.reset(reason); }
+        catch (error) { console.error('IMU vitals 会话重置失败:', error); }
+    }
+
+    pushImuVitalsSample(sample) {
+        try {
+            this.imuVitalsPanel?.pushSample({
+                ax: sample.accX, ay: sample.accY, az: sample.accZ,
+                gx: sample.imuX, gy: sample.imuY, gz: sample.imuZ
+            });
+        } catch (error) {
+            console.error('IMU vitals 实时送样失败:', error);
+        }
+    }
+
     initializeBLE() {
         if (!window.BLE) return;
         BLE.onConnect = (device) => {
@@ -514,6 +554,7 @@ class RadarWebApp {
             this.bleConnectStartTime = Date.now();
             this.startBluetoothTimer();
             this.resetBluetoothData();
+            this.startImuVitalsSession('ble_connected');
 
             try {
                 this.updateBLEButtons();
@@ -570,6 +611,7 @@ class RadarWebApp {
             this.addBLELog('⚠️ 已断开连接');
             this._updateBleProtocolUI();
             this.stopVitalsRealtime();
+            this.resetImuVitalsSession('ble_disconnected');
             if (this.bleBackfillState.backfillCount > 0) {
                 this.addBleBackfillLog('🔌 蓝牙已断开，本次补传会话结束');
             }
@@ -1459,6 +1501,7 @@ class RadarWebApp {
         }
         if (sampleMode === 'live') {
             this._appendBleLiveSample(sample);
+            this.pushImuVitalsSample(sample);
             this._updateBleLossStats(seq);
             if (Number.isFinite(sample.deviceTsMs)) {
                 this.lastLiveDeviceTsMs = sample.deviceTsMs;
@@ -1745,6 +1788,10 @@ class RadarWebApp {
         if (this.activityMonitor) this.activityMonitor.fs = normalizedFs;
         if (this.sleepMonitor) this.sleepMonitor.fs = normalizedFs;
         if (updateTarget) this.bleTargetFs = normalizedFs;
+        if (this.bleConnected && this.imuVitalsPanel && this.imuVitalsPanel.sampleRateHz !== normalizedFs) {
+            this.imuVitalsPanel.sampleRateHz = normalizedFs;
+            this.startImuVitalsSession('sampling_rate_changed');
+        }
         return normalizedFs;
     }
 
@@ -5636,6 +5683,7 @@ function resetBLEECG() {
 function clearBluetoothData() {
     if (app && confirm('确定要清空蓝牙数据吗？这将重置所有实时数据。')) {
         app.resetBluetoothData();
+        if (app.bleConnected) app.startImuVitalsSession('data_cleared');
         app.addBLELog('🔄 已清空蓝牙数据');
     }
 }

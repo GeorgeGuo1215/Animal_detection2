@@ -1284,3 +1284,81 @@ tr:hover {
     border-radius: 8px;
     display: block;
 }
+.imu-vitals-section {
+    margin-top: 18px;
+    border: 1px solid rgba(45, 127, 184, 0.28);
+    background: linear-gradient(145deg, rgba(244, 249, 252, 0.98), rgba(235, 244, 248, 0.96));
+}
+
+.imu-vitals-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.imu-vitals-status {
+    padding: 5px 11px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #66727a;
+    background: rgba(102, 114, 122, 0.12);
+}
+
+.imu-vitals-status[data-state="running"] { color: #18764c; background: rgba(36, 165, 106, 0.15); }
+.imu-vitals-status[data-state="warming"] { color: #8c6414; background: rgba(216, 132, 59, 0.16); }
+.imu-vitals-status[data-state="rejected"],
+.imu-vitals-status[data-state="error"] { color: #a83d3d; background: rgba(194, 70, 70, 0.14); }
+
+.imu-vitals-cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+    gap: 12px;
+    margin: 15px 0;
+}
+
+.imu-vitals-card {
+    padding: 18px;
+    border-radius: 14px;
+    color: #fff;
+    box-shadow: 0 7px 20px rgba(35, 67, 86, 0.14);
+}
+
+.imu-vitals-card.hr { background: linear-gradient(135deg, #276d9d, #3f96c8); }
+.imu-vitals-card.rr { background: linear-gradient(135deg, #b96f32, #df9955); }
+.imu-vitals-card-label { font-size: 0.83rem; opacity: 0.88; }
+.imu-vitals-card-value { display: block; margin: 6px 0 3px; font-size: 2rem; font-weight: 760; }
+.imu-vitals-card-meta { font-size: 0.8rem; opacity: 0.9; }
+
+.imu-vitals-meta {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(90px, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.imu-vitals-meta-item {
+    padding: 9px 10px;
+    border: 1px solid rgba(45, 127, 184, 0.15);
+    border-radius: 9px;
+    background: rgba(255,255,255,0.62);
+    color: #5d6870;
+    font-size: 0.78rem;
+}
+
+.imu-vitals-meta-item strong { display: block; margin-top: 3px; color: #263842; font-size: 0.9rem; }
+.imu-vitals-detail { margin: 5px 0 14px; color: #64747d; font-size: 0.82rem; }
+.imu-vitals-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.imu-vitals-chart { height: 285px; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.75); border: 1px solid rgba(45,127,184,.14); }
+
+@media (max-width: 900px) {
+    .imu-vitals-meta { grid-template-columns: repeat(3, 1fr); }
+    .imu-vitals-charts { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 560px) {
+    .imu-vitals-cards { grid-template-columns: 1fr; }
+    .imu-vitals-meta { grid-template-columns: repeat(2, 1fr); }
+}

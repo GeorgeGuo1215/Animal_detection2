@@ -248,6 +248,39 @@
                 </div>
             </section>
 
+            <section class="upload-section imu-vitals-section" id="imuVitalsSection" aria-labelledby="imuVitalsTitle">
+                <div class="imu-vitals-heading">
+                    <h2 id="imuVitalsTitle">IMU 实时心率与呼吸率预测</h2>
+                    <span class="imu-vitals-status" id="imuVitalsStatus" data-state="idle">等待蓝牙连接</span>
+                </div>
+                <!-- <p class="imu-vitals-detail">使用与毫米波雷达同步采集的三轴加速度与三轴陀螺仪数据；算法在线因果运行，不使用金标准或未来数据。</p> -->
+                <div class="imu-vitals-cards">
+                    <div class="imu-vitals-card hr">
+                        <span class="imu-vitals-card-label">IMU 预测心率</span>
+                        <strong class="imu-vitals-card-value" id="imuVitalsHR">-- bpm</strong>
+                        <span class="imu-vitals-card-meta">置信度 <span id="imuVitalsHRConfidence">--%</span></span>
+                    </div>
+                    <div class="imu-vitals-card rr">
+                        <span class="imu-vitals-card-label">IMU 预测呼吸率</span>
+                        <strong class="imu-vitals-card-value" id="imuVitalsRR">-- bpm</strong>
+                        <span class="imu-vitals-card-meta">置信度 <span id="imuVitalsRRConfidence">--%</span></span>
+                    </div>
+                </div>
+                <div class="imu-vitals-meta">
+                    <div class="imu-vitals-meta-item">质量门控<strong id="imuVitalsQuality">--</strong></div>
+                    <div class="imu-vitals-meta-item">运动状态<strong id="imuVitalsMotion">--</strong></div>
+                    <div class="imu-vitals-meta-item">有效窗口<strong id="imuVitalsWindows">--</strong></div>
+                    <div class="imu-vitals-meta-item">采样率<strong id="imuVitalsFs">--</strong></div>
+                    <div class="imu-vitals-meta-item">单次耗时<strong id="imuVitalsRuntime">--</strong></div>
+                    <div class="imu-vitals-meta-item">会话时长<strong id="imuVitalsElapsed">--</strong></div>
+                </div>
+                <div class="imu-vitals-detail" id="imuVitalsDetail">仅使用当前连接后的 BLE 实时样本，不读取补传与金标准数据</div>
+                <div class="imu-vitals-charts">
+                    <div class="imu-vitals-chart"><canvas id="imuVitalsTrendChart"></canvas></div>
+                    <div class="imu-vitals-chart"><canvas id="imuVitalsCandidatesChart"></canvas></div>
+                </div>
+            </section>
+
             <!-- 姿态解算模块 -->
             <section class="upload-section attitude-section" id="attitudeSection">
                 <h2>🎯 IMU 姿态解算</h2>
@@ -1738,7 +1771,8 @@
     <script src="attitude-solver.js?v=20260417-accvar"></script>
 
     <script src="version.js"></script>
-    <script src="app.js?v=20260620-pet-record"></script>
+    <script src="imu-vitals-panel.js?v=20260809-1"></script>
+    <script src="app.js?v=20260809-imu-vitals"></script>
 
     <!-- BLE调试代码 -->
     <script>
