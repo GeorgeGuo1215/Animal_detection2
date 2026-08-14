@@ -1,6 +1,19 @@
 import type { Conversation, Message, Plan, RunEvent, User } from './types'
 
 const API_ROOT = (import.meta.env.VITE_API_ROOT || '').replace(/\/$/, '')
+
+/** UUID for HTTP public IPs where crypto.randomUUID is a secure-context-only API. */
+export function newId(): string {
+  const c = globalThis.crypto
+  if (c && typeof c.randomUUID === 'function') return c.randomUUID()
+  const bytes = new Uint8Array(16)
+  if (c && typeof c.getRandomValues === 'function') c.getRandomValues(bytes)
+  else for (let i = 0; i < 16; i++) bytes[i] = (Math.random() * 256) | 0
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
 let accessToken = ''
 let refreshing: Promise<boolean> | null = null
 
@@ -26,7 +39,7 @@ export async function api<T>(path: string, init: RequestInit = {}, retry = true)
   if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`)
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
   if (init.method && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(init.method.toUpperCase()) && !headers.has('Idempotency-Key')) {
-    headers.set('Idempotency-Key', crypto.randomUUID())
+    headers.set('Idempotency-Key', newId())
   }
   const response = await fetch(`${API_ROOT}${path}`, { ...init, headers, credentials: 'include' })
   if (response.status === 401 && retry && await refresh()) return api<T>(path, init, false)
@@ -82,7 +95,7 @@ async function consumeSse(response: Response, onEvent: (event: RunEvent) => void
 }
 
 export async function streamRun(conversationId: string, message: string, userRole: 'pet_owner' | 'veterinarian', onEvent: (event: RunEvent) => void, signal: AbortSignal, onRunId: (id: string) => void) {
-  const clientMessageId = crypto.randomUUID()
+  const clientMessageId = newId()
   const response = await fetch(`${API_ROOT}/api/v1/conversations/${conversationId}/runs`, {
     method: 'POST', credentials: 'include', signal,
     headers: {

@@ -7,9 +7,9 @@ from sqlalchemy import select
 
 from agent_api.app.memory import ensure_memory_subject
 from agent_api.app.platform.database import close_platform_database, init_platform_database, platform_session
-from agent_api.app.platform.models import PlatformUser, utcnow
+from agent_api.app.platform.models import Plan, PlatformUser, Subscription, utcnow
 from agent_api.app.platform.security import hash_password, normalize_email
-from agent_api.app.platform.services import ensure_credit_account, seed_platform_plans, seed_platform_rbac
+from agent_api.app.platform.services import ensure_credit_account, grant_plan, seed_platform_plans, seed_platform_rbac
 
 
 async def _run(email: str, password: str, display_name: str) -> None:
@@ -36,6 +36,19 @@ async def _run(email: str, password: str, display_name: str) -> None:
             user.status = "active"
             user.password_hash = hash_password(password)
             user.token_version += 1
+        await ensure_credit_account(session, user.id)
+        plan = await session.get(Plan, "trial")
+        existing_sub = await session.scalar(
+            select(Subscription).where(Subscription.user_id == user.id, Subscription.status == "active")
+        )
+        if plan is not None and existing_sub is None:
+            await grant_plan(
+                session,
+                user_id=user.id,
+                plan=plan,
+                reference_type="bootstrap",
+                reference_id=user.id,
+            )
         await session.commit()
         print(f"Platform SUPER_ADMIN ready: {user.email} ({user.id})")
     await ensure_memory_subject(user_id=user.id, display_name=user.display_name, source="agent-platform", metadata={"role": user.role})

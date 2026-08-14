@@ -194,10 +194,7 @@ def _run_rag_warmup_unlimited() -> None:
     server startup / liveness. Marks the process ready when finished."""
     global _READY, _WARMUP_INFO
     try:
-        from RAG.simple_rag.config import default_config
-
         repo_root = Path(__file__).resolve().parents[2]
-        cfg = default_config(repo_root)
         device = os.getenv("AGENT_WARMUP_DEVICE") or None
 
         hf_offline = os.getenv("AGENT_HF_OFFLINE", "").strip().lower() in ("1", "true", "yes")
@@ -226,45 +223,36 @@ def _run_rag_warmup_unlimited() -> None:
             _WARMUP_INFO = {"status": "skipped", "reason": "hf_offline_no_local_embedding"}
             return
 
-        stats = warmup_rag_cache(
-            index_dir=cfg.index_dir,
-            embedding_model=embedding_model,
-            device=device,
-            enable_bm25=enable_bm25,
-            enable_reranker=enable_reranker,
-            rerank_model=rerank_model,
+        from RAG.simple_rag.category_index import (
+            default_category_root,
+            resolve_default_category_index_dirs,
         )
 
-        # Preload dense vectors for MoE expert category sub-indexes (BM25 built lazily on first use).
+        cat_dirs = resolve_default_category_index_dirs(repo_root=repo_root)
+        cat_root = default_category_root(repo_root).resolve()
         cat_warm: list[dict] = []
-        warm_cats = os.getenv("AGENT_WARMUP_CATEGORIES", "1") == "1"
-        if warm_cats:
+        index_size = 0
+        reranker_ready = False
+        for i, d in enumerate(cat_dirs):
+            if not d.exists():
+                continue
             try:
-                from RAG.simple_rag.category_index import (
-                    expert_category_warmup_ids,
-                    resolve_category_index_dirs,
+                st = warmup_rag_cache(
+                    index_dir=d,
+                    embedding_model=embedding_model,
+                    device=device,
+                    enable_bm25=enable_bm25 and i == 0,
+                    enable_reranker=enable_reranker and not reranker_ready,
+                    rerank_model=rerank_model,
                 )
-
-                for cid in expert_category_warmup_ids():
-                    dirs = resolve_category_index_dirs(repo_root=repo_root, category=cid)
-                    for d in dirs:
-                        if not d.exists():
-                            continue
-                        try:
-                            st = warmup_rag_cache(
-                                index_dir=d,
-                                embedding_model=embedding_model,
-                                device=device,
-                                enable_bm25=False,
-                                enable_reranker=False,
-                                rerank_model=rerank_model,
-                            )
-                            if int(st.get("index_size") or 0) > 0:
-                                cat_warm.append({"category": cid, "index_size": st.get("index_size")})
-                        except Exception as cat_exc:  # noqa: BLE001
-                            print(f"[startup] category warmup skip {cid}: {cat_exc}")
-            except Exception as cat_outer:  # noqa: BLE001
-                print(f"[startup] category warmup unavailable: {cat_outer}")
+                if enable_reranker:
+                    reranker_ready = True
+                size = int(st.get("index_size") or 0)
+                if size > 0:
+                    cat_warm.append({"category": d.name, "index_size": size})
+                    index_size += size
+            except Exception as cat_exc:  # noqa: BLE001
+                print(f"[startup] category warmup skip {d.name}: {cat_exc}")
 
         actual_device = device or "cpu"
         try:
@@ -279,12 +267,13 @@ def _run_rag_warmup_unlimited() -> None:
         print(f"[startup] Embedding: {embedding_model}")
         print(f"[startup] Reranker: {rerank_model if enable_reranker else 'disabled'}")
         print(f"[startup] BM25: {'enabled' if enable_bm25 else 'disabled'}")
-        print(f"[startup] Index: {stats['index_size']} chunks")
+        print(f"[startup] Index: {index_size} chunks from {cat_root} ({len(cat_warm)} categories)")
         if cat_warm:
             print(f"[startup] Category indexes warmed: {len(cat_warm)}")
         _WARMUP_INFO = {
             "status": "ok",
-            "index_size": stats.get("index_size"),
+            "index_size": index_size,
+            "index_dir": str(cat_root),
             "category_indexes": len(cat_warm),
         }
     except Exception as exc:  # noqa: BLE001

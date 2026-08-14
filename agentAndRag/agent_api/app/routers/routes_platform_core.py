@@ -216,7 +216,7 @@ async def create_run(
         Subscription.status == "active",
         or_(Subscription.expires_at.is_(None), Subscription.expires_at > utcnow()),
     ).limit(1))
-    if active_subscription is None:
+    if active_subscription is None and principal.role != "SUPER_ADMIN":
         raise HTTPException(status_code=402, detail="an active subscription is required")
     idem = (idempotency_key or body.client_message_id).strip()[:100]
     existing = await session.scalar(select(AgentRun).where(

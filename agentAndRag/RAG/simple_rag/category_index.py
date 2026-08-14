@@ -129,6 +129,14 @@ def list_nonempty_category_ids(repo_root: Path, taxonomy_path: Optional[Path] = 
     return [str(c["id"]) for c in tax.get("categories") or [] if int(c.get("chunk_count") or 0) > 0]
 
 
+def resolve_default_category_index_dirs(*, repo_root: Path) -> List[Path]:
+    """Runtime default: all nonempty category indexes, never the legacy full corpus."""
+    ids = list_nonempty_category_ids(repo_root)
+    if not ids:
+        return []
+    return resolve_category_index_dirs(repo_root=repo_root, category=ids)
+
+
 def expert_category_warmup_ids() -> List[str]:
     """Categories used by the four MoE experts (may include empty placeholders)."""
     return [

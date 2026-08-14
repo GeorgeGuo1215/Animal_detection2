@@ -25,6 +25,20 @@ async def _direct_web_search_handler(**kwargs: Any) -> Dict[str, Any]:
     return {"status": "OK", "query": query, "results": hits, "count": len(hits)}
 
 
+async def _direct_ingredient_check_handler(**kwargs: Any) -> Dict[str, Any]:
+    """Call ingredient checker directly, bypassing MCP subprocess."""
+    from mcp_servers.web_search.ingredient_checker import check_ingredients
+
+    product_name = str(kwargs.get("product_name") or "").strip()
+    current_health_context = str(kwargs.get("current_health_context") or "").strip()
+    limits = get_resource_limits()
+    async with limits.mcp.slot(timeout_s=limits.acquire_timeout_s):
+        return await check_ingredients(
+            product_name=product_name,
+            current_health_context=current_health_context,
+        )
+
+
 def _make_async_handler(server: McpServerConfig, tool_name: str):
     """Return an async handler that calls the MCP tool natively."""
 
@@ -59,30 +73,53 @@ def _register_server_tools(registry: ToolRegistry, server: McpServerConfig, tool
 
 
 def _register_direct_web_search(registry: ToolRegistry) -> int:
+    registered = 0
     name = "mcp.web_search.web_search"
-    if registry.get(name) is not None:
-        return 0
-    registry.register(
-        ToolSpec(
-            name=name,
-            description=(
-                "Perform a real-time web search using Tavily and return "
-                "relevant results (title, URL, content snippet)."
-            ),
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string"},
-                    "max_results": {"type": "integer", "default": 5},
-                    "search_depth": {"type": "string", "enum": ["basic", "advanced"], "default": "basic"},
+    if registry.get(name) is None:
+        registry.register(
+            ToolSpec(
+                name=name,
+                description=(
+                    "Perform a real-time web search using Tavily and return "
+                    "relevant results (title, URL, content snippet)."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string"},
+                        "max_results": {"type": "integer", "default": 5},
+                        "search_depth": {"type": "string", "enum": ["basic", "advanced"], "default": "basic"},
+                    },
+                    "required": ["query"],
                 },
-                "required": ["query"],
-            },
-            handler=_direct_web_search_handler,
+                handler=_direct_web_search_handler,
+            )
         )
-    )
-    logger.info("Registered web_search via direct Tavily REST API (fast path)")
-    return 1
+        registered += 1
+    ingredient_name = "mcp.web_search.ingredient_check"
+    if registry.get(ingredient_name) is None:
+        registry.register(
+            ToolSpec(
+                name=ingredient_name,
+                description=(
+                    "Analyze a pet product's ingredients against the pet's health conditions "
+                    "using web search and a contraindications database."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "product_name": {"type": "string"},
+                        "current_health_context": {"type": "string"},
+                    },
+                    "required": ["product_name", "current_health_context"],
+                },
+                handler=_direct_ingredient_check_handler,
+            )
+        )
+        registered += 1
+    if registered:
+        logger.info("Registered web_search tools via direct Tavily REST API (fast path)")
+    return registered
 
 
 async def register_mcp_tools_async(registry: ToolRegistry) -> Dict[str, Any]:

@@ -12,7 +12,7 @@ from ..concurrency import get_resource_limits
 
 _RAG_DEVICE: Optional[str] = os.getenv("AGENT_WARMUP_DEVICE") or None
 
-from RAG.simple_rag.category_index import resolve_category_index_dirs
+from RAG.simple_rag.category_index import resolve_category_index_dirs, resolve_default_category_index_dirs
 from RAG.simple_rag.config import RagConfig, default_config
 from RAG.simple_rag.context_utils import build_neighbor_contexts, build_source_index
 from RAG.simple_rag.embeddings import Embedder
@@ -371,9 +371,13 @@ def rag_search_tool(
         for d in cat_dirs:
             search_targets.append((d.name, d))
         primary_index = cat_dirs[0]
-    else:
-        primary_index = Path(index_dir) if index_dir else cfg0.index_dir
+    elif index_dir:
+        primary_index = Path(index_dir)
         search_targets = [(None, primary_index)]
+    else:
+        cat_dirs = resolve_default_category_index_dirs(repo_root=repo_root)
+        search_targets = [(d.name, d) for d in cat_dirs]
+        primary_index = cat_dirs[0] if cat_dirs else cfg0.index_dir
 
     cfg = RagConfig(
         raw_dir=cfg0.raw_dir,
