@@ -93,7 +93,8 @@ function UserMenu() {
 
 function Sidebar({ current, collapsed = false, onCollapsedChange, onSelect, onNew, onDeleted }: { current?: string; collapsed?: boolean; onCollapsedChange(collapsed: boolean): void; onSelect(id: string): void; onNew(): void; onDeleted(id: string): void }) {
   const [items, setItems] = useState<Conversation[]>([]); const [query, setQuery] = useState(''); const [actionOpen, setActionOpen] = useState(''); const [actionError, setActionError] = useState('')
-  async function load(q = '') { const result = q ? await client.search(q) : await client.conversations(); setItems(result.items) }
+  const deletedIds = useRef(new Set<string>())
+  async function load(q = '') { const result = q ? await client.search(q) : await client.conversations(); setItems(result.items.filter(item => !deletedIds.current.has(item.id))) }
   async function exportConversation(item: Conversation) {
     try {
       setActionError('')
@@ -111,7 +112,7 @@ function Sidebar({ current, collapsed = false, onCollapsedChange, onSelect, onNe
   async function deleteConversation(item: Conversation) {
     if (!window.confirm(`确定删除“${item.title}”吗？删除后将无法在对话列表中恢复。`)) return
     try {
-      setActionError(''); await client.remove(item.id); setItems(previous => previous.filter(row => row.id !== item.id)); setActionOpen(''); onDeleted(item.id)
+      setActionError(''); await client.remove(item.id); deletedIds.current.add(item.id); setItems(previous => previous.filter(row => row.id !== item.id)); setActionOpen(''); onDeleted(item.id)
     } catch (error) { setActionError(error instanceof Error ? error.message : '删除失败') }
   }
   useEffect(() => { load().catch(() => undefined) }, [current])

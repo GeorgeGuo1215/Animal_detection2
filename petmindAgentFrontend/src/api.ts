@@ -15,24 +15,26 @@ export function newId(): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 let accessToken = ''
-let refreshing: Promise<boolean> | null = null
+let refreshing: Promise<User | null> | null = null
 
 export function setAccessToken(token: string) { accessToken = token }
 export function getAccessToken() { return accessToken }
 
-async function refresh(): Promise<boolean> {
+async function refresh(): Promise<User | null> {
   if (!refreshing) {
     refreshing = fetch(`${API_ROOT}/api/v1/auth/refresh`, {
       method: 'POST', credentials: 'include',
     }).then(async response => {
-      if (!response.ok) return false
-      const data = await response.json()
+      if (!response.ok) return null
+      const data = await response.json() as { access_token: string; user: User }
       setAccessToken(data.access_token)
-      return true
+      return data.user
     }).finally(() => { refreshing = null })
   }
   return refreshing
 }
+
+export function restoreSession(): Promise<User | null> { return refresh() }
 
 export async function api<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
   const headers = new Headers(init.headers)

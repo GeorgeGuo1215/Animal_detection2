@@ -1,4 +1,9 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
+
+async function mockAuthenticated(page: Page, user: Record<string, string>) {
+  await page.route('**/api/v1/auth/refresh', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ access_token: 'test-access-token', user }) }))
+  await page.route('**/api/v1/me', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(user) }))
+}
 
 test('login and public plan pages retain brand and keyboard focus', async ({ page }) => {
   await page.route('**/api/v1/me', route => route.fulfill({ status: 401, contentType: 'application/json', body: '{"code":"unauthorized"}' }))
@@ -15,7 +20,7 @@ test('login and public plan pages retain brand and keyboard focus', async ({ pag
 
 test('authenticated navigation exposes logout, audience mode and session details', async ({ page }) => {
   const user = { id: 'user-1', email: 'vet@petmind.local', display_name: '林医生', role: 'VET', status: 'active' }
-  await page.route('**/api/v1/me', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(user) }))
+  await mockAuthenticated(page, user)
   await page.route('**/api/v1/plans', route => route.fulfill({ status: 200, contentType: 'application/json', body: '{"items":[]}' }))
   await page.route('**/api/v1/conversations', route => route.fulfill({ status: 200, contentType: 'application/json', body: '{"items":[]}' }))
   await page.route('**/api/v1/auth/logout', route => route.fulfill({ status: 204, body: '' }))
@@ -39,7 +44,7 @@ test('authenticated navigation exposes logout, audience mode and session details
 test('desktop sidebar collapses to an icon rail and expands again', async ({ page }) => {
   test.skip((page.viewportSize()?.width || 0) <= 800, 'desktop sidebar behavior')
   const user = { id: 'user-1', email: 'vet@petmind.local', display_name: '林医生', role: 'VET', status: 'active' }
-  await page.route('**/api/v1/me', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(user) }))
+  await mockAuthenticated(page, user)
   await page.route('**/api/v1/conversations', route => route.fulfill({ status: 200, contentType: 'application/json', body: '{"items":[]}' }))
 
   await page.goto('/chat')
@@ -58,7 +63,7 @@ test('first message remains visible while a new conversation starts running', as
   const user = { id: 'user-1', email: 'vet@petmind.local', display_name: '林医生', role: 'VET', status: 'active' }
   const conversation = { id: 'case-new', title: '新会诊', status: 'active', created_at: '2026-08-14T08:00:00Z', last_active_at: '2026-08-14T08:00:00Z' }
   let runCompleted = false
-  await page.route('**/api/v1/me', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(user) }))
+  await mockAuthenticated(page, user)
   await page.route('**/api/v1/conversations', async route => {
     if (route.request().method() === 'POST') return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(conversation) })
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{"items":[]}' })
@@ -94,7 +99,7 @@ test('conversation history can be exported and deleted', async ({ page }) => {
   const user = { id: 'user-1', email: 'vet@petmind.local', display_name: '林医生', role: 'VET', status: 'active' }
   const conversation = { id: 'case-1', title: '猫咪复诊记录', status: 'active', created_at: '2026-08-14T08:00:00Z', last_active_at: '2026-08-14T08:30:00Z' }
   let deleted = false
-  await page.route('**/api/v1/me', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(user) }))
+  await mockAuthenticated(page, user)
   await page.route('**/api/v1/conversations', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [conversation] }) }))
   await page.route('**/api/v1/conversations/case-1/messages', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [
     { id: 'm1', role: 'user', content: '猫咪今天食欲下降。', status: 'complete', created_at: '2026-08-14T08:00:00Z' },
@@ -124,7 +129,7 @@ test('conversation history can be exported and deleted', async ({ page }) => {
 test('API key revocation confirms, persists and replaces the action with status', async ({ page }) => {
   const user = { id: 'user-1', email: 'vet@petmind.local', display_name: '林医生', role: 'VET', status: 'active' }
   let revokedAt: string | null = null
-  await page.route('**/api/v1/me', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(user) }))
+  await mockAuthenticated(page, user)
   await page.route('**/api/v1/credits', route => route.fulfill({ status: 200, contentType: 'application/json', body: '{"balance":100,"reserved":0,"ledger":[]}' }))
   await page.route('**/api/v1/subscription', route => route.fulfill({ status: 200, contentType: 'application/json', body: '{"subscription":null}' }))
   await page.route('**/api/v1/orders', route => route.fulfill({ status: 200, contentType: 'application/json', body: '{"items":[]}' }))
@@ -146,7 +151,7 @@ test('an in-flight consultation resumes after refresh and clears transient recov
   const user = { id: 'user-1', email: 'vet@petmind.local', display_name: '林医生', role: 'VET', status: 'active' }
   const conversation = { id: 'case-resume', title: '恢复中的会诊', status: 'active', created_at: '2026-08-14T08:00:00Z', last_active_at: '2026-08-14T08:30:00Z' }
   await page.addInitScript(() => sessionStorage.setItem('petmind-run:case-resume', JSON.stringify({ runId: 'run-resume', lastEvent: 1 })))
-  await page.route('**/api/v1/me', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(user) }))
+  await mockAuthenticated(page, user)
   await page.route('**/api/v1/conversations', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [conversation] }) }))
   await page.route('**/api/v1/conversations/case-resume/messages', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [
     { id: 'm1', role: 'user', content: '刷新前的问题', status: 'complete', created_at: '2026-08-14T08:00:00Z' },
