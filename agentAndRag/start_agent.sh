@@ -62,6 +62,9 @@ echo "[Config] Agent=http://$AGENT_HOST:$AGENT_PORT"
 echo "[Config] Memory=http://$MEMORY_HOST:$MEMORY_PORT"
 echo "[Config] WarmupDevice=$AGENT_WARMUP_DEVICE"
 echo "[Config] MemoryRequired=$AGENT_MEMORY_REQUIRED"
+if [[ -n "${AGENT_PLATFORM_REDIS_URL:-}" ]]; then
+    echo "[Config] PlatformWorker=${AGENT_PLATFORM_WORKER:-1}"
+fi
 echo "[Config] Secrets loaded but not printed."
 
 exec "$PYTHON_BIN" -m agent_api.scripts.run_agent_stack \

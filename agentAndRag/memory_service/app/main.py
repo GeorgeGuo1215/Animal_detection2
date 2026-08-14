@@ -30,6 +30,13 @@ def _warmup_embedding_enabled() -> bool:
     }
 
 
+def _workers_enabled() -> bool:
+    """Allow API-only startup when existing memories must not reach an external LLM."""
+    return os.getenv("MEMORY_WORKERS_ENABLED", "1").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
+
 def create_app(cfg: MemoryConfig | None = None, *, with_workers: bool = True) -> FastAPI:
     config = cfg or load_config()
     embedder = init_embedder(config)
@@ -68,7 +75,7 @@ def create_app(cfg: MemoryConfig | None = None, *, with_workers: bool = True) ->
     return app
 
 
-app = create_app()
+app = create_app(with_workers=_workers_enabled())
 
 
 def main() -> None:

@@ -14,7 +14,9 @@ if str(_REPO_ROOT) not in sys.path:
 from typing import Any, Dict, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 
 from .context.request_context import ANIMAL_REQUIRED_TOOLS, filter_tools_without_animal, get_request_animal_id, set_request_animal_id
@@ -26,6 +28,8 @@ from .lifecycle_tasks.session_cleanup import (
     stop_session_cleanup_task,
 )
 from .middleware.auth import APIKeyAuthMiddleware, load_api_keys
+from .middleware.platform_http import PlatformRequestMiddleware
+from .middleware.platform_rate_limit import PlatformRateLimitMiddleware
 from .middleware.rate_limit import RateLimitMiddleware
 from .memory import close_memory_client, memory_status, start_memory_client
 from .persistence.qa_store import (
@@ -36,6 +40,9 @@ from .persistence.session_manager import get_session_manager
 from .persistence.trace_store import new_trace_id, write_trace
 from .routers.routes_chat_ui import router as chat_ui_router
 from .routers.routes_openai import router as openai_router
+from .routers.routes_platform_admin import router as platform_admin_router
+from .routers.routes_platform_auth import router as platform_auth_router
+from .routers.routes_platform_core import router as platform_core_router
 from .schemas import (
     AgentPlanAndSolveRequest,
     AgentPlanAndSolveResponse,
@@ -56,19 +63,77 @@ from .tools.tools_builtin import register_builtin_tools, register_debug_tools
 from .tools.tools_mcp import register_mcp_tools_async
 
 from integration.api.routes_ingest import router as integration_ingest_router
+from .platform import close_platform_database, get_platform_settings, init_platform_database
+from .platform.cleanup import start_platform_cleanup_task, stop_platform_cleanup_task
+from .platform.database import platform_session
+from .platform.services import seed_platform_plans, seed_platform_rbac
 
 
-app = FastAPI(title="PetMind Agent API", version="0.4.0")
+_PLATFORM_SETTINGS = get_platform_settings()
+app = FastAPI(
+    title="PetMind Agent API",
+    version="1.0.0",
+    docs_url=None if _PLATFORM_SETTINGS.production else "/docs",
+    redoc_url=None if _PLATFORM_SETTINGS.production else "/redoc",
+    openapi_url=None if _PLATFORM_SETTINGS.production else "/openapi.json",
+)
 
 app.include_router(openai_router)
-app.include_router(chat_ui_router)
+if not _PLATFORM_SETTINGS.production:
+    app.include_router(chat_ui_router)
 app.include_router(integration_ingest_router, prefix="/integration", tags=["integration"])
+app.include_router(platform_auth_router)
+app.include_router(platform_core_router)
+app.include_router(platform_admin_router)
 
 app.add_middleware(APIKeyAuthMiddleware)
 
 _rl_rate = float(os.getenv("AGENT_RATE_LIMIT", "30"))
 _rl_burst = int(os.getenv("AGENT_RATE_BURST", str(int(_rl_rate))))
 app.add_middleware(RateLimitMiddleware, rate=_rl_rate, burst=_rl_burst)
+app.add_middleware(PlatformRateLimitMiddleware)
+app.add_middleware(PlatformRequestMiddleware)
+
+if _PLATFORM_SETTINGS.production:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(_PLATFORM_SETTINGS.allowed_hosts))
+
+
+def _platform_error(request: Request, *, status_code: int, code: str, message: str, details=None) -> JSONResponse:
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "code": code,
+            "message": message,
+            "request_id": getattr(request.state, "request_id", ""),
+            "details": details,
+        },
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error(request: Request, exc: RequestValidationError):
+    if not request.url.path.startswith("/api/v1/"):
+        return JSONResponse(status_code=422, content={"detail": exc.errors()})
+    fields = [{"path": ".".join(str(part) for part in item["loc"]), "type": item["type"], "message": item["msg"]} for item in exc.errors()]
+    return _platform_error(request, status_code=422, code="validation_error", message="Request validation failed", details={"fields": fields})
+
+
+@app.exception_handler(HTTPException)
+async def _http_error(request: Request, exc: HTTPException):
+    if not request.url.path.startswith("/api/v1/"):
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}, headers=exc.headers)
+    if isinstance(exc.detail, dict):
+        code = str(exc.detail.get("code") or "request_failed")
+        message = str(exc.detail.get("message") or "Request failed")
+        details = exc.detail.get("details")
+    else:
+        code = str(exc.detail).lower().replace(" ", "_")[:80]
+        message = str(exc.detail)
+        details = None
+    response = _platform_error(request, status_code=exc.status_code, code=code, message=message, details=details)
+    if exc.headers:
+        response.headers.update(exc.headers)
+    return response
 
 # --- CORS：前端与 Agent 不同端口时（如 web 在 :8001、Agent 在 :8000）浏览器会拦截，需返回 Access-Control-Allow-Origin ---
 _CORS_DEFAULT_ORIGINS = (
@@ -84,13 +149,23 @@ _env_cors_origins = os.getenv("AGENT_CORS_ORIGINS", "").strip()
 _cors_on = _env_cors_enable not in ("0", "false", "no", "off")
 
 if _cors_on:
-    if _env_cors_origins == "*":
+    if _PLATFORM_SETTINGS.production:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=[_PLATFORM_SETTINGS.frontend_origin],
+            allow_credentials=True,
+            allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+            allow_headers=["Content-Type", "Authorization", "Accept", "X-API-Key", "Idempotency-Key", "Last-Event-ID", "X-Request-Id"],
+            expose_headers=["X-Request-Id", "X-PetMind-Run-Id", "X-RateLimit-Limit", "X-RateLimit-Remaining", "Retry-After"],
+        )
+    elif _env_cors_origins == "*":
         app.add_middleware(
             CORSMiddleware,
             allow_origins=["*"],
             allow_credentials=False,
             allow_methods=["*"],
-            allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With", "X-Animal-Id", "X-User-Id"],
+            allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With", "X-Animal-Id", "X-User-Id", "X-API-Key", "Idempotency-Key", "Last-Event-ID", "X-Request-Id"],
+            expose_headers=["X-Request-Id", "X-PetMind-Run-Id", "X-RateLimit-Limit", "X-RateLimit-Remaining", "Retry-After"],
         )
     else:
         _parts = _env_cors_origins.split(",") if _env_cors_origins else _CORS_DEFAULT_ORIGINS.split()
@@ -101,7 +176,8 @@ if _cors_on:
             allow_origin_regex=_CORS_LOCAL_ORIGIN_REGEX,
             allow_credentials=True,
             allow_methods=["*"],
-            allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With", "X-Animal-Id", "X-User-Id"],
+            allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With", "X-Animal-Id", "X-User-Id", "X-API-Key", "Idempotency-Key", "Last-Event-ID", "X-Request-Id"],
+            expose_headers=["X-Request-Id", "X-PetMind-Run-Id", "X-RateLimit-Limit", "X-RateLimit-Remaining", "Retry-After"],
         )
 
 
@@ -242,6 +318,13 @@ async def _startup() -> None:
     load_api_keys()
     _init_qa_db()
     await start_memory_client()
+    settings = get_platform_settings()
+    if settings.enabled:
+        await init_platform_database()
+        async with platform_session() as session:
+            await seed_platform_plans(session)
+            await seed_platform_rbac(session)
+        await start_platform_cleanup_task()
 
     reg = get_registry()
     if reg.get("rag.search") is None:
@@ -263,6 +346,9 @@ async def _startup() -> None:
 
 @app.on_event("shutdown")
 async def _shutdown() -> None:
+    if get_platform_settings().enabled:
+        await stop_platform_cleanup_task()
+        await close_platform_database()
     await stop_session_cleanup_task()
     await close_memory_client()
     # Release the shared LLM httpx connection pools.

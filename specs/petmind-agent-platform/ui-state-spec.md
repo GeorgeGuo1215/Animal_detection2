@@ -1,0 +1,18 @@
+# 界面状态规格
+
+## 页面
+
+- 登录、接受邀请、忘记/重置密码。
+- 套餐、订单、会员与积分。
+- 聊天、历史侧边栏、全文搜索和个人悬浮菜单。
+- 管理后台：概览、邀请、用户、套餐、订单、任务和审计。
+
+## 聊天状态
+
+`idle -> queued -> understanding -> routing -> consulting -> reviewing -> generating -> completed|failed|cancelled`
+
+只显示上述脱敏状态。页面重载后按 `run_id` 和最后事件 ID 恢复。
+
+## 品牌
+
+根目录 `logo.jpg` 是团队源资产。前端保持比例使用，暖米色、陶土色、纸张层次和铅笔线条构成原创 PetMind 视觉。DeepSeek 仅用于研究信息架构和交互反馈。

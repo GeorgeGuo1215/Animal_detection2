@@ -79,12 +79,21 @@ def _commands(args: argparse.Namespace) -> tuple[List[str], List[str]]:
         "-m",
         "uvicorn",
         "agent_api.app.main:app",
-        "--host",
-        args.agent_host,
-        "--port",
-        str(args.agent_port),
     ]
+    if _flag(os.getenv("AGENT_TRUST_PROXY_HEADERS"), False):
+        agent.extend([
+            "--proxy-headers",
+            "--forwarded-allow-ips",
+            os.getenv("AGENT_FORWARDED_ALLOW_IPS", "127.0.0.1"),
+        ])
+    else:
+        agent.append("--no-proxy-headers")
+    agent.extend(["--host", args.agent_host, "--port", str(args.agent_port)])
     return memory, agent
+
+
+def _worker_command() -> List[str]:
+    return [sys.executable, "-m", "agent_api.scripts.run_platform_worker"]
 
 
 def main() -> int:
@@ -109,6 +118,12 @@ def main() -> int:
         action=argparse.BooleanOptionalAction,
         default=_flag(os.getenv("AGENT_MEMORY_REQUIRED"), True),
     )
+    parser.add_argument(
+        "--platform-worker",
+        action=argparse.BooleanOptionalAction,
+        default=_flag(os.getenv("AGENT_PLATFORM_WORKER"), bool(os.getenv("AGENT_PLATFORM_REDIS_URL"))),
+        help="Run the Redis-backed Agent worker in this supervised stack.",
+    )
     args = parser.parse_args()
 
     if args.init_memory_db:
@@ -127,6 +142,7 @@ def main() -> int:
     memory_command, agent_command = _commands(args)
     memory_process: Optional[subprocess.Popen[bytes]] = None
     agent_process: Optional[subprocess.Popen[bytes]] = None
+    worker_process: Optional[subprocess.Popen[bytes]] = None
     stopping = False
 
     def request_stop(_signum: int, _frame: object) -> None:
@@ -145,6 +161,10 @@ def main() -> int:
         print(f"[stack] memory ready: {health}", flush=True)
 
         agent_process = subprocess.Popen(agent_command, cwd=ROOT, env=agent_env)
+        if args.platform_worker:
+            if not agent_env.get("AGENT_PLATFORM_REDIS_URL"):
+                raise RuntimeError("--platform-worker requires AGENT_PLATFORM_REDIS_URL")
+            worker_process = subprocess.Popen(_worker_command(), cwd=ROOT, env=agent_env)
         print(
             f"[stack] agent started on http://{args.agent_host}:{args.agent_port}; "
             f"memory={memory_url}",
@@ -153,15 +173,20 @@ def main() -> int:
         while not stopping:
             memory_code = memory_process.poll()
             agent_code = agent_process.poll()
+            worker_code = worker_process.poll() if worker_process is not None else None
             if memory_code is not None:
                 print(f"[stack] memory exited with code {memory_code}", file=sys.stderr)
                 return memory_code or 1
             if agent_code is not None:
                 print(f"[stack] agent exited with code {agent_code}", file=sys.stderr)
                 return agent_code
+            if worker_process is not None and worker_code is not None:
+                print(f"[stack] platform worker exited with code {worker_code}", file=sys.stderr)
+                return worker_code or 1
             time.sleep(0.25)
         return 0
     finally:
+        _stop_process(worker_process)
         _stop_process(agent_process)
         _stop_process(memory_process)
 

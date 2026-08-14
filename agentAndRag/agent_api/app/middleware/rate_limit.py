@@ -65,7 +65,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return client.host if client else "unknown"
 
     async def dispatch(self, request: Request, call_next):
-        if request.url.path in self._exempt or request.method == "OPTIONS":
+        if (
+            request.url.path in self._exempt
+            or request.url.path.startswith(("/api/v1/", "/v1/"))
+            or request.method == "OPTIONS"
+        ):
             return await call_next(request)
 
         key = self._extract_key(request)

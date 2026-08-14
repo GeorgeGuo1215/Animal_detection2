@@ -59,6 +59,7 @@ echo [Config] Agent=http://%AGENT_HOST%:%AGENT_PORT%
 echo [Config] Memory=http://%MEMORY_HOST%:%MEMORY_PORT%
 echo [Config] WarmupDevice=%AGENT_WARMUP_DEVICE%
 echo [Config] MemoryRequired=%AGENT_MEMORY_REQUIRED%
+if defined AGENT_PLATFORM_REDIS_URL echo [Config] PlatformWorker=enabled
 echo [Config] Secrets loaded but not printed.
 
 "%AGENT_PYTHON%" -m agent_api.scripts.run_agent_stack ^

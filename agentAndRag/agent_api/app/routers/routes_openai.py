@@ -78,7 +78,8 @@ def _clean_identity(value: Optional[str], max_length: int = 200) -> Optional[str
 
 def _memory_user_id(req: ChatCompletionRequest, request: Request) -> Optional[str]:
     return _clean_identity(
-        getattr(req, "user_id", None)
+        getattr(request.state, "platform_user_id", None)
+        or getattr(req, "user_id", None)
         or getattr(req, "user", None)
         or request.headers.get("x-user-id")
     )

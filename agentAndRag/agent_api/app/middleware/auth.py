@@ -10,7 +10,8 @@ import os
 from pathlib import Path
 from typing import Set
 
-from fastapi import HTTPException, Request
+from fastapi import Request
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 
@@ -59,7 +60,29 @@ def load_api_keys() -> None:
 
 def is_valid_key(key: str) -> bool:
     """Check if the given key is valid."""
-    return key in _VALID_KEYS
+    legacy_enabled = os.getenv("AGENT_LEGACY_API_KEYS_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
+    return legacy_enabled and key in _VALID_KEYS
+
+
+async def _record_legacy_key_use(request: Request, key: str) -> None:
+    try:
+        from ..platform.database import platform_session
+        from ..platform.services import audit
+        from ..platform.security import hash_secret
+
+        async with platform_session() as session:
+            await audit(
+                session,
+                action="legacy_api_key.used",
+                resource_type="api_key",
+                ip_address=request.client.host if request.client else None,
+                detail={"key_fingerprint": hash_secret(key)[:16], "path": request.url.path},
+            )
+            await session.commit()
+    except Exception:  # noqa: BLE001
+        # Compatibility authentication must not fail only because audit storage
+        # is unavailable; production monitoring still observes this condition.
+        pass
 
 
 def get_api_key_from_request(request: Request) -> str | None:
@@ -94,6 +117,11 @@ def _path_allows_anonymous(path: str) -> bool:
         return True
     if path.startswith("/integration/debug/"):
         return True
+    # Platform routes perform JWT/API-key authentication in route dependencies.
+    # Keeping them out of the legacy keys.txt gate is required for browser JWTs
+    # and for the intentionally public plan/login endpoints.
+    if path.startswith("/api/v1/"):
+        return True
     return False
 
 
@@ -111,13 +139,33 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
         
         key = get_api_key_from_request(request)
         if not key:
-            raise HTTPException(
+            return JSONResponse(
                 status_code=401,
-                detail={"error": {"message": "Missing API key. Use Authorization: Bearer <key> header.", "type": "auth_error"}},
+                content={"error": {"message": "Missing API key. Use Authorization: Bearer <key> header.", "type": "auth_error"}},
             )
         if not is_valid_key(key):
-            raise HTTPException(
+            # New database-backed API keys share the OpenAI-compatible routes
+            # during the legacy-key migration window.
+            if key.startswith("pm_live_"):
+                from ..platform.dependencies import authenticate_platform_api_key
+
+                principal = await authenticate_platform_api_key(key)
+                if principal is not None:
+                    required_scope = None
+                    if request.url.path == "/v1/models":
+                        required_scope = "models:read"
+                    elif request.url.path == "/v1/chat/completions":
+                        required_scope = "chat:write"
+                    else:
+                        return JSONResponse(status_code=403, content={"error": {"message": "Database API keys are limited to OpenAI-compatible routes", "type": "auth_error"}})
+                    if required_scope not in principal.scopes:
+                        return JSONResponse(status_code=403, content={"error": {"message": f"Missing API key scope: {required_scope}", "type": "auth_error"}})
+                    request.state.platform_principal = principal
+                    request.state.platform_user_id = principal.user_id
+                    return await call_next(request)
+            return JSONResponse(
                 status_code=401,
-                detail={"error": {"message": "Invalid API key.", "type": "auth_error"}},
+                content={"error": {"message": "Invalid API key.", "type": "auth_error"}},
             )
+        await _record_legacy_key_use(request, key)
         return await call_next(request)

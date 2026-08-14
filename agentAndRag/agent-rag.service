@@ -1,5 +1,5 @@
 [Unit]
-Description=PetMind Agent + Memory (Animal_detection2, 8002/8300)
+Description=PetMind Agent + Memory + Platform Worker (Animal_detection2, 8002/8300)
 After=network-online.target petmemory-postgres.service
 Wants=network-online.target petmemory-postgres.service
 StartLimitIntervalSec=300
@@ -18,6 +18,7 @@ Environment=AGENT_PORT=8002
 Environment=MEMORY_HOST=127.0.0.1
 Environment=MEMORY_PORT=8300
 Environment=AGENT_MEMORY_REQUIRED=1
+Environment=AGENT_PLATFORM_WORKER=1
 ExecStart=/home/sam/anaconda3/envs/AnimalDetection/bin/python -m agent_api.scripts.run_agent_stack --agent-host 0.0.0.0 --agent-port 8002 --memory-host 127.0.0.1 --memory-port 8300
 Restart=always
 RestartSec=10
