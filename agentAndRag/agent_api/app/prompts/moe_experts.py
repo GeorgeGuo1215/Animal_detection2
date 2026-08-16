@@ -19,14 +19,25 @@ SPECIES_BREED_GUARD = (
 )
 
 OUTPUT_CONTRACT = (
-    "你必须只输出严格 JSON（不要任何额外文字、不要 markdown 代码块），结构如下：\n"
+    '唯一允许的最终动作外层格式：{"action":"final","opinion":{...}}。\n'
+    "最终意见只能使用 action=final 的严格 JSON 信封（不要任何额外文字、不要 markdown 代码块）：\n"
     "{\n"
-    '  "conclusion": "你的核心结论（中文，2-4 句）",\n'
-    '  "evidence": ["支撑该结论的依据，尽量引用检索内容里的来源/页码"],\n'
-    '  "risks": ["与本专业相关的风险提示或禁忌"],\n'
-    '  "confidence": 0.0\n'
+    '  "action": "final",\n'
+    '  "opinion": {\n'
+    '    "conclusion": "你的核心结论（中文，2-4 句）",\n'
+    '    "evidence": ["支撑该结论的依据，尽量引用检索内容里的来源/页码"],\n'
+    '    "risks": ["与本专业相关的风险提示或禁忌"],\n'
+    '    "confidence": 0.0\n'
+    "  }\n"
     "}\n"
-    "confidence 为 0~1 的自评置信度：检索证据充分且与问题高度相关时高，证据不足时低。\n"
+    "禁止输出顶层 conclusion/evidence/risks；这些字段必须位于 opinion 内。\n"
+    "evidence 只能写本轮上下文或工具结果能够支撑的依据；未调用对应工具时，只能引用用户提供的个体"
+    "事实或明确写『本轮未检索』，不得声称来自本地知识库、网络、指南、文献、页码或实时数据。\n"
+    "risks 应写本专业相关的不确定性、安全边界和缺失信息。\n"
+    "confidence 为 0~1 的自评置信度：证据充分且与问题高度相关时高，证据不足时低。"
+)
+
+PHARMACY_SAFETY_CONTRACT = (
     "禁忌联用硬约束：若可靠证据已确认两种药物或药物类别属于禁忌联用，结论必须明确不得同时使用；"
     "替代方案必须移除或替换至少一种冲突药物或药物类别。降低剂量、错峰给药、缩短重叠期、换用同类中"
     "所谓低风险药物、增加支持性用药或仅加强监测，都不能解除禁忌，也不得表述为可以继续联用的方案。"
@@ -61,21 +72,13 @@ AUDIENCE_VET = (
 
 IMPORTANT_RETRIEVAL_POLICY: Dict[str, str] = {
     "clinical": (
-        "【重要场景双检索】在诊断或鉴别诊断、急症风险判断、会显著影响处置优先级的治疗决策、"
-        "复杂或少见病例等高影响临床场景中，不能只凭模型记忆直接返回 final。若当前可用工具同时包含"
-        " rag.search 与 mcp.web_search.web_search，本次专家任务应先后调用二者并综合证据，再返回最终意见："
-        "RAG 用于核对本地专业资料，Web Search 用于核对近期指南、共识或外部证据。每轮仍只调用一个工具，"
-        "因此应在连续轮次中完成；首次检索结果不足或未命中，不是跳过另一类检索的理由。只有普通低风险"
-        "养护/沟通问题、用户信息不足到无法形成有效检索问题、或相应工具未提供时，才可不做双检索。"
+        "【检索策略】统一任务策略已经基于整段语义分配证据任务。RETRIEVAL_STATE.recommended_tools"
+        "仅是质量建议，不是固定工具链；只有 required_tools/pending_tools 非空才阻止 final。"
     ),
     "pharmacy": (
-        "【重要场景双检索】在具体药物剂量、联合用药与相互作用、禁忌、物种毒性、不良反应、停换药/"
-        "洗脱方案，以及会显著影响用药安全的特殊个体场景中，不能只凭模型记忆直接返回 final。若当前"
-        "可用工具同时包含 rag.search 与 mcp.web_search.web_search，本次专家任务应先后调用二者并综合"
-        "证据，再返回最终意见：RAG 用于核对本地药理资料，Web Search 用于核对近期药品资料、指南或"
-        "外部安全证据。每轮仍只调用一个工具，因此应在连续轮次中完成；首次检索结果不足或未命中，不是"
-        "跳过另一类检索的理由。只有不涉及具体用药安全的普通问题、信息不足到无法形成有效检索问题、或"
-        "相应工具未提供时，才可不做双检索。"
+        "【检索策略】统一任务策略根据完整语义判断具体用药结论所需证据，并将任务分配给唯一负责专家。"
+        "按 RETRIEVAL_STATE 执行；只有 pending_tools 非空时才禁止 final，本地证据不足时可能动态追加"
+        " Web Search。不得仅因出现某个药学词语而机械调用工具。"
     ),
 }
 
@@ -127,18 +130,18 @@ def build_expert_system_prompt(
 ) -> str:
     audience = AUDIENCE_VET if user_role == "veterinarian" else AUDIENCE_OWNER
     retrieval_policy = IMPORTANT_RETRIEVAL_POLICY.get(expert_key, "")
+    specialist_safety = PHARMACY_SAFETY_CONTRACT if expert_key == "pharmacy" else ""
     return (
         f"{persona}\n{SPECIES_GUARD}\n{SPECIES_BREED_GUARD}\n{audience}\n"
-        f"{retrieval_policy}\n\n"
+        f"{retrieval_policy}\n{specialist_safety}\n\n"
         "你是独立运行的专家 Subagent。你拥有自己的上下文，必须根据用户问题和本上下文中的"
         "工具结果逐轮决定下一步；不要预先生成固定多步计划。每轮只能执行一个动作。\n"
-        "需要外部证据时返回 action=tool；证据充分或无需工具时返回 action=final。"
+        "需要外部证据时返回 action=tool；RETRIEVAL_STATE.recommended_tools 仅供自主判断，不阻止 final；"
+        "只有 pending_tools 非空时才必须先完成对应工具调用。"
         "不要为了形式调用工具，也不要重复相同调用。你必须只输出严格 JSON。\n"
         "调用 rag.search 时，arguments.query 必须完全使用英语，不得包含中文、日文或韩文字符。\n"
         "工具动作格式："
         '{"action":"tool","tool_name":"<name>","arguments":{},"reason":"..."}\n'
-        "最终意见格式："
-        '{"action":"final","opinion":{"conclusion":"...","evidence":[],"risks":[],"confidence":0.0}}\n'
-        f"最终 opinion 约束：{OUTPUT_CONTRACT}\n"
+        f"最终意见格式与约束：{OUTPUT_CONTRACT}\n"
         f"当前可用工具：{json.dumps(tool_brief, ensure_ascii=False)}"
     )

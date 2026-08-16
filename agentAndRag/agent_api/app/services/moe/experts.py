@@ -28,6 +28,13 @@ from ..tool_call_utils import canonical_tool_call
 from ..plan_and_solve import _safe_json_loads
 from .tool_broker import ToolBroker, ToolRequest, ToolResult
 from .history_context import build_fact_state_history
+from .retrieval_policy import (
+    RAG_TOOL,
+    RetrievalRequirement,
+    WEB_SEARCH_TOOL,
+    rag_requires_web_fallback,
+    resolve_retrieval_requirement,
+)
 from .trace import MoETrace, extract_usage
 
 
@@ -189,7 +196,7 @@ def _env_float(name: str, default: float) -> float:
 class ExpertLoopConfig:
     max_rounds: int = field(default_factory=lambda: _env_int("MOE_EXPERT_MAX_ROUNDS", 6))
     max_tool_calls: int = field(default_factory=lambda: _env_int("MOE_EXPERT_MAX_TOOL_CALLS", 4))
-    timeout_s: float = field(default_factory=lambda: _env_float("MOE_EXPERT_TIMEOUT_SEC", 60.0))
+    timeout_s: float = field(default_factory=lambda: _env_float("MOE_EXPERT_TIMEOUT_SEC", 120.0))
     finalize_reserve_s: float = field(
         default_factory=lambda: _env_float("MOE_EXPERT_FINALIZE_RESERVE_SEC", 12.0)
     )
@@ -252,6 +259,9 @@ class ExpertAgentSession:
         conversation_history: Optional[List[Dict[str, str]]] = None,
         expert_context_history: Optional[List[Dict[str, Any]]] = None,
         user_memory: Optional[str] = None,
+        intent_id: str = "",
+        emergency: bool = False,
+        retrieval_requirement: Optional[RetrievalRequirement] = None,
         recorder: Optional[MoETrace] = None,
         loop_config: Optional[ExpertLoopConfig] = None,
     ) -> None:
@@ -266,6 +276,8 @@ class ExpertAgentSession:
         self.species_zh = species_zh
         self.breed = breed
         self.user_role = user_role
+        self.intent_id = str(intent_id or "").strip().upper()
+        self.emergency = bool(emergency)
         self.recorder = recorder
         self.loop_config = loop_config or ExpertLoopConfig()
         self.started_at = time.monotonic()
@@ -275,6 +287,13 @@ class ExpertAgentSession:
         self.tool_results: List[Dict[str, Any]] = []
         self.plan_steps: List[Dict[str, Any]] = []
         self.tools_used: List[str] = []
+        self.attempted_tools: List[str] = []
+        self.completed_tools: List[str] = []
+        self.successful_tools: List[str] = []
+        self.required_tools: List[str] = []
+        self.recommended_tools: List[str] = []
+        self.unavailable_required_tools: List[str] = []
+        self.tool_timeout_occurred = False
         self.last_output = ""
         self.completed = False
 
@@ -288,6 +307,24 @@ class ExpertAgentSession:
         if not get_request_animal_id():
             available = [tool for tool in available if tool.name not in ANIMAL_REQUIRED_TOOLS]
         self.available_tools = {tool.name: tool for tool in available}
+
+        retrieval = retrieval_requirement or resolve_retrieval_requirement(
+            expert_key=expert.key,
+            evidence_tasks=(),
+        )
+        self.retrieval_required = retrieval.required
+        self.retrieval_reason = retrieval.reason
+        self.require_web_on_rag_failure = retrieval.require_web_on_rag_failure
+        for tool_name in retrieval.required_tools:
+            if tool_name in self.available_tools:
+                self.required_tools.append(tool_name)
+            else:
+                self.unavailable_required_tools.append(tool_name)
+        self.recommended_tools = [
+            tool_name
+            for tool_name in retrieval.recommended_tools
+            if tool_name in self.available_tools and tool_name not in self.required_tools
+        ]
 
         tool_brief = [
             {
@@ -318,6 +355,7 @@ class ExpertAgentSession:
         )
         if history_context:
             payload["history_context"] = history_context
+        payload["retrieval_policy"] = self.retrieval_state()
         self.messages: List[Dict[str, Any]] = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
@@ -335,6 +373,43 @@ class ExpertAgentSession:
     @property
     def tool_wait_timeout_s(self) -> float:
         return max(0.001, self.remaining_timeout_s - self.finalize_reserve_s)
+
+    @property
+    def pending_required_tools(self) -> List[str]:
+        completed = set(self.completed_tools)
+        return [name for name in self.required_tools if name not in completed]
+
+    def retrieval_state(self) -> Dict[str, Any]:
+        return {
+            "retrieval_required": self.retrieval_required,
+            "reason": self.retrieval_reason,
+            "required_tools": list(self.required_tools),
+            "recommended_tools": list(self.recommended_tools),
+            "attempted_tools": list(self.attempted_tools),
+            "completed_tools": list(self.completed_tools),
+            "successful_tools": list(self.successful_tools),
+            "pending_tools": self.pending_required_tools,
+            "unavailable_required_tools": list(self.unavailable_required_tools),
+        }
+
+    def _retrieval_state_message(self) -> Dict[str, str]:
+        return {
+            "role": "user",
+            "content": (
+                "RETRIEVAL_STATE\n"
+                + json.dumps(self.retrieval_state(), ensure_ascii=False)
+                + "\n只有 pending_tools 非空时才必须按顺序调用对应工具并禁止 final；"
+                "recommended_tools 只是质量建议，可基于现有证据直接 final。"
+            ),
+        }
+
+    def _protocol_feedback(self, *, code: str, message: str) -> ExpertAction:
+        self.messages.append(_tool_feedback_message(json.dumps({
+            "code": code,
+            "message": message,
+            "retrieval_state": self.retrieval_state(),
+        }, ensure_ascii=False)))
+        return ExpertAction(kind="continue")
 
     def _normalize_tool_arguments(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         normalized = dict(arguments or {})
@@ -358,14 +433,37 @@ class ExpertAgentSession:
         conclusion = str(opinion.get("conclusion") or opinion.get("answer") or "").strip()
         evidence = opinion.get("evidence")
         risks = opinion.get("risks")
+        evidence_items = [str(item) for item in evidence] if isinstance(evidence, list) else []
+        risk_items = [str(item) for item in risks] if isinstance(risks, list) else []
+        has_rag = RAG_TOOL in self.successful_tools
+        has_web = WEB_SEARCH_TOOL in self.successful_tools
+        guarded_evidence: List[str] = []
+        removed_source_claim = False
+        for item in evidence_items:
+            lowered = item.lower()
+            claims_rag = any(token in lowered for token in ("本地知识库", "rag", "书籍页码"))
+            claims_web = any(token in lowered for token in (
+                "网络证据", "网络检索", "网络来源", "网页来源", "http://", "https://",
+            ))
+            claims_external_source = any(token in lowered for token in (
+                "来源：", "来源:", "指南", "共识", "文献", "研究显示",
+            ))
+            if (claims_rag and not has_rag) or (claims_web and not has_web) or (
+                claims_external_source and not (has_rag or has_web)
+            ):
+                removed_source_claim = True
+                continue
+            guarded_evidence.append(item)
+        if removed_source_claim:
+            risk_items.append("已移除未由本轮工具结果支撑的外部来源声明")
         try:
             confidence = max(0.0, min(1.0, float(opinion.get("confidence", 0.0))))
         except (TypeError, ValueError):
             confidence = 0.0
         return {
             "conclusion": conclusion or self.last_output[:800] or "（专家未生成有效结论）",
-            "evidence": [str(item) for item in evidence] if isinstance(evidence, list) else [],
-            "risks": [str(item) for item in risks] if isinstance(risks, list) else [],
+            "evidence": guarded_evidence,
+            "risks": risk_items,
             "confidence": round(confidence, 3),
         }
 
@@ -374,19 +472,29 @@ class ExpertAgentSession:
             return ExpertAction(kind="final", opinion=self.fallback_opinion())
 
         self.rounds += 1
+        pending_tools = self.pending_required_tools
         force_final = (
-            self.rounds >= self.loop_config.max_rounds
-            or self.tool_call_count >= self.loop_config.max_tool_calls
-            or not self.available_tools
-            or self.remaining_timeout_s <= self.finalize_reserve_s
+            not pending_tools
+            and (
+                self.rounds >= self.loop_config.max_rounds
+                or self.tool_call_count >= self.loop_config.max_tool_calls
+                or self.tool_timeout_occurred
+                or not self.available_tools
+                or self.remaining_timeout_s <= self.finalize_reserve_s
+            )
         )
+        hard_round_limit = self.loop_config.max_rounds + max(2, len(self.required_tools) + 1)
+        if self.rounds > hard_round_limit:
+            self.completed = True
+            return ExpertAction(kind="final", opinion=self.fallback_opinion())
         round_messages = list(self.messages)
+        round_messages.append(self._retrieval_state_message())
         if force_final:
             round_messages.append({
                 "role": "user",
                 "content": FORCE_FINAL_REMINDER,
             })
-        elif self.rounds == self.loop_config.max_rounds - 1:
+        elif not pending_tools and self.rounds == self.loop_config.max_rounds - 1:
             round_messages.append({
                 "role": "user",
                 "content": PENULTIMATE_ROUND_REMINDER,
@@ -410,16 +518,31 @@ class ExpertAgentSession:
                 output=text,
                 latency_ms=latency_ms,
                 usage=extract_usage(resp),
-                meta={"weight": self.weight, "force_final": force_final},
+                meta={
+                    "weight": self.weight,
+                    "force_final": force_final,
+                    "retrieval_state": self.retrieval_state(),
+                },
             )
 
         obj, _error = _safe_json_loads(text)
         if not isinstance(obj, dict):
-            self.completed = True
-            return ExpertAction(kind="final", opinion=self.fallback_opinion())
+            if force_final:
+                self.completed = True
+                return ExpertAction(kind="final", opinion=self.fallback_opinion())
+            return self._protocol_feedback(
+                code="INVALID_ACTION_JSON",
+                message="只能返回严格 JSON 的 action=tool 或 action=final 信封。",
+            )
 
         action = str(obj.get("action") or "").strip().lower()
-        if action in ("final", "final_answer") or "conclusion" in obj or isinstance(obj.get("opinion"), dict):
+        if action == "final" and isinstance(obj.get("opinion"), dict):
+            if pending_tools:
+                self.messages.append({"role": "assistant", "content": text})
+                return self._protocol_feedback(
+                    code="REQUIRED_TOOL_PENDING",
+                    message=f"尚未完成必需检索：{pending_tools}。请先按顺序调用工具。",
+                )
             self.completed = True
             return ExpertAction(kind="final", opinion=self._parse_opinion(obj))
 
@@ -435,9 +558,15 @@ class ExpertAgentSession:
                 },
             )
 
-        if action not in ("tool", "call_tool"):
-            self.completed = True
-            return ExpertAction(kind="final", opinion=self._parse_opinion(obj))
+        if action != "tool":
+            self.messages.append({"role": "assistant", "content": text})
+            return self._protocol_feedback(
+                code="INVALID_ACTION_ENVELOPE",
+                message=(
+                    "最终意见必须使用 {\"action\":\"final\",\"opinion\":{...}}；"
+                    "禁止顶层 conclusion，也不接受 final_answer/call_tool 别名。"
+                ),
+            )
 
         tool_name = str(obj.get("tool_name") or "").strip()
         arguments = obj.get("arguments") if isinstance(obj.get("arguments"), dict) else {}
@@ -451,6 +580,12 @@ class ExpertAgentSession:
             }, ensure_ascii=False)))
             return ExpertAction(kind="continue")
 
+        if pending_tools and tool_name != pending_tools[0]:
+            return self._protocol_feedback(
+                code="REQUIRED_TOOL_ORDER",
+                message=f"当前必须先调用 {pending_tools[0]}，不能先调用 {tool_name}。",
+            )
+
         call_key = canonical_tool_call(tool_name, arguments)
         seen = self.call_counts.get(call_key, 0)
         if seen >= self.loop_config.max_repeated_calls:
@@ -462,12 +597,14 @@ class ExpertAgentSession:
 
         self.call_counts[call_key] = seen + 1
         self.tool_call_count += 1
+        self.attempted_tools.append(tool_name)
         self.plan_steps.append({
             "type": "tool",
             "tool_name": tool_name,
             "arguments": dict(arguments),
             "note": str(obj.get("reason") or ""),
             "round": self.rounds,
+            "required": tool_name in self.required_tools,
         })
         return ExpertAction(
             kind="tool",
@@ -481,6 +618,29 @@ class ExpertAgentSession:
     def apply_tool_result(self, result: ToolResult) -> None:
         self.messages.append(_tool_feedback_message(_tool_result_context(result)))
         self.tools_used.append(result.tool_name)
+        result_code = result.result.get("code") if isinstance(result.result, dict) else ""
+        if result_code == "EXPERT_TOOL_TIMEOUT":
+            self.tool_timeout_occurred = True
+        validation_failure = result_code in {"RAG_QUERY_MUST_BE_ENGLISH", "TOOL_NOT_ALLOWED"}
+        if not validation_failure:
+            if result.tool_name not in self.completed_tools:
+                self.completed_tools.append(result.tool_name)
+            if result.ok and result.tool_name not in self.successful_tools:
+                self.successful_tools.append(result.tool_name)
+
+        if (
+            result.tool_name == RAG_TOOL
+            and self.require_web_on_rag_failure
+            and rag_requires_web_fallback(result.result, ok=result.ok)
+            and WEB_SEARCH_TOOL not in self.required_tools
+        ):
+            if WEB_SEARCH_TOOL in self.available_tools:
+                self.required_tools.append(WEB_SEARCH_TOOL)
+                self.recommended_tools = [
+                    name for name in self.recommended_tools if name != WEB_SEARCH_TOOL
+                ]
+            elif WEB_SEARCH_TOOL not in self.unavailable_required_tools:
+                self.unavailable_required_tools.append(WEB_SEARCH_TOOL)
         record = {
             "step": len(self.tool_results),
             "round": self.rounds,
@@ -516,10 +676,16 @@ class ExpertAgentSession:
             )
 
     def fallback_opinion(self) -> Dict[str, Any]:
+        pending = self.pending_required_tools
+        retrieval_risk = (
+            f"必需检索尚未完成：{', '.join(pending)}；不得把该意见作为已核验结论"
+            if pending
+            else "专家会话达到轮数、工具次数或超时限制，结论可能不完整。但具备一定参考价值"
+        )
         return {
             "conclusion": self.last_output[:800] or "（专家在循环预算内未生成有效结论）",
             "evidence": [],
-            "risks": ["专家会话达到轮数、工具次数或超时限制，结论可能不完整。但具备一定参考价值"],
+            "risks": [retrieval_risk],
             "confidence": 0.0,
         }
 
@@ -532,17 +698,37 @@ class ExpertAgentSession:
             count, score = _rag_metrics(result["result"])
             hits_count += count
             best_score = max(best_score, score)
+        risks = list(opinion.get("risks") or [])
+        failed_required = [
+            name for name in self.completed_tools
+            if name in self.required_tools and name not in self.successful_tools
+        ]
+        if self.retrieval_required and self.unavailable_required_tools:
+            risks.append(
+                "外部证据核验工具不可用：" + ", ".join(self.unavailable_required_tools)
+            )
+        if failed_required:
+            risks.append("外部证据核验调用失败：" + ", ".join(failed_required))
         return {
             "expert": self.expert.key,
             "name_zh": self.expert.name_zh,
             "weight": round(self.weight, 4),
             "conclusion": str(opinion.get("conclusion") or ""),
             "evidence": list(opinion.get("evidence") or []),
-            "risks": list(opinion.get("risks") or []),
+            "risks": risks,
             "confidence": round(float(opinion.get("confidence") or 0.0), 3),
             "rag_hits": hits_count,
             "rag_best_score": round(best_score, 4),
             "tools_used": sorted(set(self.tools_used)),
+            "retrieval_required": self.retrieval_required,
+            "retrieval_reason": self.retrieval_reason,
+            "required_tools": list(self.required_tools),
+            "recommended_tools": list(self.recommended_tools),
+            "attempted_tools": list(self.attempted_tools),
+            "completed_tools": list(self.completed_tools),
+            "successful_tools": list(self.successful_tools),
+            "pending_tools": self.pending_required_tools,
+            "unavailable_required_tools": list(self.unavailable_required_tools),
             "plan_steps": list(self.plan_steps),
             "tool_results": list(self.tool_results),
             "rounds": self.rounds,
@@ -584,7 +770,7 @@ async def run_expert_sessions(
                 if result is not None:
                     session.apply_tool_result(result)
 
-            if session.rounds >= session.loop_config.max_rounds or session.remaining_timeout_s <= 0:
+            if session.remaining_timeout_s <= 0:
                 opinion = session.fallback_opinion()
 
         return session.build_result(opinion or session.fallback_opinion())
@@ -608,6 +794,9 @@ async def run_expert(
     conversation_history: Optional[List[Dict[str, str]]] = None,
     expert_context_history: Optional[List[Dict[str, Any]]] = None,
     user_memory: Optional[str] = None,
+    intent_id: str = "",
+    emergency: bool = False,
+    retrieval_requirement: Optional[RetrievalRequirement] = None,
     recorder: Optional[MoETrace] = None,
     request_allowed_tools: Optional[Sequence[str]] = None,
     loop_config: Optional[ExpertLoopConfig] = None,
@@ -628,6 +817,9 @@ async def run_expert(
         conversation_history=conversation_history,
         expert_context_history=expert_context_history,
         user_memory=user_memory,
+        intent_id=intent_id,
+        emergency=emergency,
+        retrieval_requirement=retrieval_requirement,
         recorder=recorder,
         loop_config=loop_config,
     )

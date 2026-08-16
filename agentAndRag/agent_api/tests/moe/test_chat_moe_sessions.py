@@ -8,7 +8,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from app.persistence.session_manager import SessionManager
-from app.prompts.moe_router import build_router_system_prompt
+from app.prompts.moe_task_policy import TASK_POLICY_SYSTEM_PROMPT
 from app.routers import routes_chat_ui
 from app.memory.identity import chat_moe_memory_user_id, normalize_test_username
 from app.schemas.chat_moe import ChatMoeCompletionRequest, ChatMoeSessionRequest
@@ -94,11 +94,10 @@ def test_chat_moe_username_identity_is_stable_and_not_plaintext():
     assert "test" not in first
 
 
-def test_router_treats_pet_identity_memory_as_health_followup_context():
-    prompt = build_router_system_prompt("clinical")
-    assert "宠物身份与照护档案" in prompt
-    assert "不属于闲聊" in prompt
-    assert "clinical" in prompt
+def test_unified_policy_treats_pet_identity_memory_as_health_followup_context():
+    assert "宠物身份" in TASK_POLICY_SYSTEM_PROMPT
+    assert "复诊追问" in TASK_POLICY_SYSTEM_PROMPT
+    assert "宠物健康上下文" in TASK_POLICY_SYSTEM_PROMPT
 
 
 def test_chat_moe_shares_memory_across_sessions_but_not_users(tmp_path, monkeypatch):

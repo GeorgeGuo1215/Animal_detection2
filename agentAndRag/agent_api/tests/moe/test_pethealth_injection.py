@@ -9,11 +9,12 @@ from copy import deepcopy
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from app.prompts.moe import build_pethealth_vitals_injection
+from app.prompts.moe_task_policy import build_task_policy_messages
 from app.schemas.openai_schemas import ChatCompletionRequest
 from app.services.moe.critic import CriticResult
 from app.services.moe.experts import EXPERTS, ExpertAgentSession
 from app.services.moe.orchestrator import MoEOrchestrator, OrchestratorConfig
-from app.services.moe.router import RouterDecision, _build_router_messages
+from app.services.moe.router import RouterDecision
 from app.tools.tool_registry import ToolRegistry, ToolSpec
 
 
@@ -103,14 +104,16 @@ def test_pethealth_injection_requires_abnormal_flag_and_animal_id():
     assert "禁止编造心率数值" in text
 
 
-def test_router_messages_include_pethealth_injection():
+def test_task_policy_messages_include_pethealth_injection():
     injection = build_pethealth_vitals_injection(
         animal_id="pet_1",
         heart_rate_abnormal=True,
         vitals_window_hours=24,
         stage="router",
     )
-    messages = _build_router_messages("它今天怎么样？", "pet_owner", prompt_injection=injection)
+    messages = build_task_policy_messages(
+        query="它今天怎么样？", user_role="pet_owner", prompt_injection=injection
+    )
     system_prompt = messages[0]["content"]
 
     assert "PetHealth_Server 外部体征提示注入" in system_prompt
@@ -190,9 +193,6 @@ def test_moe_pethealth_check_uses_pethealth_animal_id_as_pet_id():
     )
 
     class _PetHealthOnlyOrchestrator(MoEOrchestrator):
-        async def _route(self, query, recorder):
-            return _decision()
-
         async def _run_experts(self, query, decision, recorder):
             return []
 

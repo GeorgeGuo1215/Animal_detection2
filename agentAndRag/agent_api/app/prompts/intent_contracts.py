@@ -30,6 +30,18 @@ INTENT_VARIANTS: Tuple[str, ...] = (
 )
 
 
+INTENT_CLASSIFICATION_BOUNDARIES: Tuple[str, ...] = (
+    "以用户本轮最希望获得的主要交付物确定 primary_intent，不能按医学关键词或风险词机械分类。",
+    "D1 的核心是把已有材料忠实转换为 SOAP、Problem List、摘要或 EMR；即使材料包含诊断、检查或用药内容，只要主要要求仍是整理病历，就选 D1。",
+    "D2 负责病例鉴别、病因排序和风险判断；当主要交付物变成检查路径、既有报告解释或治疗方案时，分别选择 D3、D4、D5。",
+    "D3 规划尚未完成的检查；D4 解读已经给出的具体报告、数值、单位或影像描述。泛问某指标或概念的含义属于 D6。",
+    "D5 面向具体患者制定治疗、用药与监测决策；D6 是脱离具体患者决策的知识卡、指南、剂量、概念、参考范围、预后或物种差异查询。",
+    "D7 必须依赖既往病例状态、复诊变化或新旧计划比较；只有单轮材料、没有历史状态变化的完整病例仍按 D1-D5 分类。",
+    "D8 仅在主要交付物是急症安全处置、危险操作或越权请求拦截、证据/工具失败降级时选择；普通病例存在高风险鉴别不自动改为 D8。",
+    "复合问题允许 secondary_intents；primary_intent 只保留一个并决定最终回答结构，次意图用于补充专家与证据任务，不能覆盖主意图输出契约。",
+)
+
+
 @dataclass(frozen=True)
 class IntentPromptSpec:
     intent_id: str
@@ -180,9 +192,19 @@ def get_intent_spec(intent_id: str) -> IntentPromptSpec:
     return INTENT_SPECS.get(str(intent_id or "").upper(), INTENT_SPECS[DEFAULT_INTENT_ID])
 
 
-def classifier_catalog() -> str:
+def classification_boundary_catalog() -> str:
     return "\n".join(
-        f"- {spec.intent_id} {spec.name}：{spec.description}"
+        f"{index}. {rule}"
+        for index, rule in enumerate(INTENT_CLASSIFICATION_BOUNDARIES, start=1)
+    )
+
+
+def task_policy_catalog() -> str:
+    return "\n".join(
+        (
+            f"- {spec.intent_id} {spec.name}：{spec.description}\n"
+            f"  路由指导：{spec.routing_guidance}"
+        )
         for spec in INTENT_SPECS.values()
     )
 
@@ -225,17 +247,6 @@ def intent_required_sections(intent_id: str, variant: str = "default") -> Tuple[
     return spec.required_sections
 
 
-def build_intent_router_injection(intent_id: str, confidence: float, variant: str = "default") -> str:
-    spec = get_intent_spec(intent_id)
-    return (
-        "**医生端能力意图（分类器结果）**\n"
-        f"- 主意图：`{spec.intent_id}` {spec.name}；置信度：{float(confidence):.2f}；输出变体："
-        f"`{normalize_variant(spec.intent_id, variant)}`。\n"
-        f"- 路由要求：{spec.routing_guidance}\n"
-        "- 该分类只约束专家选择与任务侧重点；你仍需独立判断相关性和 emergency，并只输出规定 JSON。"
-    )
-
-
 def build_intent_aggregator_injection(intent_id: str, confidence: float, variant: str = "default") -> str:
     spec = get_intent_spec(intent_id)
     contract = intent_output_contract(spec.intent_id, variant)
@@ -253,6 +264,9 @@ def build_intent_aggregator_injection(intent_id: str, confidence: float, variant
         f"- 输出契约：{contract}\n"
         "- 分节必须使用加粗文字，不使用 `#` 标题；字段顺序保持不变。用户明确要求的更窄范围优先，"
         "但不得省略安全门槛项。只填写有事实依据的内容，缺失信息按契约标记，不得编造。"
+        "\n- Critic 的 `revise/block` 表示必须删去或改写不安全内容，不表示跳过本意图输出契约。"
+        "即使需要拒绝某个具体操作、剂量或结论，也必须保留上述分节，在对应字段解释安全边界并给出"
+        "仍可提供的安全信息。Critic 的 issues/constraints 不是临床事实来源。"
         f"{safety_note}"
     )
 

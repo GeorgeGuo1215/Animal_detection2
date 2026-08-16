@@ -39,7 +39,7 @@ pip install -r RAG/requirements.txt
 # LLM API (必填)
 set OPENAI_BASE_URL=https://api.deepseek.com
 set OPENAI_API_KEY=sk-your-key
-set OPENAI_MODEL=deepseek-chat
+set OPENAI_MODEL=deepseek-v4-flash
 
 # 认证 (可选, 默认从 agent_api/keys.txt 读取)
 # set AGENT_DISABLE_AUTH=1
@@ -261,7 +261,7 @@ MCP 工具以 `mcp.{server}.{tool}` 命名注册到 ToolRegistry，Agent 自动�
 |------|--------|------|
 | `OPENAI_BASE_URL` | `https://api.deepseek.com` | LLM API 地址 |
 | `OPENAI_API_KEY` | - | LLM API Key |
-| `OPENAI_MODEL` | `deepseek-chat` | 模型名 |
+| `OPENAI_MODEL` | `deepseek-v4-flash` | 模型名 |
 | `AGENT_DISABLE_AUTH` | `0` | 设为 `1` 跳过 API Key 校验 |
 | `AGENT_ENABLE_MCP` | `1` | 设为 `0` 禁用 MCP 工具 |
 | `AGENT_ENABLE_CORS` | `0` | 设为 `1` 开启 CORS |

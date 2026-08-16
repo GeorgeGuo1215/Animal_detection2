@@ -18,6 +18,11 @@ Environment=AGENT_PORT=8002
 Environment=MEMORY_HOST=127.0.0.1
 Environment=MEMORY_PORT=8300
 Environment=AGENT_MEMORY_REQUIRED=1
+Environment=AGENT_WARMUP_RAG=1
+Environment=AGENT_WARMUP_BM25=1
+Environment=AGENT_WARMUP_RERANKER=1
+Environment=AGENT_WARMUP_CATEGORIES=1
+Environment=MEMORY_WARMUP_EMBEDDING=1
 Environment=AGENT_PLATFORM_WORKER=1
 ExecStart=/home/sam/anaconda3/envs/AnimalDetection/bin/python -m agent_api.scripts.run_agent_stack --agent-host 0.0.0.0 --agent-port 8002 --memory-host 127.0.0.1 --memory-port 8300
 Restart=always

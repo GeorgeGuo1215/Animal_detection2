@@ -17,22 +17,10 @@ from app.services.moe.orchestrator import (
     OrchestratorConfig,
     normalize_finish_reason,
 )
-from app.services.moe.router import RouterDecision
 from app.tools.tool_registry import ToolRegistry
 
 
-def _decision():
-    return RouterDecision(
-        scores={"clinical": 1.0}, raw_weights={"clinical": 1.0},
-        weights={"clinical": 1.0}, selected_experts=["clinical"],
-        emergency=False, out_of_scope=False, reason="test",
-    )
-
-
 class _StageOrchestrator(MoEOrchestrator):
-    async def _route(self, query, recorder):
-        return _decision()
-
     async def _run_experts(self, query, decision, recorder):
         return [{
             "expert": "clinical", "name_zh": "clinical", "weight": 1.0,

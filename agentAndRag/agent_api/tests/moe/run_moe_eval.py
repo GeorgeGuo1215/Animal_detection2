@@ -128,7 +128,7 @@ async def _amain(args: argparse.Namespace) -> Path:
         "temperature": args.temperature,
         "max_tokens": args.max_tokens,
         "allowed_tools": "none" if args.no_tools else "service defaults",
-        "llm_model": os.getenv("OPENAI_MODEL") or os.getenv("DEEPSEEK_MODEL") or "deepseek-chat",
+        "llm_model": os.getenv("OPENAI_MODEL") or os.getenv("DEEPSEEK_MODEL") or "deepseek-v4-flash",
         "llm_base_url": os.getenv("OPENAI_BASE_URL") or "https://api.deepseek.com",
     }
     trace = MoETrace(question=args.question, user_role=args.user_role, config=config_snapshot)

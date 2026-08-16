@@ -3,9 +3,9 @@ from __future__ import annotations
 
 from .critic import CriticResult, review
 from .experts import EXPERTS, ExpertAgentSession, ExpertConfig, ExpertLoopConfig, run_expert
-from .intent_classifier import IntentDecision, classify_intent
 from .orchestrator import MoEOrchestrator, OrchestratorConfig, final_answer_max_tokens
-from .router import RouterConfig, RouterDecision, route
+from .router import RouterConfig, RouterDecision, resolve_router_decision
+from .task_policy import IntentDecision, TaskPolicyDecision, decide_task_policy
 from .trace import MoETrace
 
 __all__ = [
@@ -17,12 +17,13 @@ __all__ = [
     "ExpertLoopConfig",
     "run_expert",
     "IntentDecision",
-    "classify_intent",
+    "TaskPolicyDecision",
+    "decide_task_policy",
     "MoEOrchestrator",
     "OrchestratorConfig",
     "final_answer_max_tokens",
     "RouterConfig",
     "RouterDecision",
-    "route",
+    "resolve_router_decision",
     "MoETrace",
 ]

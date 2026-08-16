@@ -1,6 +1,6 @@
 # PetMind 兽医 Agent 生产平台维护文档
 
-> 最后全量核对：2026-08-14（Asia/Shanghai）
+> 最后全量核对：2026-08-16（Asia/Shanghai）
 >
 > 仓库：`C:\Users\ROG\Animal_detection2`
 >
@@ -105,6 +105,7 @@ Animal_detection2/
     |   |-- app/routers/routes_openai.py  # /v1 兼容路由
     |   |-- app/prompts/                  # 全量生产提示词
     |   |-- app/services/moe/             # Router/Experts/Broker/Critic/Aggregator
+    |   |   `-- retrieval_policy.py       # 专家检索要求、RAG→Web 回退判定
     |   |-- app/memory/                   # Agent 到 Memory 的共享集成层
     |   |-- app/tools/                    # RAG/MCP/SQL ToolRegistry
     |   |-- scripts/run_agent_stack.py    # 三进程 Supervisor
@@ -234,7 +235,7 @@ sequenceDiagram
 | `solve.py` | 共享终答、引用、证据层级与结构 |
 | `plan_and_solve.py` | Planner |
 | `multi_turn.py` | 多轮决策和工具循环 |
-| `moe_router.py` | 相关性门禁、专家选择和急症倾向 |
+| `moe_task_policy.py` | 单次统一决策：D1～D8、分类边界、证据需求和专家选择 |
 | `moe_experts.py` | 专家 persona、工具循环和结论格式 |
 | `moe_critic.py` | 事实、安全、禁忌和边界审核 |
 | `moe_aggregator.py` | 综合终答与引用规则 |
@@ -245,7 +246,32 @@ sequenceDiagram
 
 医生侧 D1～D8：病历结构化、鉴别诊断、检查规划、报告解读、治疗与用药安全、专业知识快答、多轮病例管理、急症/能力边界。
 
-MoE 顺序：意图识别 → Router → 可选 PetHealth vitals 核实 → 并行专家 → Tool Broker → Critic → Aggregator。每位专家拥有独立上下文和工具循环。Router 与 Aggregator 接受请求级意图和 PetHealth 注入；专家仍按稳定 persona 和正常工具权限工作。
+MoE 顺序：统一任务策略 → 确定性门控 → 可选 PetHealth vitals 核实 → 并行专家 → Tool Broker → Critic → Aggregator。统一任务策略一次输出 D1～D8、路由、证据需求和工具所有者，不再经过关键词规则或第二次 Router LLM。每位专家仍拥有独立上下文和工具循环，PetHealth 心率提示会注入策略层、相关专家和 Aggregator，但外部标志本身不能作为诊断事实。
+
+专家动作协议只有两种，最终意见必须使用统一信封 `{"action":"final","opinion":{...}}`；不再接受顶层 `conclusion`、`final_answer` 或 `call_tool` 别名。每个专家会话维护：
+
+- `required_tools`：本轮必须完成的检索；
+- `recommended_tools`：建议调用但不阻止专家提交的工具；
+- `attempted_tools`：专家实际发起的工具动作；
+- `completed_tools/successful_tools`：已经完成/成功的工具；
+- `pending_tools`：返回 final 前仍必须执行的工具；
+- `unavailable_required_tools`：请求显式禁用或部署未注册的必需工具。
+
+程序只对真正的必需工具执行 final 门禁：`pending_tools` 非空时，专家直接返回 final 会被拒绝并收到 `REQUIRED_TOOL_PENDING`；只有 `recommended_tools` 时允许专家基于已有上下文直接提交。常规诊断、鉴别、急症和报告解读属于“建议检索”，不再按 D2～D8 意图一刀切强制工具调用。
+
+必须调用工具的情况：
+
+| 场景 | 必需工具 | 原因 |
+| --- | --- | --- |
+| 用户明确要求检索本地知识库/本地资料 | `rag.search` | 任务交付物本身包含本地检索结果 |
+| 用户明确要求联网检索，或核对最新/现行指南、共识、版本 | `mcp.web_search.web_search` | 模型记忆不能替代请求时点的外部证据 |
+| 药学专家回答具体剂量、相互作用、禁忌、物种毒性、不良反应、停换药或洗脱 | `rag.search`；本地证据不足时追加 Web Search | 高风险用药结论必须有可追溯药理依据 |
+| `pethealth_server.heart_rate_abnormal=true` 且有 animal ID | Orchestrator 调用 `mcp.vitals_alert.check_vitals` | 外部 flag 只是核验触发器，真实体征必须来自数据库工具 |
+| 用户要求某只动物的实时体征/数据库事实，且对应工具在请求中可用 | 对应 vitals/SQL/MCP 工具 | 不能用通用医学知识编造个体实时事实 |
+
+显式 `tools=[]`/`tool_choice=none` 始终保持禁用语义；系统会记录必需工具不可用并降低结论可信度，不会偷偷绕过调用方限制。专家未调用 RAG/Web 时，程序还会移除其 evidence 中虚构的“本地知识库、网络、指南、文献或来源”声明。
+
+`OUTPUT_CONTRACT` 只定义所有专家共用的 `action=final/opinion` JSON 信封、证据真实性、风险和置信度。禁忌联用、洗脱、替代药物等用药规则属于 `PHARMACY_SAFETY_CONTRACT`，只注入药学专家，不再污染临床、营养和行为专家提示词。
 
 必须维持的事实边界：
 
@@ -323,6 +349,10 @@ Memory Service 默认端口 8300，使用独立 PostgreSQL + pgvector，向量�
 
 `rag.reindex` 和 `debug.echo` 是管理/调试工具，不向公开 MoE 专家默认开放。MCP 由 `agent_api/mcp_servers.json` 注册；`command: null` 表示使用当前 Python。`AGENT_ENABLE_MCP=0` 禁用 MCP。
 
+MoE 在专家执行前只进行一次统一任务策略调用，同时输出 D1-D8 主/次意图、专家相关性、急症判断和结构化证据任务。D1-D8 分类边界与每类路由指导均由同一提示词注册表提供；检索决策不依赖问题关键词。LLM 输出 `local_knowledge/current_web/medication_reference/patient_vitals` 能力及 `required/recommended`，程序再映射成实际工具、分配唯一负责专家并执行安全门禁。`required` 未完成时禁止专家直接 final，`recommended` 不锁定工具调用。旧的独立意图分类器、独立 LLM Router 与双轨迁移模式已移除，生产链路固定使用统一任务策略架构。
+
+MoE 专家工具循环默认最多 6 轮、4 次工具调用、120 秒；预留 12 秒生成最终结构化意见。可通过 `MOE_EXPERT_MAX_ROUNDS`、`MOE_EXPERT_MAX_TOOL_CALLS`、`MOE_EXPERT_TIMEOUT_SEC` 和 `MOE_EXPERT_FINALIZE_RESERVE_SEC` 调整。必需本地证据的 Web 兜底门槛由 `RAG_WEB_FALLBACK_MIN_HITS=2`、`RAG_RELEVANCE_THRESHOLD=0.55` 控制。
+
 RAG 当前使用 multilingual-e5-small、384 维向量、Dense/BM25/邻居扩展/可选 CrossEncoder 重排和分类索引。索引位于 `RAG/data/`，体积大且禁止提交。分类配置复制到 data 中，但活动路径迁移服务器后必须重新核对。MoE 专家提交 `rag.search.query` 时使用英语，用户输入和最终回答仍可为中文。
 
 2026-08-14 真实联调：同一测试用户跨会话召回宠物“小栗”和标记 `MEM-c9032c50`；随后真实调用 `mcp.web_search.web_search` 检索 WSAVA 疫苗指南。QA 审计记录 `tools_used=["mcp.web_search.web_search"]`、`used_web_search=1`，终答包含 VIN/PMC 来源链接，并成功写回记忆。
@@ -388,6 +418,8 @@ bash start_agent.sh cuda
 
 统一 Supervisor 顺序：启动 Memory → 等待 `/health` → 启动 Agent → 若配置 Redis URL 则启动 Platform Worker。任一子进程退出时回收其余进程。`AGENT_PLATFORM_WORKER=0` 可在拆分部署时关闭内置 Worker。
 
+统一启动脚本、`.env.example` 和 systemd 模板默认采用热启动：`AGENT_WARMUP_RAG=1`、`AGENT_WARMUP_BM25=1`、`AGENT_WARMUP_RERANKER=1`、`AGENT_WARMUP_CATEGORIES=1`、`MEMORY_WARMUP_EMBEDDING=1`。服务先提供 `/health`，RAG/分类索引完成加载后 `/ready` 才返回可接流量；资源不足时可显式设为 0，但会把首次请求延迟转移给用户。
+
 ### 14.4 前端
 
 ```powershell
@@ -438,7 +470,7 @@ systemd 模板当前指向 `/home/sam/Animal_detection2/agentAndRag`、Python �
 
 ## 17. 验证基线
 
-2026-08-14 本轮实测：
+2026-08-16 最新实测：
 
 | 范围 | 结果 |
 | --- | --- |
@@ -450,6 +482,11 @@ systemd 模板当前指向 `/home/sam/Animal_detection2/agentAndRag`、Python �
 | Agent `/ready` | ready=true，memory=ok，MCP enabled |
 | Memory `/health` | database=ok，2 workers |
 | 真实 DeepSeek + Memory + WebSearch | passed |
+| MoE + MCP 全量单元回归 | 202 passed |
+| 真实 DeepSeek 强制检索 | 临床/药学专家各完成 RAG 8 命中 + Web Search 5 条，pending=0 |
+| 真实 DeepSeek 非锁定路径 | 普通“猫尿血怎么办”1 轮 final，无工具调用，PASS |
+
+真实专家报告保存在本地忽略目录 `agent_api/tests/moe/reports/retrieval_policy_balanced_live_20260816_audit/`。明确要求“检索本地兽医知识库并联网核对仍适用指南”的病例中，临床与药学专家均记录 `required_tools=[rag.search, mcp.web_search.web_search]` 和相同顺序的 `attempted_tools`；RAG 分别命中 8 条（最高分 0.9173/0.9138），两次 Web Search 均成功返回 5 条，最终 `pending_tools=[]`。流式 QA 审计同步修复：记录 `id=96` 已落盘 `tools_used=[mcp.web_search.web_search, rag.search]`、`rag_hit_count=16`、`rag_best_score=0.9173`、`used_web_search=1`。普通咨询只记录 `recommended_tools`，专家 1 轮直接 final，证明建议检索不会锁死工具链。强制检索病例的旧风格验收仍因终答标题与测试脚本预设词不完全一致而标记 FAIL，但工具链与结构化专家协议本身已通过，需与内容风格测试分开理解。
 
 Memory 测试必须使用独立测试数据库。若测试与运行中的 Worker 共用 `petmemory_dev`，Worker 会抢先消费测试队列，造成“测试线程只处理 4/5”的假失败。
 

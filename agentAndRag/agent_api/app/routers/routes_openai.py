@@ -1121,7 +1121,8 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
                             collected_content.append(delta["content"])
                         elif status == "tool_complete":
                             tool_name = detail.get("tool_name", "")
-                            collected_tools.append(tool_name)
+                            if tool_name and tool_name not in collected_tools:
+                                collected_tools.append(tool_name)
                             if "rag" in tool_name:
                                 collected_rag_hits += detail.get("hits_count", 0)
                                 bs = detail.get("best_score", 0.0) or 0.0
@@ -1129,6 +1130,19 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
                                     collected_rag_best_score = bs
                             if "web_search" in tool_name:
                                 collected_web_search = True
+                        elif status == "expert_complete":
+                            # Expert-loop tools are summarized on expert_complete
+                            # rather than emitted as top-level tool_complete events.
+                            # Include them in the same QA audit counters.
+                            for tool_name in detail.get("tools_used") or []:
+                                if tool_name and tool_name not in collected_tools:
+                                    collected_tools.append(tool_name)
+                                if "web_search" in tool_name:
+                                    collected_web_search = True
+                            collected_rag_hits += int(detail.get("hits_count") or 0)
+                            bs = float(detail.get("best_score") or 0.0)
+                            if bs > collected_rag_best_score:
+                                collected_rag_best_score = bs
                         elif status == "timing_summary":
                             collected_timing = detail.get("timing", [])
                     except Exception:

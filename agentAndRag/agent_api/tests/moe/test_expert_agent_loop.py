@@ -19,8 +19,9 @@ from app.services.moe.experts import (
     run_expert_sessions,
 )
 from app.services.moe.orchestrator import MoEOrchestrator, OrchestratorConfig
-from app.services.moe.router import RouterDecision
+from app.services.moe.retrieval_policy import RetrievalRequirement
 from app.services.moe.tool_broker import ToolBroker
+from app.services.moe.trace import MoETrace
 from app.tools.tool_registry import ToolRegistry, ToolSpec
 
 
@@ -40,12 +41,42 @@ def _final(conclusion="ok"):
     }
 
 
+def _retrieval(*, required=(), recommended=(), web_fallback=False, reason="semantic policy"):
+    return RetrievalRequirement(
+        required_tools=tuple(required),
+        recommended_tools=tuple(recommended),
+        require_web_on_rag_failure=web_fallback,
+        reason=reason,
+    )
+
+
 def _registry(call_log):
     registry = ToolRegistry()
 
     async def rag(**kwargs):
         call_log.append(("rag.search", dict(kwargs)))
         return {"hits": [{"score": 0.9, "source_path": "book", "text": "evidence"}]}
+
+    async def web(**kwargs):
+        call_log.append(("mcp.web_search.web_search", dict(kwargs)))
+        return {"results": [{"title": "guideline"}]}
+
+    registry.register(ToolSpec("rag.search", "rag", {"type": "object"}, rag))
+    registry.register(ToolSpec("mcp.web_search.web_search", "web", {"type": "object"}, web))
+    return registry
+
+
+def _sufficient_rag_registry(call_log):
+    registry = ToolRegistry()
+
+    async def rag(**kwargs):
+        call_log.append(("rag.search", dict(kwargs)))
+        return {
+            "hits": [
+                {"score": 0.91, "source_path": "book-a", "text": "evidence a"},
+                {"score": 0.82, "source_path": "book-b", "text": "evidence b"},
+            ]
+        }
 
     async def web(**kwargs):
         call_log.append(("mcp.web_search.web_search", dict(kwargs)))
@@ -120,12 +151,10 @@ def test_clinical_prompt_prefers_rag_and_web_for_important_cases():
     )
 
     system_prompt = session.messages[0]["content"]
-    assert "重要场景双检索" in system_prompt
-    assert "诊断或鉴别诊断、急症风险判断" in system_prompt
-    assert "rag.search 与 mcp.web_search.web_search" in system_prompt
-    assert "应先后调用二者并综合证据" in system_prompt
-    assert "每轮仍只调用一个工具" in system_prompt
-    assert "首次检索结果不足或未命中，不是跳过另一类检索的理由" in system_prompt
+    assert "检索策略" in system_prompt
+    assert "统一任务策略已经基于整段语义分配证据任务" in system_prompt
+    assert "仅是质量建议，不是固定工具链" in system_prompt
+    assert "required_tools/pending_tools 非空" in system_prompt
 
 
 def test_pharmacy_prompt_prefers_rag_and_web_for_high_risk_medication_questions():
@@ -138,11 +167,11 @@ def test_pharmacy_prompt_prefers_rag_and_web_for_high_risk_medication_questions(
     )
 
     system_prompt = session.messages[0]["content"]
-    assert "重要场景双检索" in system_prompt
-    assert "具体药物剂量、联合用药与相互作用、禁忌、物种毒性" in system_prompt
-    assert "rag.search 与 mcp.web_search.web_search" in system_prompt
-    assert "应先后调用二者并综合" in system_prompt
-    assert "近期药品资料、指南或外部安全证据" in system_prompt
+    assert "检索策略" in system_prompt
+    assert "统一任务策略根据完整语义判断具体用药结论所需证据" in system_prompt
+    assert "不得仅因出现某个药学词语而机械调用工具" in system_prompt
+    assert "本地证据不足" in system_prompt
+    assert "pending_tools 非空" in system_prompt
 
 
 def test_dual_retrieval_policy_is_scoped_to_clinical_and_pharmacy_experts():
@@ -154,11 +183,23 @@ def test_dual_retrieval_policy_is_scoped_to_clinical_and_pharmacy_experts():
             registry=_registry([]),
             llm=SequenceLLM([_final()]),
         )
-        assert "重要场景双检索" not in session.messages[0]["content"]
+        assert "重要场景检索" not in session.messages[0]["content"]
 
 
-def test_all_experts_forbid_mitigation_as_permission_for_contraindicated_combination():
-    for expert in EXPERTS.values():
+def test_expert_prompt_has_only_the_canonical_final_envelope():
+    session = ExpertAgentSession(
+        expert=EXPERTS["clinical"], query="普通护理咨询", weight=1.0,
+        registry=ToolRegistry(), llm=SequenceLLM([_final()]), request_allowed_tools=[],
+    )
+
+    system_prompt = session.messages[0]["content"]
+    assert '{"action":"final","opinion":' in system_prompt
+    assert "禁止输出顶层 conclusion" in system_prompt
+    assert '\n  "conclusion":' not in system_prompt
+
+
+def test_pharmacy_safety_contract_is_scoped_to_pharmacy_expert():
+    for key, expert in EXPERTS.items():
         session = ExpertAgentSession(
             expert=expert,
             query="Can these contraindicated drugs be used together?",
@@ -169,6 +210,9 @@ def test_all_experts_forbid_mitigation_as_permission_for_contraindicated_combina
         )
 
         system_prompt = session.messages[0]["content"]
+        if key != "pharmacy":
+            assert "禁忌联用硬约束" not in system_prompt
+            continue
         assert "禁忌联用硬约束" in system_prompt
         assert "替代方案必须移除或替换至少一种冲突药物或药物类别" in system_prompt
         assert "都不能解除禁忌" in system_prompt
@@ -199,6 +243,10 @@ def test_expert_can_use_rag_then_web_then_return_final_opinion():
         weight=1.0,
         registry=_registry(calls),
         llm=llm,
+        intent_id="D2",
+        retrieval_requirement=_retrieval(
+            recommended=("rag.search", "mcp.web_search.web_search"),
+        ),
     ))
 
     assert [name for name, _ in calls] == ["rag.search", "mcp.web_search.web_search"]
@@ -207,6 +255,223 @@ def test_expert_can_use_rag_then_web_then_return_final_opinion():
     assert sum("TOOL_RESULT" in message["content"] for message in llm.messages[2]) == 2
     assert all(message["role"] != "tool" for messages in llm.messages for message in messages)
     assert result["conclusion"] == "combined evidence"
+    assert result["required_tools"] == []
+    assert result["recommended_tools"] == ["rag.search", "mcp.web_search.web_search"]
+    assert result["attempted_tools"] == ["rag.search", "mcp.web_search.web_search"]
+    assert result["completed_tools"] == ["rag.search", "mcp.web_search.web_search"]
+    assert result["successful_tools"] == ["rag.search", "mcp.web_search.web_search"]
+    assert result["pending_tools"] == []
+
+
+def test_required_retrieval_rejects_early_final_and_records_rag_and_web():
+    calls = []
+    trace = MoETrace(question="dog emergency", user_role="veterinarian")
+    llm = SequenceLLM([
+        _final("too early"),
+        {"action": "tool", "tool_name": "rag.search", "arguments": {"query": "canine emergency"}},
+        {
+            "action": "tool",
+            "tool_name": "mcp.web_search.web_search",
+            "arguments": {"query": "current canine emergency guideline"},
+        },
+        _final("verified"),
+    ])
+    result = asyncio.run(run_expert(
+        expert=EXPERTS["clinical"],
+        query="请检索本地知识库并联网检索犬急症鉴别诊断与处置优先级",
+        intent_id="D2",
+        weight=1.0,
+        registry=_registry(calls),
+        llm=llm,
+        recorder=trace,
+        retrieval_requirement=_retrieval(
+            required=("rag.search", "mcp.web_search.web_search"),
+        ),
+    ))
+
+    assert any(
+        "REQUIRED_TOOL_PENDING" in message.get("content", "")
+        for message in llm.messages[1]
+    )
+    assert [name for name, _ in calls] == ["rag.search", "mcp.web_search.web_search"]
+    assert result["conclusion"] == "verified"
+    assert result["required_tools"] == ["rag.search", "mcp.web_search.web_search"]
+    assert result["attempted_tools"] == ["rag.search", "mcp.web_search.web_search"]
+    assert result["pending_tools"] == []
+    assert len(trace.rag_calls) == 1
+    assert [record.tool_name for record in trace.tool_calls] == ["mcp.web_search.web_search"]
+
+
+def test_pharmacy_safety_claim_requires_rag_and_weak_evidence_promotes_web_fallback():
+    calls = []
+    llm = SequenceLLM([
+        _final("unsafe early final"),
+        {"action": "tool", "tool_name": "rag.search", "arguments": {"query": "canine drug interaction contraindication"}},
+        {
+            "action": "tool",
+            "tool_name": "mcp.web_search.web_search",
+            "arguments": {"query": "canine drug interaction contraindication"},
+        },
+        _final("pharmacy evidence verified"),
+    ])
+    result = asyncio.run(run_expert(
+        expert=EXPERTS["pharmacy"],
+        query="请核对犬用两种药的具体剂量、相互作用和洗脱方案",
+        weight=1.0,
+        registry=_registry(calls),
+        llm=llm,
+        retrieval_requirement=_retrieval(
+            required=("rag.search",), web_fallback=True,
+        ),
+    ))
+
+    assert any(
+        "REQUIRED_TOOL_PENDING" in message.get("content", "")
+        for message in llm.messages[1]
+    )
+    assert [name for name, _ in calls] == ["rag.search", "mcp.web_search.web_search"]
+    assert result["required_tools"] == ["rag.search", "mcp.web_search.web_search"]
+    assert result["pending_tools"] == []
+    assert result["conclusion"] == "pharmacy evidence verified"
+
+
+def test_explicit_local_lookup_requires_only_rag_when_evidence_is_sufficient():
+    calls = []
+    llm = SequenceLLM([
+        {"action": "tool", "tool_name": "rag.search", "arguments": {"query": "canine anemia"}},
+        _final("rag verified"),
+    ])
+    result = asyncio.run(run_expert(
+        expert=EXPERTS["clinical"],
+        query="请检索本地知识库核对犬贫血鉴别诊断",
+        intent_id="D2",
+        weight=1.0,
+        registry=_sufficient_rag_registry(calls),
+        llm=llm,
+        retrieval_requirement=_retrieval(required=("rag.search",)),
+    ))
+
+    assert [name for name, _ in calls] == ["rag.search"]
+    assert result["required_tools"] == ["rag.search"]
+    assert result["attempted_tools"] == ["rag.search"]
+    assert result["pending_tools"] == []
+
+
+def test_current_guideline_question_requires_web_but_does_not_force_rag():
+    calls = []
+    llm = SequenceLLM([
+        {
+            "action": "tool",
+            "tool_name": "mcp.web_search.web_search",
+            "arguments": {"query": "current canine vaccination guideline"},
+        },
+        _final("current sources verified"),
+    ])
+    result = asyncio.run(run_expert(
+        expert=EXPERTS["clinical"],
+        query="请核对最新犬疫苗指南并给出来源",
+        intent_id="D6",
+        weight=1.0,
+        registry=_sufficient_rag_registry(calls),
+        llm=llm,
+        retrieval_requirement=_retrieval(
+            required=("mcp.web_search.web_search",), recommended=("rag.search",),
+        ),
+    ))
+
+    assert [name for name, _ in calls] == ["mcp.web_search.web_search"]
+    assert result["required_tools"] == ["mcp.web_search.web_search"]
+    assert result["recommended_tools"] == ["rag.search"]
+    assert result["pending_tools"] == []
+
+
+def test_routine_high_impact_case_can_final_without_recommended_retrieval():
+    llm = SequenceLLM([_final("clinical judgment from supplied facts")])
+    result = asyncio.run(run_expert(
+        expert=EXPERTS["clinical"],
+        query="犬急症鉴别诊断与处置优先级",
+        intent_id="D2",
+        weight=1.0,
+        registry=_registry([]),
+        llm=llm,
+        retrieval_requirement=_retrieval(
+            recommended=("rag.search", "mcp.web_search.web_search"),
+        ),
+    ))
+
+    assert result["conclusion"] == "clinical judgment from supplied facts"
+    assert result["retrieval_required"] is False
+    assert result["required_tools"] == []
+    assert result["recommended_tools"] == ["rag.search", "mcp.web_search.web_search"]
+    assert result["attempted_tools"] == []
+
+
+def test_unretrieved_external_source_claims_are_removed_from_optional_final():
+    llm = SequenceLLM([{
+        "action": "final",
+        "opinion": {
+            "conclusion": "provisional clinical opinion",
+            "evidence": [
+                "用户报告今日频繁蹲盆",
+                "本地知识库：该症状提示尿道梗阻（来源：泌尿章节）",
+                "网络证据：2026 指南建议立即导尿",
+            ],
+            "risks": [],
+            "confidence": 0.8,
+        },
+    }])
+    result = asyncio.run(run_expert(
+        expert=EXPERTS["clinical"],
+        query="犬急症鉴别诊断",
+        intent_id="D2",
+        weight=1.0,
+        registry=_registry([]),
+        llm=llm,
+    ))
+
+    assert result["evidence"] == ["用户报告今日频繁蹲盆"]
+    assert "已移除未由本轮工具结果支撑的外部来源声明" in result["risks"]
+
+
+def test_legacy_top_level_conclusion_is_rejected_until_canonical_final_envelope():
+    llm = SequenceLLM([
+        {"conclusion": "legacy final", "evidence": [], "risks": [], "confidence": 0.8},
+        _final("canonical final"),
+    ])
+    result = asyncio.run(run_expert(
+        expert=EXPERTS["clinical"], query="普通护理沟通", weight=1.0,
+        registry=_registry([]), llm=llm,
+    ))
+
+    assert any(
+        "INVALID_ACTION_ENVELOPE" in message.get("content", "")
+        for message in llm.messages[1]
+    )
+    assert result["conclusion"] == "canonical final"
+
+
+def test_high_impact_request_with_explicitly_disabled_tools_does_not_bypass_disable_semantics():
+    llm = SequenceLLM([_final("no tools available")])
+    result = asyncio.run(run_expert(
+        expert=EXPERTS["clinical"],
+        query="请检索本地知识库并联网检索犬急症鉴别诊断",
+        intent_id="D2",
+        weight=1.0,
+        registry=_registry([]),
+        llm=llm,
+        request_allowed_tools=[],
+        retrieval_requirement=_retrieval(
+            required=("rag.search", "mcp.web_search.web_search"),
+        ),
+    ))
+
+    assert result["retrieval_required"] is True
+    assert result["required_tools"] == []
+    assert result["attempted_tools"] == []
+    assert result["unavailable_required_tools"] == [
+        "rag.search", "mcp.web_search.web_search",
+    ]
+    assert result["conclusion"] == "no tools available"
 
 
 def test_expert_retries_non_english_rag_query_in_english():
@@ -296,7 +561,10 @@ def test_identical_rag_requests_are_executed_once_and_returned_to_each_expert():
 
     assert [name for name, _ in calls] == ["rag.search"]
     assert all(result["tool_results"][0]["shared"] for result in results)
-    assert all("TOOL_RESULT" in llm.messages[key][1][-1]["content"] for key in ("alpha", "beta"))
+    assert all(
+        any("TOOL_RESULT" in message["content"] for message in llm.messages[key][1])
+        for key in ("alpha", "beta")
+    )
 
 
 def test_tool_result_is_not_added_to_another_experts_context():
@@ -446,6 +714,10 @@ def test_default_expert_round_limit_is_six():
     assert ExpertLoopConfig().max_rounds == 6
 
 
+def test_default_expert_timeout_allows_rag_web_and_finalization():
+    assert ExpertLoopConfig().timeout_s == 120.0
+
+
 class PenultimatePromptLLM:
     model = "fake"
 
@@ -590,13 +862,6 @@ def test_critic_runs_only_after_all_experts_complete():
     events = []
 
     class TrackingOrchestrator(MoEOrchestrator):
-        async def _route(self, query, recorder):
-            return RouterDecision(
-                scores={"clinical": 1.0}, raw_weights={"clinical": 1.0},
-                weights={"clinical": 1.0}, selected_experts=["clinical"],
-                emergency=False, out_of_scope=False, reason="test",
-            )
-
         async def _run_experts(self, query, decision, recorder):
             events.append("experts_started")
             await asyncio.sleep(0.01)

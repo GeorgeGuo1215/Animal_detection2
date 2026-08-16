@@ -105,6 +105,16 @@ def _experts_section(trace: MoETrace) -> str:
         tu = o.get("tools_used") or []
         if tu:
             out.append(f"- 调用工具: {', '.join(tu)}")
+        required = o.get("required_tools") or []
+        recommended = o.get("recommended_tools") or []
+        attempted = o.get("attempted_tools") or []
+        pending = o.get("pending_tools") or []
+        if o.get("retrieval_required"):
+            out.append(f"- 必需检索: {', '.join(required) or '工具不可用'}")
+            out.append(f"- 已尝试检索: {', '.join(attempted) or '无'}")
+            out.append(f"- 尚待检索: {', '.join(pending) or '无'}")
+        if recommended:
+            out.append(f"- 建议检索（不阻止提交）: {', '.join(recommended)}")
         out.append(f"- **结论**: {o.get('conclusion')}")
         ev = o.get("evidence") or []
         if ev:

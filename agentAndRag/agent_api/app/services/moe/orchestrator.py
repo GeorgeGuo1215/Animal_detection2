@@ -1,4 +1,4 @@
-"""MoE 编排器：串联 Router → 并行加权专家 → Critic → 流式融合生成。
+"""MoE 编排器：统一任务策略 → 确定性门控 → 并行专家 → Critic → 融合生成。
 
 两个入口共享同一组内部阶段函数：
 - `stream(...)`  生产路径：异步产出事件 dict（content/status/detail/finish），仅最终答案 token 流式；
@@ -23,16 +23,17 @@ from ...prompts.moe import (
 )
 from ...prompts.moe_aggregator import build_aggregator_prompt
 from ...prompts.intent_contracts import (
+    INTENT_SPECS,
     build_intent_aggregator_injection,
-    build_intent_router_injection,
 )
 from ...tools.tool_registry import ToolRegistry, get_registry
 from ..plan_and_solve import build_solve_prompt
 from .critic import CriticResult, review
 from .experts import EXPERTS, ExpertAgentSession, ExpertLoopConfig, run_expert_sessions
 from .history_context import fact_state_history_text
-from .intent_classifier import IntentDecision, classify_intent
-from .router import RouterConfig, RouterDecision, route
+from .router import RouterConfig, RouterDecision
+from .retrieval_policy import EvidenceTask, resolve_retrieval_requirement
+from .task_policy import IntentDecision, TaskPolicyDecision, decide_task_policy
 from .tool_broker import ToolBroker
 from .trace import MoETrace, extract_usage
 from ...sql_search import fetch_animal_profile, species_label
@@ -209,6 +210,8 @@ class MoEOrchestrator:
         self._active_expert_context_history: Optional[List[Dict[str, Any]]] = None
         self._active_user_memory: str = ""
         self._active_intent_decision: Optional[IntentDecision] = None
+        self._active_task_policy: Optional[TaskPolicyDecision] = None
+        self._active_evidence_tasks: Tuple[EvidenceTask, ...] = ()
 
     # ------------------------------------------------------------------ stages
     def _resolve_species(self) -> Tuple[Optional[str], Optional[str], Optional[str]]:
@@ -258,12 +261,6 @@ class MoEOrchestrator:
         decision = self._active_intent_decision
         if decision is None:
             return ""
-        if stage == "router":
-            return build_intent_router_injection(
-                decision.intent_id,
-                decision.confidence,
-                decision.output_variant,
-            )
         if stage == "aggregator":
             return build_intent_aggregator_injection(
                 decision.intent_id,
@@ -276,20 +273,58 @@ class MoEOrchestrator:
         prompt = inject_prompt("", self._intent_prompt_injection(stage))
         return inject_prompt(prompt, self._pethealth_prompt_injection(stage))
 
-    async def _classify_intent(
+    async def _decide_task_policy(
         self,
         query: str,
         recorder: Optional[MoETrace],
-        conversation_history: Optional[List[Dict[str, str]]] = None,
-    ) -> Optional[IntentDecision]:
-        if self.config.user_role != "veterinarian":
-            return None
-        return await classify_intent(
+    ) -> TaskPolicyDecision:
+        _, species_zh, breed = self._resolve_species()
+        return await decide_task_policy(
             query=query,
+            user_role=self.config.user_role,
             llm=self.llm,
-            conversation_history=conversation_history,
+            config=self.config.router,
+            species_zh=species_zh,
+            breed=breed,
+            conversation_history=self._active_conversation_history,
+            expert_context_history=self._active_expert_context_history,
+            user_memory=self._active_user_memory,
+            prompt_injection=self._request_prompt_injection("router"),
             recorder=recorder,
         )
+
+    async def _prepare_request_policy(
+        self,
+        query: str,
+        recorder: Optional[MoETrace],
+    ) -> RouterDecision:
+        """Run the single production task policy and return its execution route."""
+        self._active_task_policy = await self._decide_task_policy(query, recorder)
+        if self.config.user_role == "veterinarian":
+            self._active_intent_decision = self._active_task_policy.as_intent_decision()
+        decision = self._active_task_policy.as_router_decision(self.config.router)
+        self._active_evidence_tasks = self._active_task_policy.assigned_tasks(
+            decision.selected_experts
+        )
+
+        if recorder is not None:
+            recorder.intent_decision = (
+                self._active_intent_decision.as_dict()
+                if self._active_intent_decision is not None else None
+            )
+            recorder.router_decision = {
+                "scores": decision.scores,
+                "raw_weights": decision.raw_weights,
+                "weights": decision.weights,
+                "selected_experts": decision.selected_experts,
+                "emergency": decision.emergency,
+                "emergency_rule_hit": False,
+                "out_of_scope": decision.out_of_scope,
+                "reason": decision.reason,
+                "source": "unified_task_policy",
+                "config": vars(self.config.router),
+            }
+        return decision
 
     @staticmethod
     def _unwrap_mcp_json_content(result: Any) -> Any:
@@ -368,32 +403,6 @@ class MoEOrchestrator:
             )
         return record
 
-    async def _route(
-        self,
-        query: str,
-        recorder: Optional[MoETrace],
-        conversation_history: Optional[List[Dict[str, str]]] = None,
-        expert_context_history: Optional[List[Dict[str, Any]]] = None,
-        user_memory: Optional[str] = None,
-    ) -> RouterDecision:
-        conversation_history = conversation_history or self._active_conversation_history
-        expert_context_history = expert_context_history or self._active_expert_context_history
-        memory_text = self._active_user_memory if user_memory is None else user_memory
-        _, species_zh, breed = self._resolve_species()
-        return await route(
-            query=query,
-            user_role=self.config.user_role,
-            llm=self.llm,
-            config=self.config.router,
-            species_zh=species_zh,
-            breed=breed,
-            conversation_history=conversation_history,
-            expert_context_history=expert_context_history,
-            prompt_injection=self._request_prompt_injection("router"),
-            user_memory=memory_text,
-            recorder=recorder,
-        )
-
     async def _run_experts(
         self,
         query: str,
@@ -407,12 +416,21 @@ class MoEOrchestrator:
         expert_context_history = expert_context_history or self._active_expert_context_history
         memory_text = self._active_user_memory if user_memory is None else user_memory
         species_en, species_zh, breed = self._resolve_species()
+        intent_id = (
+            self._active_intent_decision.intent_id
+            if self._active_intent_decision is not None
+            else ""
+        )
         sessions: List[ExpertAgentSession] = []
         for key in decision.selected_experts:
             expert = EXPERTS.get(key)
             if expert is None:
                 continue
             weight = decision.weights.get(key, 0.0)
+            retrieval_requirement = resolve_retrieval_requirement(
+                expert_key=key,
+                evidence_tasks=self._active_evidence_tasks,
+            )
             sessions.append(
                 ExpertAgentSession(
                     expert=expert,
@@ -430,6 +448,9 @@ class MoEOrchestrator:
                     conversation_history=conversation_history,
                     expert_context_history=expert_context_history,
                     user_memory=memory_text,
+                    intent_id=intent_id,
+                    emergency=decision.emergency,
+                    retrieval_requirement=retrieval_requirement,
                     recorder=recorder,
                     loop_config=self.config.expert_loop,
                 )
@@ -519,6 +540,11 @@ class MoEOrchestrator:
         }
         if self._active_intent_decision is not None:
             payload["intent"] = self._active_intent_decision.as_dict()
+        if self._active_task_policy is not None:
+            payload["task_policy"] = self._active_task_policy.as_dict()
+            payload["assigned_evidence_tasks"] = [
+                task.as_dict() for task in self._active_evidence_tasks
+            ]
         pethealth_ctx = self._pethealth_server_context()
         if pethealth_ctx:
             payload["pethealth_server"] = pethealth_ctx
@@ -541,12 +567,13 @@ class MoEOrchestrator:
     def _requires_terminal_block(self, critic: CriticResult) -> bool:
         """Return whether Critic should bypass synthesis entirely.
 
-        For a D8 request, ``block`` means block the unsafe requested action,
-        while the safe boundary response still has to be synthesized using the
-        D8 contract.  All other paths retain the original hard-stop semantics.
+        A recognized doctor intent always keeps its output contract.  A Critic
+        block constrains unsafe content inside that contract instead of
+        replacing D1-D8 with a generic fallback.  Unknown/non-doctor requests
+        retain the legacy terminal safety fallback.
         """
         intent_id = getattr(self._active_intent_decision, "intent_id", "")
-        return critic.blocked and intent_id != "D8"
+        return critic.blocked and intent_id not in INTENT_SPECS
 
     # ------------------------------------------------------------------ stream
     async def stream(
@@ -559,25 +586,33 @@ class MoEOrchestrator:
         user_memory: str = "",
         recorder: Optional[MoETrace] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        # 1) 医生端意图分类（D1-D8）
+        # 1) 统一任务策略（意图、专家路由、证据任务）
         self.last_run_context = {}
         self._active_conversation_history = conversation_history
         self._active_expert_context_history = expert_context_history
         self._active_user_memory = str(user_memory or "").strip()
         self._active_intent_decision = None
-        if self.config.user_role == "veterinarian":
-            yield _event(status="intent_classifying", detail={"message": "正在识别医生端任务意图…"})
-            self._active_intent_decision = await self._classify_intent(
-                query, recorder, conversation_history
-            )
-            if self._active_intent_decision is not None:
-                intent_payload = self._active_intent_decision.as_dict()
-                self.last_run_context["intent"] = intent_payload
-                yield _event(status="intent_classified", detail=intent_payload)
+        self._active_task_policy = None
+        self._active_evidence_tasks = ()
+        yield _event(
+            status="intent_classifying",
+            detail={"message": "正在统一识别任务、专家与证据需求…"},
+        )
+        decision = await self._prepare_request_policy(query, recorder)
+        if self._active_intent_decision is not None:
+            intent_payload = self._active_intent_decision.as_dict()
+            self.last_run_context["intent"] = intent_payload
+            yield _event(status="intent_classified", detail=intent_payload)
+        if self._active_task_policy is not None:
+            policy_payload = self._active_task_policy.as_dict()
+            policy_payload["assigned_evidence_tasks"] = [
+                task.as_dict() for task in self._active_evidence_tasks
+            ]
+            policy_payload["architecture"] = "unified_task_policy"
+            self.last_run_context["task_policy"] = policy_payload
 
-        # 2) 路由
-        yield _event(status="routing", detail={"message": "正在分诊与路由…"})
-        decision = await self._route(query, recorder)
+        # 2) 确定性路由门控
+        yield _event(status="routing", detail={"message": "统一策略已完成，正在应用专家门控…"})
         self.last_run_context["router"] = {
             "weights": decision.weights,
             "selected_experts": decision.selected_experts,
@@ -650,6 +685,9 @@ class MoEOrchestrator:
                     "hits_count": o["rag_hits"],
                     "best_score": o["rag_best_score"],
                     "tools_used": o.get("tools_used", []),
+                    "required_tools": o.get("required_tools", []),
+                    "attempted_tools": o.get("attempted_tools", []),
+                    "pending_tools": o.get("pending_tools", []),
                     "opinion": o,
                 },
             )
@@ -745,12 +783,19 @@ class MoEOrchestrator:
         self._active_conversation_history = conversation_history
         self._active_expert_context_history = expert_context_history
         self._active_user_memory = str(user_memory or "").strip()
-        self._active_intent_decision = await self._classify_intent(
-            query, recorder, conversation_history
-        )
+        self._active_intent_decision = None
+        self._active_task_policy = None
+        self._active_evidence_tasks = ()
+        decision = await self._prepare_request_policy(query, recorder)
         if self._active_intent_decision is not None:
             self.last_run_context["intent"] = self._active_intent_decision.as_dict()
-        decision = await self._route(query, recorder)
+        if self._active_task_policy is not None:
+            policy_payload = self._active_task_policy.as_dict()
+            policy_payload["assigned_evidence_tasks"] = [
+                task.as_dict() for task in self._active_evidence_tasks
+            ]
+            policy_payload["architecture"] = "unified_task_policy"
+            self.last_run_context["task_policy"] = policy_payload
         self.last_run_context["router"] = {
             "weights": decision.weights,
             "selected_experts": decision.selected_experts,

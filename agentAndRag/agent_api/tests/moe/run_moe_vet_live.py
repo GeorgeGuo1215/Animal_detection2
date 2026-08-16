@@ -334,15 +334,18 @@ def _render_report(
     lines.append("## 专家循环摘要")
     lines.append("")
     if opinions:
-        lines.append("| expert | rounds | confidence | tools | final conclusion 摘要 |")
-        lines.append("| --- | ---: | ---: | --- | --- |")
+        lines.append("| expert | rounds | confidence | required | recommended | attempted | pending | final conclusion 摘要 |")
+        lines.append("| --- | ---: | ---: | --- | --- | --- | --- | --- |")
         for opinion in opinions:
             conclusion = " ".join(str(opinion.get("conclusion") or "").split())[:180]
             conclusion = conclusion.replace("|", "\\|")
-            tools = ", ".join(opinion.get("tools_used") or [])
+            required = ", ".join(opinion.get("required_tools") or [])
+            recommended = ", ".join(opinion.get("recommended_tools") or [])
+            attempted = ", ".join(opinion.get("attempted_tools") or [])
+            pending = ", ".join(opinion.get("pending_tools") or [])
             lines.append(
                 f"| {opinion.get('name_zh') or opinion.get('expert')} | {opinion.get('rounds') or 0} | "
-                f"{opinion.get('confidence') or 0} | {tools} | {conclusion} |"
+                f"{opinion.get('confidence') or 0} | {required} | {recommended} | {attempted} | {pending} | {conclusion} |"
             )
     else:
         lines.append("_未记录到专家完成事件。_")

@@ -39,6 +39,9 @@ export MEMORY_WARMUP_EMBEDDING="${MEMORY_WARMUP_EMBEDDING:-1}"
 export AGENT_WARMUP_DEVICE="${AGENT_WARMUP_DEVICE:-cuda}"
 export AGENT_ENABLE_CORS="${AGENT_ENABLE_CORS:-1}"
 export AGENT_WARMUP_RAG="${AGENT_WARMUP_RAG:-1}"
+export AGENT_WARMUP_BM25="${AGENT_WARMUP_BM25:-1}"
+export AGENT_WARMUP_RERANKER="${AGENT_WARMUP_RERANKER:-1}"
+export AGENT_WARMUP_CATEGORIES="${AGENT_WARMUP_CATEGORIES:-1}"
 
 if [[ "${1:-}" == "cpu" || "${1:-}" == "cuda" ]]; then
     export AGENT_WARMUP_DEVICE="$1"
@@ -61,6 +64,7 @@ echo "[Config] Python=$PYTHON_BIN"
 echo "[Config] Agent=http://$AGENT_HOST:$AGENT_PORT"
 echo "[Config] Memory=http://$MEMORY_HOST:$MEMORY_PORT"
 echo "[Config] WarmupDevice=$AGENT_WARMUP_DEVICE"
+echo "[Config] Warmup=RAG:$AGENT_WARMUP_RAG BM25:$AGENT_WARMUP_BM25 Reranker:$AGENT_WARMUP_RERANKER Categories:$AGENT_WARMUP_CATEGORIES MemoryEmbedding:$MEMORY_WARMUP_EMBEDDING"
 echo "[Config] MemoryRequired=$AGENT_MEMORY_REQUIRED"
 if [[ -n "${AGENT_PLATFORM_REDIS_URL:-}" ]]; then
     echo "[Config] PlatformWorker=${AGENT_PLATFORM_WORKER:-1}"

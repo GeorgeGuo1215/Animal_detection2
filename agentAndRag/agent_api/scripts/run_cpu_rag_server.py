@@ -17,8 +17,8 @@ def configure_cpu_runtime() -> None:
     # 进程会在 warmup 结束后触发 ACCESS_VIOLATION（Windows exit code 3221225477）。
     os.environ["AGENT_WARMUP_DEVICE"] = "cpu"
     os.environ.setdefault("AGENT_WARMUP_BM25", "1")
-    os.environ.setdefault("AGENT_WARMUP_RERANKER", "0")
-    os.environ.setdefault("AGENT_WARMUP_CATEGORIES", "0")
+    os.environ.setdefault("AGENT_WARMUP_RERANKER", "1")
+    os.environ.setdefault("AGENT_WARMUP_CATEGORIES", "1")
     os.environ.setdefault("OMP_NUM_THREADS", "1")
     os.environ.setdefault("MKL_NUM_THREADS", "1")
     os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")

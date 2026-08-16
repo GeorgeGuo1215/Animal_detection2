@@ -7,7 +7,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from app.services.moe.critic import review
-from app.services.moe.router import route
+from app.services.moe.task_policy import parse_task_policy
 
 
 class MalformedLLM:
@@ -46,24 +46,9 @@ def test_missing_critic_verdict_requires_revision():
     assert result.constraints
 
 
-def test_malformed_router_output_falls_back_to_clinical_expert():
-    decision = asyncio.run(route(
-        query="cat urinary obstruction",
-        user_role="veterinarian",
-        llm=MalformedLLM("not json"),
-    ))
-
+def test_malformed_unified_policy_falls_back_to_clinical_expert():
+    policy = parse_task_policy("not json")
+    decision = policy.as_router_decision()
     assert decision.out_of_scope is False
     assert decision.selected_experts == ["clinical"]
     assert decision.scores["clinical"] == 6.0
-
-
-def test_router_json_without_valid_scores_falls_back_to_clinical_expert():
-    decision = asyncio.run(route(
-        query="cat urinary obstruction",
-        user_role="veterinarian",
-        llm=MalformedLLM('{"scores": {}, "emergency": false}'),
-    ))
-
-    assert decision.out_of_scope is False
-    assert decision.selected_experts == ["clinical"]

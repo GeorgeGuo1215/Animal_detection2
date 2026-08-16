@@ -73,6 +73,7 @@ class MoETrace:
     tool_calls: List[ToolCallRecord] = field(default_factory=list)
 
     intent_decision: Optional[Dict[str, Any]] = None
+    task_policy_decision: Optional[Dict[str, Any]] = None
     router_decision: Optional[Dict[str, Any]] = None
     expert_opinions: List[Dict[str, Any]] = field(default_factory=list)
     critic_result: Optional[Dict[str, Any]] = None

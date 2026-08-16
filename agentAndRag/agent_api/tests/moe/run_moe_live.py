@@ -173,7 +173,7 @@ def _config_snapshot(cfg: OrchestratorConfig) -> dict:
         "temperature": cfg.temperature,
         "max_tokens": cfg.max_tokens,
         "device": cfg.device or "cpu",
-        "llm_model": os.getenv("OPENAI_MODEL") or os.getenv("DEEPSEEK_MODEL") or "deepseek-chat",
+        "llm_model": os.getenv("OPENAI_MODEL") or os.getenv("DEEPSEEK_MODEL") or "deepseek-v4-flash",
         "llm_base_url": os.getenv("OPENAI_BASE_URL") or "https://api.deepseek.com",
     }
 

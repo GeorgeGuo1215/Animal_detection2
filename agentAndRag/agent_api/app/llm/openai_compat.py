@@ -33,7 +33,7 @@ def resolve_settings(
     return OpenAISettings(
         base_url=(base_url or env_value("OPENAI_BASE_URL") or "https://api.deepseek.com").rstrip("/"),
         api_key=api_key or env_value("OPENAI_API_KEY") or env_value("DEEPSEEK_API_KEY") or "",
-        model=model or env_value("OPENAI_MODEL") or env_value("DEEPSEEK_MODEL") or "deepseek-chat",
+        model=model or env_value("OPENAI_MODEL") or env_value("DEEPSEEK_MODEL") or "deepseek-v4-flash",
     )
 
 

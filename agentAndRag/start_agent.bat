@@ -35,6 +35,10 @@ if not defined AGENT_MEMORY_REQUIRED set "AGENT_MEMORY_REQUIRED=1"
 if not defined AGENT_MEMORY_START_TIMEOUT set "AGENT_MEMORY_START_TIMEOUT=180"
 if not defined MEMORY_WARMUP_EMBEDDING set "MEMORY_WARMUP_EMBEDDING=1"
 if not defined AGENT_WARMUP_DEVICE set "AGENT_WARMUP_DEVICE=cuda"
+if not defined AGENT_WARMUP_RAG set "AGENT_WARMUP_RAG=1"
+if not defined AGENT_WARMUP_BM25 set "AGENT_WARMUP_BM25=1"
+if not defined AGENT_WARMUP_RERANKER set "AGENT_WARMUP_RERANKER=1"
+if not defined AGENT_WARMUP_CATEGORIES set "AGENT_WARMUP_CATEGORIES=1"
 
 if /I "%~1"=="cpu" set "AGENT_WARMUP_DEVICE=cpu"
 if /I "%~1"=="cuda" set "AGENT_WARMUP_DEVICE=cuda"
@@ -58,6 +62,7 @@ echo [Config] Python=%AGENT_PYTHON%
 echo [Config] Agent=http://%AGENT_HOST%:%AGENT_PORT%
 echo [Config] Memory=http://%MEMORY_HOST%:%MEMORY_PORT%
 echo [Config] WarmupDevice=%AGENT_WARMUP_DEVICE%
+echo [Config] Warmup=RAG:%AGENT_WARMUP_RAG% BM25:%AGENT_WARMUP_BM25% Reranker:%AGENT_WARMUP_RERANKER% Categories:%AGENT_WARMUP_CATEGORIES% MemoryEmbedding:%MEMORY_WARMUP_EMBEDDING%
 echo [Config] MemoryRequired=%AGENT_MEMORY_REQUIRED%
 if defined AGENT_PLATFORM_REDIS_URL echo [Config] PlatformWorker=enabled
 echo [Config] Secrets loaded but not printed.

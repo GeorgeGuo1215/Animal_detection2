@@ -14,13 +14,14 @@ from app.services.plan_and_solve import (
     build_solve_prompt,
 )
 from app.services.moe.orchestrator import MoEOrchestrator, OrchestratorConfig
-from app.services.moe.intent_classifier import IntentDecision, parse_intent_decision
+from app.services.moe.task_policy import IntentDecision, parse_task_policy
+from app.prompts.moe_task_policy import TASK_POLICY_SYSTEM_PROMPT
 from app.prompts.intent_contracts import (
     INTENT_SPECS,
     build_intent_aggregator_injection,
     intent_required_sections,
 )
-from app.services.moe.router import RouterDecision, _build_router_messages
+from app.services.moe.router import RouterDecision
 from app.services.moe.critic import CriticResult, _CRITIC_SYS_OWNER
 from app.services.moe.experts import _AUDIENCE_OWNER
 
@@ -49,20 +50,22 @@ def test_teacher_rubric_has_exactly_eight_maintainable_intents():
     assert all(spec.output_contract and spec.routing_guidance for spec in INTENT_SPECS.values())
 
 
-def test_classifier_parser_selects_intent_without_regex_gate():
-    decision = parse_intent_decision(
-        '{"primary_intent":"D1","confidence":0.97,"output_variant":"soap","reason":"要求SOAP"}'
+def test_task_policy_parser_selects_intent_without_regex_gate():
+    decision = parse_task_policy(
+        '{"primary_intent":"D1","secondary_intents":[],"confidence":0.97,'
+        '"output_variant":"soap","scores":{"clinical":8},'
+        '"emergency":{"value":false},"evidence_tasks":[],"reason":"要求SOAP"}'
     )
-    assert decision.intent_id == "D1"
+    assert decision.primary_intent == "D1"
     assert decision.output_variant == "soap"
     assert decision.fallback is False
 
 
-def test_classifier_parser_falls_back_safely_for_invalid_label():
-    decision = parse_intent_decision(
+def test_task_policy_parser_falls_back_safely_for_invalid_label():
+    decision = parse_task_policy(
         '{"primary_intent":"case_regex","confidence":1,"output_variant":"default","reason":"bad"}'
     )
-    assert decision.intent_id == "D2"
+    assert decision.primary_intent == "D2"
     assert decision.fallback is True
 
 
@@ -111,13 +114,10 @@ def test_owner_expert_and_critic_prompts_enforce_clarification_boundary():
     assert "要求延后处置" in _CRITIC_SYS_OWNER
 
 
-def test_owner_router_does_not_equate_serious_differential_with_emergency():
-    sys = _build_router_messages(
-        "猫突然不吃饭要观察哪些风险？", "pet_owner"
-    )[0]["content"]
-    assert "急症判断只依据用户已经报告的当前表现" in sys
-    assert "本身都不足以判为急症" in sys
-    assert "emergency=false" in sys
+def test_unified_policy_does_not_equate_serious_differential_with_emergency():
+    assert "只依据用户已报告的当前表现或已核实的外部结果" in TASK_POLICY_SYSTEM_PROMPT
+    assert "鉴别诊断中提到严重疾病" in TASK_POLICY_SYSTEM_PROMPT
+    assert "不能单独令 emergency=true" in TASK_POLICY_SYSTEM_PROMPT
 
 
 def test_build_solve_prompt_exercise_no_forced_case_structure():

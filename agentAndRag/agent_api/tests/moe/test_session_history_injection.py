@@ -7,38 +7,42 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
+from app.prompts.moe_task_policy import TASK_POLICY_SYSTEM_PROMPT
 from app.services.moe.critic import CriticResult, review
 from app.services.moe.experts import EXPERTS, ExpertAgentSession
 from app.services.moe.orchestrator import MoEOrchestrator, OrchestratorConfig
-from app.services.moe.router import RouterConfig, RouterDecision, _build_router_messages, route
+from app.services.moe.router import RouterDecision
+from app.services.moe.task_policy import decide_task_policy
 from app.tools.tool_registry import ToolRegistry
+
+
+def _policy_response() -> dict:
+    return {
+        "primary_intent": "D7",
+        "secondary_intents": [],
+        "confidence": 0.9,
+        "output_variant": "default",
+        "scores": {"clinical": 8, "pharmacy": 0, "nutrition": 0, "behavior": 0},
+        "emergency": {"value": False, "confidence": 0.9, "evidence": []},
+        "evidence_tasks": [],
+        "missing_information": [],
+        "reason": "history-aware follow-up",
+    }
 
 
 class _CaptureLLM:
     model = "capture"
 
-    def __init__(self):
+    def __init__(self, payload=None):
         self.messages = []
+        self.payload = payload
 
     async def chat(self, messages=None, **kwargs):
         self.messages.append(messages or [])
-        return {"choices": [{"message": {"content": json.dumps({
+        content = self.payload or {
             "verdict": "pass", "issues": [], "constraints": [], "reason": "ok",
-        }, ensure_ascii=False)}}]}
-
-
-class _RouterLLM:
-    model = "router-test"
-
-    def __init__(self, scores):
-        self.scores = scores
-
-    async def chat(self, messages=None, **kwargs):
-        return {"choices": [{"message": {"content": json.dumps({
-            "scores": self.scores,
-            "emergency": False,
-            "reason": "模型低相关性判定",
-        }, ensure_ascii=False)}}]}
+        }
+        return {"choices": [{"message": {"content": json.dumps(content, ensure_ascii=False)}}]}
 
 
 def _history():
@@ -77,15 +81,19 @@ def _assert_history(content):
     assert "RAW_RESULT_MUST_NOT_BE_REINJECTED" not in content
 
 
-def test_fact_state_history_reaches_router_expert_critic_and_aggregator():
+def test_fact_state_history_reaches_policy_expert_critic_and_aggregator():
     history = _history()
     expert_history = _expert_history()
 
-    router_messages = _build_router_messages(
-        "当前问题", "pet_owner", conversation_history=history,
+    policy_llm = _CaptureLLM(_policy_response())
+    asyncio.run(decide_task_policy(
+        query="当前问题",
+        user_role="pet_owner",
+        llm=policy_llm,
+        conversation_history=history,
         expert_context_history=expert_history,
-    )
-    _assert_history(router_messages[-1]["content"])
+    ))
+    _assert_history(policy_llm.messages[0][-1]["content"])
 
     expert = ExpertAgentSession(
         expert=EXPERTS["clinical"], query="当前问题", weight=1.0,
@@ -101,8 +109,8 @@ def test_fact_state_history_reaches_router_expert_critic_and_aggregator():
     ))
     _assert_history(critic_llm.messages[0][-1]["content"])
 
-    orch = MoEOrchestrator(config=OrchestratorConfig(user_role="pet_owner"))
-    synthesis = orch._build_synthesis_messages(
+    orchestrator = MoEOrchestrator(config=OrchestratorConfig(user_role="pet_owner"))
+    synthesis = orchestrator._build_synthesis_messages(
         query="当前问题",
         opinions=[],
         critic=CriticResult(verdict="pass"),
@@ -117,118 +125,37 @@ def test_fact_state_history_reaches_router_expert_critic_and_aggregator():
     _assert_history(synthesis[-1]["content"])
 
 
-def test_cross_session_memory_reaches_router_expert_critic_without_local_history():
+def test_cross_session_memory_reaches_policy_expert_and_critic():
     memory = "【近期对话】\n- 用户: 我的狗叫球鼠，昨晚呕吐\n  助手: SOAP摘要"
-
-    router_messages = _build_router_messages(
-        "你还记得球鼠吗",
-        "pet_owner",
+    policy_llm = _CaptureLLM(_policy_response())
+    asyncio.run(decide_task_policy(
+        query="你还记得球鼠吗",
+        user_role="pet_owner",
+        llm=policy_llm,
         user_memory=memory,
-    )
-    router_payload = router_messages[-1]["content"]
-    assert "cross_session_memory" in router_payload
-    assert "球鼠" in router_payload
-    assert "user_memory" in router_payload
+    ))
+    policy_payload = policy_llm.messages[0][-1]["content"]
+    assert "cross_session_memory" in policy_payload
+    assert "球鼠" in policy_payload
+    assert "user_memory" in policy_payload
 
     expert = ExpertAgentSession(
-        expert=EXPERTS["clinical"],
-        query="你还记得球鼠吗",
-        weight=1.0,
-        registry=ToolRegistry(),
-        llm=_CaptureLLM(),
-        user_memory=memory,
+        expert=EXPERTS["clinical"], query="你还记得球鼠吗", weight=1.0,
+        registry=ToolRegistry(), llm=_CaptureLLM(), user_memory=memory,
     )
     assert "球鼠" in expert.messages[-1]["content"]
     assert "cross_session_memory" in expert.messages[-1]["content"]
 
     critic_llm = _CaptureLLM()
     asyncio.run(review(
-        query="你还记得球鼠吗",
-        expert_opinions=[],
-        emergency=False,
-        llm=critic_llm,
-        user_memory=memory,
+        query="你还记得球鼠吗", expert_opinions=[], emergency=False,
+        llm=critic_llm, user_memory=memory,
     ))
     assert "球鼠" in critic_llm.messages[0][-1]["content"]
 
 
-def test_router_prompt_defines_history_aware_scope_without_upgrading_facts():
-    messages = _build_router_messages(
-        "这个为什么？", "pet_owner", conversation_history=_history(),
-        expert_context_history=_expert_history(),
-    )
-    system_prompt = messages[0]["content"]
-
-    assert "结合 history_context 与当前问题" in system_prompt
-    assert "证据来源与指南" in system_prompt
-    assert "不能永久放行" in system_prompt
-    assert "不代表诊断或其他事实已经被用户确认" in system_prompt
-
-
-def test_router_preserves_short_contextual_veterinary_followup():
-    async def scenario():
-        decision = await route(
-            query="这个为什么？",
-            user_role="pet_owner",
-            llm=_RouterLLM({key: 1 for key in EXPERTS}),
-            config=RouterConfig(min_relevance=3.0),
-            conversation_history=_history(),
-            expert_context_history=_expert_history(),
-        )
-
-        assert not decision.out_of_scope
-        assert "clinical" in decision.selected_experts
-        assert decision.scores["clinical"] == 6.0
-        assert "上下文追问" in decision.reason
-
-    asyncio.run(scenario())
-
-
-def test_router_rejects_explicit_unrelated_topic_shift_despite_history():
-    async def scenario():
-        decision = await route(
-            query="给我写一个Python排序算法，这个要详细说明",
-            user_role="pet_owner",
-            llm=_RouterLLM({key: 1 for key in EXPERTS}),
-            config=RouterConfig(min_relevance=3.0),
-            conversation_history=_history(),
-            expert_context_history=_expert_history(),
-        )
-
-        assert decision.out_of_scope
-        assert decision.selected_experts == []
-
-    asyncio.run(scenario())
-
-
-def test_router_does_not_use_history_without_contextual_followup_signal():
-    async def scenario():
-        decision = await route(
-            query="介绍一下今天的国际新闻",
-            user_role="pet_owner",
-            llm=_RouterLLM({key: 1 for key in EXPERTS}),
-            config=RouterConfig(min_relevance=3.0),
-            conversation_history=_history(),
-            expert_context_history=_expert_history(),
-        )
-
-        assert decision.out_of_scope
-
-    asyncio.run(scenario())
-
-
-def test_router_keeps_memory_recall_in_scope_with_cross_session_memory():
-    async def scenario():
-        decision = await route(
-            query="你还记得我的宠物叫什么吗",
-            user_role="pet_owner",
-            llm=_RouterLLM({key: 1 for key in EXPERTS}),
-            config=RouterConfig(min_relevance=3.0),
-            user_memory="【近期对话】\n- 用户: 我的狗叫球鼠",
-        )
-
-        assert not decision.out_of_scope
-        assert "clinical" in decision.selected_experts
-        assert "跨会话用户记忆" in decision.reason
-
-    asyncio.run(scenario())
+def test_unified_policy_prompt_defines_history_scope_without_upgrading_facts():
+    assert "必须结合历史事实与当前问题判断连续语义" in TASK_POLICY_SYSTEM_PROMPT
+    assert "复诊追问和对上一轮证据/指南的追问仍属于宠物健康上下文" in TASK_POLICY_SYSTEM_PROMPT
+    assert "不代表诊断或其他事实已经被用户确认" in TASK_POLICY_SYSTEM_PROMPT
+    assert "显式转向编程、股票、新闻等无关主题时不得因历史而放行" in TASK_POLICY_SYSTEM_PROMPT
