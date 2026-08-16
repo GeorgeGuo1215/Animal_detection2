@@ -57,6 +57,7 @@ class RetrievalRequirement:
     require_web_on_rag_failure: bool
     reason: str
     tool_queries: Tuple[Tuple[str, str], ...] = ()
+    tool_query_goals: Tuple[Tuple[str, str, str], ...] = ()
 
     @property
     def required(self) -> bool:
@@ -98,7 +99,11 @@ def resolve_retrieval_requirement(
     recommended = []
     reasons = []
     web_fallback = False
-    tool_queries: Dict[str, str] = {}
+    # Keep one query per evidence task.  Different tasks may map to the same
+    # tool and must not overwrite each other; exact duplicate calls are
+    # deduplicated later by ToolBroker using tool name + canonical arguments.
+    tool_queries = []
+    tool_query_goals = []
     for task in evidence_tasks:
         if task.owner != expert_key:
             continue
@@ -110,8 +115,10 @@ def resolve_retrieval_requirement(
             target.append(tool_name)
         if task.reason and task.reason not in reasons:
             reasons.append(task.reason)
-        if task.query and tool_name not in tool_queries:
-            tool_queries[tool_name] = task.query
+        query_pair = (tool_name, task.query)
+        if task.query and query_pair not in tool_queries:
+            tool_queries.append(query_pair)
+            tool_query_goals.append((tool_name, task.query, task.reason))
         if task.web_fallback_on_weak_local and tool_name == RAG_TOOL:
             web_fallback = True
 
@@ -121,7 +128,8 @@ def resolve_retrieval_requirement(
         recommended_tools=tuple(recommended),
         require_web_on_rag_failure=web_fallback,
         reason="；".join(reasons) or "统一任务策略未分配外部证据任务，由专家自主判断",
-        tool_queries=tuple(tool_queries.items()),
+        tool_queries=tuple(tool_queries),
+        tool_query_goals=tuple(tool_query_goals),
     )
 
 
@@ -137,9 +145,9 @@ def rag_requires_web_fallback(result: Dict[str, Any], *, ok: bool) -> bool:
     except (TypeError, ValueError):
         min_hits = 2
     try:
-        threshold = float(os.getenv("RAG_RELEVANCE_THRESHOLD", "0.55") or 0.55)
+        threshold = float(os.getenv("RAG_RELEVANCE_THRESHOLD", "0.90") or 0.90)
     except (TypeError, ValueError):
-        threshold = 0.55
+        threshold = 0.90
     best_score = max(
         (float(hit.get("score", 0.0)) for hit in hits if isinstance(hit, dict)),
         default=0.0,

@@ -199,7 +199,11 @@ def parse_task_policy(text: str) -> TaskPolicyDecision:
             continue
         if owner not in _EXPERT_KEYS:
             owner = ""
-        key = (capability, owner, requirement)
+        query = str(raw.get("query") or "").strip()[:500]
+        reason = str(raw.get("reason") or "").strip()[:500]
+        # One expert may need multiple evidence tasks backed by the same tool.
+        # Only collapse genuinely identical tasks, never distinct queries.
+        key = (capability, owner, requirement, query.casefold(), reason.casefold())
         if key in seen:
             continue
         seen.add(key)
@@ -207,9 +211,9 @@ def parse_task_policy(text: str) -> TaskPolicyDecision:
             capability=capability,
             owner=owner,
             requirement=requirement,
-            reason=str(raw.get("reason") or "").strip()[:500],
+            reason=reason,
             web_fallback_on_weak_local=bool(raw.get("web_fallback_on_weak_local", False)),
-            query=str(raw.get("query") or "").strip()[:500],
+            query=query,
         ))
 
     return TaskPolicyDecision(

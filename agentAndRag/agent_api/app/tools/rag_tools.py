@@ -346,7 +346,7 @@ def rag_search_tool(
     rewrite_model: Optional[str] = None,
     rewrite_max_out: int = 5,
     rewrite_timeout_s: float = 60.0,
-    rerank: bool = False,
+    rerank: bool = True,
     rerank_model: str = "BAAI/bge-reranker-large",
     rerank_candidates: int = 10,
     rerank_batch_size: int = 32,
@@ -415,7 +415,10 @@ def rag_search_tool(
         )
     hits = _merge_hits_by_score(hits, top_k=retrieve_k)
 
-    _rerank_skip_thr = float(os.getenv("RAG_RERANK_SKIP_THRESHOLD", "0.85"))
+    # Dense E5 scores are not calibrated relevance probabilities and often
+    # remain high for semantically wrong chunks.  When rerank=True, rerank by
+    # default; deployments may opt back into a skip threshold explicitly.
+    _rerank_skip_thr = float(os.getenv("RAG_RERANK_SKIP_THRESHOLD", "1.10"))
     dense_top_score = hits[0].get("score", 0.0) if hits else 0.0
     should_rerank = rerank and hits and dense_top_score < _rerank_skip_thr
 

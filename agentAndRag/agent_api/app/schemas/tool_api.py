@@ -37,7 +37,7 @@ class RagSearchRequest(BaseModel):
     rewrite_max_out: int = 5
     rewrite_timeout_s: float = 60.0
 
-    rerank: bool = False
+    rerank: bool = True
     rerank_model: str = "BAAI/bge-reranker-large"
     rerank_candidates: int = 10
     rerank_batch_size: int = 32

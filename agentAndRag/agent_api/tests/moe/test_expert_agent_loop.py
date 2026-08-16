@@ -84,6 +84,37 @@ class SequenceLLM:
         return _response(self.payloads.pop(0))
 
 
+class SufficiencyAwareLLM:
+    model = "fake"
+
+    def __init__(self, status_by_query):
+        self.status_by_query = dict(status_by_query)
+        self.messages = []
+        self.sufficiency_batches = []
+
+    async def chat(self, messages=None, **kwargs):
+        copied = deepcopy(messages or [])
+        self.messages.append(copied)
+        if copied and "证据覆盖审计器" in copied[0].get("content", ""):
+            payload = json.loads(copied[-1]["content"])
+            items = payload["evidence_items"]
+            self.sufficiency_batches.append(items)
+            return _response({
+                "assessments": [
+                    {
+                        "id": item["id"],
+                        "status": self.status_by_query.get(
+                            item["evidence_query"], "unsupported"
+                        ),
+                        "reason": "fixture coverage decision",
+                        "matched_hit_ids": ["h1"],
+                    }
+                    for item in items
+                ],
+            })
+        return _response(_final("audited evidence"))
+
+
 def test_expert_persona_and_query_are_present_in_single_pass_without_tools():
     llm = SequenceLLM([_final("independent")])
     result = asyncio.run(run_expert(
@@ -164,6 +195,31 @@ def test_task_policy_english_query_is_used_for_rag():
     rag_args = next(arguments for name, arguments in calls if name == "rag.search")
     assert rag_args["query"] == "feline urethral obstruction emergency triage"
     assert rag_args["category"] == EXPERTS["clinical"].rag_categories
+    assert rag_args["rerank"] is True
+
+
+def test_distinct_queries_for_the_same_tool_are_all_executed():
+    calls = []
+    result = asyncio.run(run_expert(
+        expert=EXPERTS["pharmacy"], query="犬药物切换", weight=1.0,
+        registry=_registry(calls), llm=SequenceLLM([_final()]),
+        retrieval_requirement=_retrieval(
+            required=("rag.search",),
+            queries=(
+                ("rag.search", "canine corticosteroid NSAID washout interval"),
+                ("rag.search", "canine meloxicam gastrointestinal monitoring"),
+            ),
+        ),
+    ))
+
+    rag_queries = [arguments["query"] for name, arguments in calls if name == "rag.search"]
+    assert rag_queries == [
+        "canine corticosteroid NSAID washout interval",
+        "canine meloxicam gastrointestinal monitoring",
+    ]
+    assert result["attempted_tools"] == ["rag.search", "rag.search"]
+    assert len(result["tool_results"]) == 2
+    assert result["pending_tools"] == []
 
 
 def test_non_english_assigned_rag_query_falls_back_to_expert_hint():
@@ -193,6 +249,106 @@ def test_weak_required_rag_adds_one_web_fallback_before_final():
     assert result["required_tools"] == ["rag.search", "mcp.web_search.web_search"]
     assert result["pending_tools"] == []
     assert result["conclusion"] == "verified"
+
+
+def test_high_score_but_semantically_unsupported_rag_adds_web_fallback():
+    calls = []
+    query = "canine corticosteroid NSAID washout interval"
+    llm = SufficiencyAwareLLM({query: "unsupported"})
+    result = asyncio.run(run_expert(
+        expert=EXPERTS["pharmacy"], query="犬药物切换", weight=1.0,
+        registry=_registry(calls), llm=llm,
+        retrieval_requirement=_retrieval(
+            required=("rag.search",), web_fallback=True,
+            queries=(("rag.search", query),),
+        ),
+    ))
+
+    assert [name for name, _ in calls] == [
+        "rag.search", "mcp.web_search.web_search",
+    ]
+    assert len(llm.sufficiency_batches) == 1
+    assert result["evidence_sufficiency"][0]["status"] == "unsupported"
+    assert result["evidence_sufficiency"][0]["method"] == "semantic_llm"
+
+
+def test_high_score_and_semantically_supported_rag_does_not_add_web():
+    calls = []
+    query = "feline urethral obstruction emergency triage"
+    llm = SufficiencyAwareLLM({query: "supported"})
+    result = asyncio.run(run_expert(
+        expert=EXPERTS["clinical"], query="猫排尿困难", weight=1.0,
+        registry=_registry(calls), llm=llm,
+        retrieval_requirement=_retrieval(
+            required=("rag.search",), web_fallback=True,
+            queries=(("rag.search", query),),
+        ),
+    ))
+
+    assert [name for name, _ in calls] == ["rag.search"]
+    assert len(llm.sufficiency_batches) == 1
+    assert result["evidence_sufficiency"][0]["status"] == "supported"
+    assert result["required_tools"] == ["rag.search"]
+
+
+def test_multiple_high_score_rag_tasks_use_one_batched_sufficiency_call():
+    calls = []
+    first = "canine corticosteroid NSAID washout interval"
+    second = "canine meloxicam gastrointestinal monitoring"
+    llm = SufficiencyAwareLLM({first: "supported", second: "partial"})
+    result = asyncio.run(run_expert(
+        expert=EXPERTS["pharmacy"], query="犬药物切换", weight=1.0,
+        registry=_registry(calls), llm=llm,
+        retrieval_requirement=_retrieval(
+            required=("rag.search",), web_fallback=True,
+            queries=(("rag.search", first), ("rag.search", second)),
+        ),
+    ))
+
+    assert len(llm.sufficiency_batches) == 1
+    assert len(llm.sufficiency_batches[0]) == 2
+    assert [name for name, _ in calls] == [
+        "rag.search", "rag.search", "mcp.web_search.web_search",
+    ]
+    assert [item["status"] for item in result["evidence_sufficiency"]] == [
+        "supported", "partial",
+    ]
+
+
+def test_invalid_sufficiency_response_conservatively_adds_web():
+    calls = []
+    result = asyncio.run(run_expert(
+        expert=EXPERTS["clinical"], query="猫排尿困难", weight=1.0,
+        registry=_registry(calls), llm=SequenceLLM([{}, _final("safe fallback")]),
+        retrieval_requirement=_retrieval(
+            required=("rag.search",), web_fallback=True,
+            queries=(("rag.search", "feline urinary obstruction triage"),),
+        ),
+    ))
+
+    assert [name for name, _ in calls] == [
+        "rag.search", "mcp.web_search.web_search",
+    ]
+    assert result["evidence_sufficiency"][0]["status"] == "unknown"
+    assert result["conclusion"] == "safe fallback"
+
+
+def test_sufficiency_audit_can_be_disabled_without_changing_numeric_gate(monkeypatch):
+    monkeypatch.setenv("MOE_EVIDENCE_SUFFICIENCY_ENABLED", "0")
+    calls = []
+    llm = SequenceLLM([_final("numeric only")])
+    result = asyncio.run(run_expert(
+        expert=EXPERTS["clinical"], query="猫排尿困难", weight=1.0,
+        registry=_registry(calls), llm=llm,
+        retrieval_requirement=_retrieval(
+            required=("rag.search",), web_fallback=True,
+            queries=(("rag.search", "feline urinary obstruction triage"),),
+        ),
+    ))
+
+    assert [name for name, _ in calls] == ["rag.search"]
+    assert len(llm.messages) == 1
+    assert result["evidence_sufficiency"] == []
 
 
 def test_explicitly_disabled_tools_preserve_disable_semantics():

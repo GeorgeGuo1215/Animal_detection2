@@ -51,7 +51,7 @@ def register_builtin_tools(registry: ToolRegistry) -> None:
                     "rewrite_model": {"type": ["string", "null"], "default": None},
                     "rewrite_max_out": {"type": "integer", "default": 5, "minimum": 1, "maximum": 16},
                     "rewrite_timeout_s": {"type": "number", "default": 60.0, "minimum": 1.0, "maximum": 300.0},
-                    "rerank": {"type": "boolean", "default": False},
+                    "rerank": {"type": "boolean", "default": True},
                     "rerank_model": {"type": "string", "default": "BAAI/bge-reranker-large"},
                     "rerank_candidates": {"type": "integer", "default": 10, "minimum": 1, "maximum": 200},
                     "rerank_batch_size": {"type": "integer", "default": 32, "minimum": 1, "maximum": 512},

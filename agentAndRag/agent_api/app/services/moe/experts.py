@@ -24,6 +24,13 @@ from ...prompts.moe_experts import (
 from ...tools.rag_query import is_english_rag_query
 from ...tools.tool_registry import ToolRegistry
 from ..plan_and_solve import _safe_json_loads
+from ..tool_call_utils import canonical_tool_call
+from .evidence_sufficiency import (
+    EvidenceSufficiencyAssessment,
+    EvidenceSufficiencyItem,
+    assess_evidence_sufficiency,
+    evidence_sufficiency_enabled,
+)
 from .tool_broker import ToolBroker, ToolRequest, ToolResult
 from .history_context import build_fact_state_history
 from .retrieval_policy import (
@@ -291,6 +298,10 @@ class ExpertAgentSession:
         self.required_tools: List[str] = []
         self.recommended_tools: List[str] = []
         self.unavailable_required_tools: List[str] = []
+        self._attempted_request_keys: set[str] = set()
+        self._required_request_tools: Dict[str, str] = {}
+        self._completed_request_keys: set[str] = set()
+        self._successful_request_keys: set[str] = set()
         self.tool_timeout_occurred = False
         self.last_output = ""
         self.completed = False
@@ -313,7 +324,15 @@ class ExpertAgentSession:
         self.retrieval_required = retrieval.required
         self.retrieval_reason = retrieval.reason
         self.require_web_on_rag_failure = retrieval.require_web_on_rag_failure
-        self.tool_queries = dict(retrieval.tool_queries)
+        self.tool_queries: Dict[str, List[str]] = {}
+        self.tool_query_goals: Dict[tuple[str, str], str] = {}
+        for tool_name, tool_query in retrieval.tool_queries:
+            queries = self.tool_queries.setdefault(tool_name, [])
+            if tool_query and tool_query not in queries:
+                queries.append(tool_query)
+        for tool_name, tool_query, evidence_goal in retrieval.tool_query_goals:
+            if tool_query and evidence_goal:
+                self.tool_query_goals[(tool_name, tool_query)] = evidence_goal
         for tool_name in retrieval.required_tools:
             if tool_name in self.available_tools:
                 self.required_tools.append(tool_name)
@@ -324,6 +343,7 @@ class ExpertAgentSession:
             for tool_name in retrieval.recommended_tools
             if tool_name in self.available_tools and tool_name not in self.required_tools
         ]
+        self._register_required_request_keys()
 
         system_prompt = build_expert_system_prompt(
             persona=expert.persona,
@@ -366,8 +386,25 @@ class ExpertAgentSession:
 
     @property
     def pending_required_tools(self) -> List[str]:
-        completed = set(self.completed_tools)
-        return [name for name in self.required_tools if name not in completed]
+        pending = [
+            tool_name
+            for request_key, tool_name in self._required_request_tools.items()
+            if request_key not in self._completed_request_keys
+        ]
+        return list(dict.fromkeys(pending))
+
+    def _queries_for_tool(self, tool_name: str) -> List[str]:
+        return list(self.tool_queries.get(tool_name) or [""])
+
+    def _register_required_request_keys(self) -> None:
+        for tool_name in self.required_tools:
+            for assigned_query in self._queries_for_tool(tool_name):
+                arguments = self._normalize_tool_arguments(
+                    tool_name, {}, assigned_query=assigned_query
+                )
+                self._required_request_tools[
+                    canonical_tool_call(tool_name, arguments)
+                ] = tool_name
 
     def retrieval_state(self) -> Dict[str, Any]:
         return {
@@ -393,13 +430,19 @@ class ExpertAgentSession:
             ),
         }
 
-    def _normalize_tool_arguments(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    def _normalize_tool_arguments(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        *,
+        assigned_query: str = "",
+    ) -> Dict[str, Any]:
         normalized = dict(arguments or {})
         if tool_name == "rag.search":
             species_term = f" {self.species_en}" if self.species_en else ""
             breed_term = f" {self.breed}" if is_english_rag_query(self.breed) else ""
             default_query = f"{self.expert.rag_query_hint}{species_term}{breed_term}".strip()
-            assigned_query = str(self.tool_queries.get(tool_name) or "").strip()
+            assigned_query = str(assigned_query or "").strip()
             normalized.setdefault(
                 "query",
                 assigned_query if is_english_rag_query(assigned_query) else default_query,
@@ -409,8 +452,9 @@ class ExpertAgentSession:
                 normalized.setdefault("device", self.device)
             if self.expert.rag_categories:
                 normalized["category"] = list(self.expert.rag_categories)
+            normalized.setdefault("rerank", True)
         elif tool_name == "mcp.web_search.web_search":
-            normalized.setdefault("query", self.tool_queries.get(tool_name) or self.query)
+            normalized.setdefault("query", assigned_query or self.query)
             normalized.setdefault("max_results", 5)
         return normalized
 
@@ -419,26 +463,60 @@ class ExpertAgentSession:
         self.rounds = 1
         planned = list(dict.fromkeys([*self.required_tools, *self.recommended_tools]))
         requests: List[ToolRequest] = []
-        attempted = set(self.attempted_tools)
         for tool_name in planned:
-            if tool_name in attempted or tool_name not in self.available_tools:
+            if tool_name not in self.available_tools:
                 continue
-            arguments = self._normalize_tool_arguments(tool_name, {})
-            self.attempted_tools.append(tool_name)
-            self.plan_steps.append({
-                "type": "tool",
-                "tool_name": tool_name,
-                "arguments": dict(arguments),
-                "note": self.retrieval_reason,
-                "round": 1,
-                "required": tool_name in self.required_tools,
-            })
-            requests.append(ToolRequest(
-                expert=self.expert.key,
-                tool_name=tool_name,
-                arguments=arguments,
-            ).with_request_id())
+            for assigned_query in self._queries_for_tool(tool_name):
+                arguments = self._normalize_tool_arguments(
+                    tool_name, {}, assigned_query=assigned_query
+                )
+                request_key = canonical_tool_call(tool_name, arguments)
+                if request_key in self._attempted_request_keys:
+                    continue
+                self._attempted_request_keys.add(request_key)
+                if tool_name in self.required_tools:
+                    self._required_request_tools[request_key] = tool_name
+                self.attempted_tools.append(tool_name)
+                self.plan_steps.append({
+                    "type": "tool",
+                    "tool_name": tool_name,
+                    "arguments": dict(arguments),
+                    "note": self.retrieval_reason,
+                    "round": 1,
+                    "required": tool_name in self.required_tools,
+                })
+                requests.append(ToolRequest(
+                    expert=self.expert.key,
+                    tool_name=tool_name,
+                    arguments=arguments,
+                ).with_request_id())
         return requests
+
+    def evidence_sufficiency_item(
+        self,
+        result: ToolResult,
+    ) -> Optional[EvidenceSufficiencyItem]:
+        """Build a semantic audit item only after the numeric gate has passed."""
+        if (
+            result.tool_name != RAG_TOOL
+            or not self.require_web_on_rag_failure
+            or rag_requires_web_fallback(result.result, ok=result.ok)
+            or not isinstance(result.result, dict)
+        ):
+            return None
+        hits = result.result.get("hits")
+        if not isinstance(hits, list):
+            return None
+        return EvidenceSufficiencyItem(
+            id=result.request_id,
+            expert=self.expert.key,
+            evidence_query=str(result.arguments.get("query") or ""),
+            evidence_goal=self.tool_query_goals.get(
+                (RAG_TOOL, str(result.arguments.get("query") or "")),
+                self.retrieval_reason,
+            ),
+            hits=tuple(hit for hit in hits if isinstance(hit, dict)),
+        )
 
     def _parse_opinion(self, obj: Dict[str, Any]) -> Dict[str, Any]:
         opinion = obj.get("opinion") if isinstance(obj.get("opinion"), dict) else obj
@@ -547,23 +625,42 @@ class ExpertAgentSession:
         self.completed = True
         return self.fallback_opinion()
 
-    def apply_tool_result(self, result: ToolResult) -> None:
+    def apply_tool_result(
+        self,
+        result: ToolResult,
+        *,
+        sufficiency: Optional[EvidenceSufficiencyAssessment] = None,
+        semantic_assessment_required: bool = False,
+    ) -> None:
         self.messages.append(_tool_feedback_message(_tool_result_context(result)))
         self.tools_used.append(result.tool_name)
         result_code = result.result.get("code") if isinstance(result.result, dict) else ""
         if result_code == "EXPERT_TOOL_TIMEOUT":
             self.tool_timeout_occurred = True
         validation_failure = result_code in {"RAG_QUERY_MUST_BE_ENGLISH", "TOOL_NOT_ALLOWED"}
+        request_key = canonical_tool_call(result.tool_name, result.arguments)
         if not validation_failure:
+            self._completed_request_keys.add(request_key)
             if result.tool_name not in self.completed_tools:
                 self.completed_tools.append(result.tool_name)
-            if result.ok and result.tool_name not in self.successful_tools:
-                self.successful_tools.append(result.tool_name)
+            if result.ok:
+                self._successful_request_keys.add(request_key)
+                if result.tool_name not in self.successful_tools:
+                    self.successful_tools.append(result.tool_name)
 
-        if (
+        numeric_weak = (
             result.tool_name == RAG_TOOL
             and self.require_web_on_rag_failure
             and rag_requires_web_fallback(result.result, ok=result.ok)
+        )
+        semantic_weak = (
+            semantic_assessment_required
+            and (sufficiency is None or not sufficiency.supported)
+        )
+        if (
+            result.tool_name == RAG_TOOL
+            and self.require_web_on_rag_failure
+            and (numeric_weak or semantic_weak)
             and WEB_SEARCH_TOOL not in self.required_tools
         ):
             if WEB_SEARCH_TOOL in self.available_tools:
@@ -571,8 +668,27 @@ class ExpertAgentSession:
                 self.recommended_tools = [
                     name for name in self.recommended_tools if name != WEB_SEARCH_TOOL
                 ]
+                self._register_required_request_keys()
             elif WEB_SEARCH_TOOL not in self.unavailable_required_tools:
                 self.unavailable_required_tools.append(WEB_SEARCH_TOOL)
+        sufficiency_record: Optional[Dict[str, Any]] = None
+        if result.tool_name == RAG_TOOL and self.require_web_on_rag_failure:
+            if numeric_weak:
+                sufficiency_record = {
+                    "status": "unsupported",
+                    "reason": "本地命中数量或相关性分数未通过数值门槛",
+                    "matched_hit_ids": [],
+                    "method": "numeric_gate",
+                }
+            elif semantic_assessment_required and sufficiency is None:
+                sufficiency_record = {
+                    "status": "unknown",
+                    "reason": "语义充分性判断超时、失败或未返回该证据项，按未核实处理",
+                    "matched_hit_ids": [],
+                    "method": "semantic_llm",
+                }
+            elif sufficiency is not None:
+                sufficiency_record = {**sufficiency.as_dict(), "method": "semantic_llm"}
         record = {
             "step": len(self.tool_results),
             "round": self.rounds,
@@ -583,6 +699,7 @@ class ExpertAgentSession:
             "latency_ms": result.latency_ms,
             "error": result.error,
             "shared": result.shared,
+            "sufficiency": sufficiency_record,
         }
         self.tool_results.append(record)
 
@@ -630,10 +747,12 @@ class ExpertAgentSession:
             hits_count += count
             best_score = max(best_score, score)
         risks = list(opinion.get("risks") or [])
-        failed_required = [
-            name for name in self.completed_tools
-            if name in self.required_tools and name not in self.successful_tools
-        ]
+        failed_required = list(dict.fromkeys(
+            tool_name
+            for request_key, tool_name in self._required_request_tools.items()
+            if request_key in self._completed_request_keys
+            and request_key not in self._successful_request_keys
+        ))
         if self.retrieval_required and self.unavailable_required_tools:
             risks.append(
                 "外部证据核验工具不可用：" + ", ".join(self.unavailable_required_tools)
@@ -662,6 +781,11 @@ class ExpertAgentSession:
             "unavailable_required_tools": list(self.unavailable_required_tools),
             "plan_steps": list(self.plan_steps),
             "tool_results": list(self.tool_results),
+            "evidence_sufficiency": [
+                result["sufficiency"]
+                for result in self.tool_results
+                if isinstance(result.get("sufficiency"), dict)
+            ],
             "rounds": self.rounds,
         }
 
@@ -685,10 +809,39 @@ async def run_expert_sessions(
             if not requests:
                 break
             results = await broker.execute_batch(requests, timeouts=timeouts)
+            semantic_candidates: Dict[str, EvidenceSufficiencyItem] = {}
+            if evidence_sufficiency_enabled():
+                for request in requests:
+                    result = results.get(request.request_id)
+                    if result is None:
+                        continue
+                    item = ownership[request.request_id].evidence_sufficiency_item(result)
+                    if item is not None:
+                        semantic_candidates[request.request_id] = item
+
+            assessments: Dict[str, EvidenceSufficiencyAssessment] = {}
+            if semantic_candidates:
+                candidate_sessions = [ownership[item_id] for item_id in semantic_candidates]
+                timeout_s = min(session.tool_wait_timeout_s for session in candidate_sessions)
+                first_session = candidate_sessions[0]
+                assessments = await assess_evidence_sufficiency(
+                    case_question=first_session.query,
+                    items=semantic_candidates.values(),
+                    llm=first_session.llm,
+                    recorder=next(
+                        (session.recorder for session in candidate_sessions if session.recorder),
+                        None,
+                    ),
+                    timeout_s=timeout_s,
+                )
             for request in requests:
                 result = results.get(request.request_id)
                 if result is not None:
-                    ownership[request.request_id].apply_tool_result(result)
+                    ownership[request.request_id].apply_tool_result(
+                        result,
+                        sufficiency=assessments.get(request.request_id),
+                        semantic_assessment_required=request.request_id in semantic_candidates,
+                    )
 
     await _execute_assigned_tools()
 

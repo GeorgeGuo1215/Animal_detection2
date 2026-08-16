@@ -351,7 +351,7 @@ Memory Service 默认端口 8300，使用独立 PostgreSQL + pgvector，向量�
 
 MoE 在专家执行前只进行一次统一任务策略调用，同时输出 D1-D8 主/次意图、专家相关性、急症判断和结构化证据任务。D1-D8 分类边界与每类路由指导均由同一提示词注册表提供；检索决策不依赖问题关键词。LLM 输出 `local_knowledge/current_web/medication_reference/patient_vitals` 能力及 `required/recommended`，程序再映射成实际工具、分配唯一负责专家并执行安全门禁。`required` 未完成时禁止专家直接 final，`recommended` 不锁定工具调用。旧的独立意图分类器、独立 LLM Router 与双轨迁移模式已移除，生产链路固定使用统一任务策略架构。
 
-MoE 专家采用 Task-driven single pass：分配工具最多执行两批（分配任务；必需本地证据较弱时再做 Web 兜底），随后各专家并行生成一次结构化意见；仅在 JSON 为空或格式损坏时允许一次协议修复，不重新做诊疗决策。可通过 `MOE_EXPERT_TIMEOUT_SEC`、`MOE_EXPERT_FINAL_MAX_TOKENS`、`MOE_EXPERT_FORMAT_REPAIR_ATTEMPTS` 和 `MOE_EXPERT_FINALIZE_RESERVE_SEC` 调整。必需本地证据的 Web 兜底门槛由 `RAG_WEB_FALLBACK_MIN_HITS=2`、`RAG_RELEVANCE_THRESHOLD=0.55` 控制。急症只保底启用临床专家，药学专家仅在中毒、剂量、相互作用或用药安全等语义相关时启用。
+MoE 专家采用 Task-driven single pass：分配工具最多执行两批（分配任务；必需本地证据较弱或语义覆盖不足时再做 Web 兜底），随后各专家并行生成一次结构化意见；仅在 JSON 为空或格式损坏时允许一次协议修复，不重新做诊疗决策。同一专家的多个证据任务即使映射到相同工具，也按“工具名＋规范化参数”保留不同查询，仅对完全相同调用去重。可通过 `MOE_EXPERT_TIMEOUT_SEC`、`MOE_EXPERT_FINAL_MAX_TOKENS`、`MOE_EXPERT_FORMAT_REPAIR_ATTEMPTS` 和 `MOE_EXPERT_FINALIZE_RESERVE_SEC` 调整。RAG 默认启用 reranker；必需本地证据先由 `RAG_WEB_FALLBACK_MIN_HITS=2`、`RAG_RELEVANCE_THRESHOLD=0.90` 做数值初筛，通过初筛的多个证据任务再合并为一次非思考模式的语义充分性审计，逐项判断 `supported/partial/unsupported`，后两者补充 Web 证据。该审计默认启用，可通过 `MOE_EVIDENCE_SUFFICIENCY_ENABLED` 和 `MOE_EVIDENCE_SUFFICIENCY_TIMEOUT_SEC` 控制。急症只保底启用临床专家，药学专家仅在中毒、剂量、相互作用或用药安全等语义相关时启用。
 
 MoE 的 Task Policy、专家结构化意见、Critic 与 Aggregator 对 DeepSeek 显式关闭 thinking mode，避免默认隐藏推理占满输出预算并造成长时间零 delta。Aggregator 流式正文为空时自动进行一次非流式兜底；部分正文后连接中断则明确失败，不把截断内容误记为成功终答。网页端只持久化并展示脱敏后的专家任务、工具摘要和结构化意见，不下发系统提示词、隐藏推理或原始工具载荷。
 

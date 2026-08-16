@@ -826,7 +826,7 @@ async def _stream_plan_and_solve(
         default=0.0,
     )
     import os as _os
-    _RAG_RELEVANCE_THRESHOLD = float(_os.getenv("RAG_RELEVANCE_THRESHOLD", "0.55"))
+    _RAG_RELEVANCE_THRESHOLD = float(_os.getenv("RAG_RELEVANCE_THRESHOLD", "0.90"))
     _WEB_FALLBACK_MIN_HITS = int(_os.getenv("RAG_WEB_FALLBACK_MIN_HITS", "2"))
     already_has_web = any(r.get("tool_name") == _WEB_TOOL for r in tool_results)
     _need_web = (rag_hits_total < _WEB_FALLBACK_MIN_HITS) or (rag_hits_total > 0 and rag_best_score < _RAG_RELEVANCE_THRESHOLD)

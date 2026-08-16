@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 from app.services.moe.retrieval_policy import (  # noqa: E402
     EvidenceTask,
     assign_evidence_tasks,
+    rag_requires_web_fallback,
     resolve_retrieval_requirement,
 )
 from app.services.moe.task_policy import (  # noqa: E402
@@ -87,6 +88,61 @@ def test_evidence_task_has_one_active_owner_and_is_not_duplicated():
     assert pharmacy.required_tools == ("rag.search",)
 
 
+def test_distinct_same_tool_evidence_tasks_keep_both_queries():
+    policy = _payload(evidence_tasks=[
+        {
+            "capability": "medication_reference",
+            "owner": "pharmacy",
+            "requirement": "required",
+            "reason": "核对联合禁忌和洗脱期",
+            "query": "canine corticosteroid NSAID contraindication washout interval",
+            "web_fallback_on_weak_local": True,
+        },
+        {
+            "capability": "medication_reference",
+            "owner": "pharmacy",
+            "requirement": "required",
+            "reason": "核对剂量和胃肠道监测",
+            "query": "canine meloxicam dosage gastrointestinal monitoring",
+            "web_fallback_on_weak_local": True,
+        },
+    ])
+    decision = parse_task_policy(json.dumps(policy, ensure_ascii=False))
+    requirement = resolve_retrieval_requirement(
+        expert_key="pharmacy",
+        evidence_tasks=decision.evidence_tasks,
+    )
+
+    assert len(decision.evidence_tasks) == 2
+    assert requirement.required_tools == ("rag.search",)
+    assert requirement.tool_queries == (
+        ("rag.search", "canine corticosteroid NSAID contraindication washout interval"),
+        ("rag.search", "canine meloxicam dosage gastrointestinal monitoring"),
+    )
+    assert requirement.tool_query_goals == (
+        (
+            "rag.search",
+            "canine corticosteroid NSAID contraindication washout interval",
+            "核对联合禁忌和洗脱期",
+        ),
+        (
+            "rag.search",
+            "canine meloxicam dosage gastrointestinal monitoring",
+            "核对剂量和胃肠道监测",
+        ),
+    )
+
+
+def test_web_fallback_dense_score_floor_defaults_to_point_nine(monkeypatch):
+    monkeypatch.delenv("RAG_RELEVANCE_THRESHOLD", raising=False)
+    assert rag_requires_web_fallback(
+        {"hits": [{"score": 0.899}, {"score": 0.8}]}, ok=True
+    ) is True
+    assert rag_requires_web_fallback(
+        {"hits": [{"score": 0.90}, {"score": 0.8}]}, ok=True
+    ) is False
+
+
 def test_missing_owner_is_reassigned_to_an_active_expert():
     tasks = assign_evidence_tasks(
         [EvidenceTask("medication_reference", "pharmacy", "required", "drug safety")],
@@ -159,5 +215,7 @@ def test_unified_prompt_contains_all_intent_boundaries_and_routing_guidance():
         "临床与药理专家优先",
         "优先保留上一轮相关专家",
         "临床专家负责风险分级",
+        "washout interval when switching from A to B",
+        "食品动物残留‘休药期’才写 withdrawal period",
     ):
         assert guidance in TASK_POLICY_SYSTEM_PROMPT
