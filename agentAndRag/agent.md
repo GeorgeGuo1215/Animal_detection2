@@ -236,7 +236,7 @@ sequenceDiagram
 | `plan_and_solve.py` | Planner |
 | `multi_turn.py` | 多轮决策和工具循环 |
 | `moe_task_policy.py` | 单次统一决策：D1～D8、分类边界、证据需求和专家选择 |
-| `moe_experts.py` | 专家 persona、工具循环和结论格式 |
+| `moe_experts.py` | 专家 persona、单轮任务归纳和结论格式 |
 | `moe_critic.py` | 事实、安全、禁忌和边界审核 |
 | `moe_aggregator.py` | 综合终答与引用规则 |
 | `moe_history.py` | 多轮事实状态标签 |
@@ -246,9 +246,9 @@ sequenceDiagram
 
 医生侧 D1～D8：病历结构化、鉴别诊断、检查规划、报告解读、治疗与用药安全、专业知识快答、多轮病例管理、急症/能力边界。
 
-MoE 顺序：统一任务策略 → 确定性门控 → 可选 PetHealth vitals 核实 → 并行专家 → Tool Broker → Critic → Aggregator。统一任务策略一次输出 D1～D8、路由、证据需求和工具所有者，不再经过关键词规则或第二次 Router LLM。每位专家仍拥有独立上下文和工具循环，PetHealth 心率提示会注入策略层、相关专家和 Aggregator，但外部标志本身不能作为诊断事实。
+MoE 顺序：统一任务策略 → 确定性门控 → 可选 PetHealth vitals 核实 → Tool Broker 执行证据任务 → 并行专家单轮归纳 → Critic → Aggregator。统一任务策略一次输出 D1～D8、路由、证据需求、检索 query 和工具所有者，不再经过关键词规则或第二次 Router LLM。每位专家保留独立上下文，但不再自己进行多轮“要工具/再判断”循环；PetHealth 心率提示会注入策略层、相关专家和 Aggregator，外部标志本身不能作为诊断事实。
 
-专家动作协议只有两种，最终意见必须使用统一信封 `{"action":"final","opinion":{...}}`；不再接受顶层 `conclusion`、`final_answer` 或 `call_tool` 别名。每个专家会话维护：
+专家只允许提交一次统一信封 `{"action":"final","opinion":{...}}`；不再接受 `action=tool`、顶层 `conclusion`、`final_answer` 或 `call_tool` 别名。Task Policy 先分配证据任务，Tool Broker 确定性执行并去重，专家随后结合结果一次性形成意见。每个专家会话维护：
 
 - `required_tools`：本轮必须完成的检索；
 - `recommended_tools`：建议调用但不阻止专家提交的工具；
@@ -257,7 +257,7 @@ MoE 顺序：统一任务策略 → 确定性门控 → 可选 PetHealth vitals 
 - `pending_tools`：返回 final 前仍必须执行的工具；
 - `unavailable_required_tools`：请求显式禁用或部署未注册的必需工具。
 
-程序只对真正的必需工具执行 final 门禁：`pending_tools` 非空时，专家直接返回 final 会被拒绝并收到 `REQUIRED_TOOL_PENDING`；只有 `recommended_tools` 时允许专家基于已有上下文直接提交。常规诊断、鉴别、急症和报告解读属于“建议检索”，不再按 D2～D8 意图一刀切强制工具调用。
+程序只对真正的必需工具执行证据门禁：`pending_tools` 非空时先由执行层补齐或标记不可用，再进入专家单轮归纳；`recommended_tools` 不会锁死终答。常规诊断、鉴别、急症和报告解读不再按 D2～D8 意图一刀切强制工具调用。
 
 必须调用工具的情况：
 
@@ -351,7 +351,9 @@ Memory Service 默认端口 8300，使用独立 PostgreSQL + pgvector，向量�
 
 MoE 在专家执行前只进行一次统一任务策略调用，同时输出 D1-D8 主/次意图、专家相关性、急症判断和结构化证据任务。D1-D8 分类边界与每类路由指导均由同一提示词注册表提供；检索决策不依赖问题关键词。LLM 输出 `local_knowledge/current_web/medication_reference/patient_vitals` 能力及 `required/recommended`，程序再映射成实际工具、分配唯一负责专家并执行安全门禁。`required` 未完成时禁止专家直接 final，`recommended` 不锁定工具调用。旧的独立意图分类器、独立 LLM Router 与双轨迁移模式已移除，生产链路固定使用统一任务策略架构。
 
-MoE 专家工具循环默认最多 6 轮、4 次工具调用、120 秒；预留 12 秒生成最终结构化意见。可通过 `MOE_EXPERT_MAX_ROUNDS`、`MOE_EXPERT_MAX_TOOL_CALLS`、`MOE_EXPERT_TIMEOUT_SEC` 和 `MOE_EXPERT_FINALIZE_RESERVE_SEC` 调整。必需本地证据的 Web 兜底门槛由 `RAG_WEB_FALLBACK_MIN_HITS=2`、`RAG_RELEVANCE_THRESHOLD=0.55` 控制。
+MoE 专家采用 Task-driven single pass：分配工具最多执行两批（分配任务；必需本地证据较弱时再做 Web 兜底），随后各专家并行生成一次结构化意见；仅在 JSON 为空或格式损坏时允许一次协议修复，不重新做诊疗决策。可通过 `MOE_EXPERT_TIMEOUT_SEC`、`MOE_EXPERT_FINAL_MAX_TOKENS`、`MOE_EXPERT_FORMAT_REPAIR_ATTEMPTS` 和 `MOE_EXPERT_FINALIZE_RESERVE_SEC` 调整。必需本地证据的 Web 兜底门槛由 `RAG_WEB_FALLBACK_MIN_HITS=2`、`RAG_RELEVANCE_THRESHOLD=0.55` 控制。急症只保底启用临床专家，药学专家仅在中毒、剂量、相互作用或用药安全等语义相关时启用。
+
+MoE 的 Task Policy、专家结构化意见、Critic 与 Aggregator 对 DeepSeek 显式关闭 thinking mode，避免默认隐藏推理占满输出预算并造成长时间零 delta。Aggregator 流式正文为空时自动进行一次非流式兜底；部分正文后连接中断则明确失败，不把截断内容误记为成功终答。网页端只持久化并展示脱敏后的专家任务、工具摘要和结构化意见，不下发系统提示词、隐藏推理或原始工具载荷。
 
 RAG 当前使用 multilingual-e5-small、384 维向量、Dense/BM25/邻居扩展/可选 CrossEncoder 重排和分类索引。索引位于 `RAG/data/`，体积大且禁止提交。分类配置复制到 data 中，但活动路径迁移服务器后必须重新核对。MoE 专家提交 `rag.search.query` 时使用英语，用户输入和最终回答仍可为中文。
 
@@ -485,6 +487,8 @@ systemd 模板当前指向 `/home/sam/Animal_detection2/agentAndRag`、Python �
 | MoE + MCP 全量单元回归 | 202 passed |
 | 真实 DeepSeek 强制检索 | 临床/药学专家各完成 RAG 8 命中 + Web Search 5 条，pending=0 |
 | 真实 DeepSeek 非锁定路径 | 普通“猫尿血怎么办”1 轮 final，无工具调用，PASS |
+| 单轮链路真实耗时 | “猫频繁进出猫砂盆，如何排急症？”由 72.6 秒降至 26.9 秒；Task Policy 14.5→2.8 秒，Critic 5.9→1.4 秒，Aggregator 24.2→8.3 秒；4 次 LLM、1 次 RAG |
+| 终答流式恢复 | 真实 DeepSeek 流式完整输出；空流单测验证自动降级，部分流中断不会误记成功 |
 
 真实专家报告保存在本地忽略目录 `agent_api/tests/moe/reports/retrieval_policy_balanced_live_20260816_audit/`。明确要求“检索本地兽医知识库并联网核对仍适用指南”的病例中，临床与药学专家均记录 `required_tools=[rag.search, mcp.web_search.web_search]` 和相同顺序的 `attempted_tools`；RAG 分别命中 8 条（最高分 0.9173/0.9138），两次 Web Search 均成功返回 5 条，最终 `pending_tools=[]`。流式 QA 审计同步修复：记录 `id=96` 已落盘 `tools_used=[mcp.web_search.web_search, rag.search]`、`rag_hit_count=16`、`rag_best_score=0.9173`、`used_web_search=1`。普通咨询只记录 `recommended_tools`，专家 1 轮直接 final，证明建议检索不会锁死工具链。强制检索病例的旧风格验收仍因终答标题与测试脚本预设词不完全一致而标记 FAIL，但工具链与结构化专家协议本身已通过，需与内容风格测试分开理解。
 

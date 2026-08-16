@@ -16,6 +16,7 @@ from app.services.moe.experts import (
     _PHARMACY_RAG_CATEGORIES,
     run_expert,
 )
+from app.services.moe.retrieval_policy import RetrievalRequirement
 
 
 class FakeRegistry:
@@ -41,27 +42,7 @@ class FakeRegistry:
 class FakeLLM:
     model = "fake"
 
-    def __init__(self):
-        self.calls = 0
-
     async def chat(self, messages=None, **kwargs):
-        self.calls += 1
-        if self.calls == 1:
-            return {
-                "choices": [
-                    {
-                        "message": {
-                            "content": json.dumps(
-                                {
-                                    "action": "tool",
-                                    "tool_name": "rag.search",
-                                    "arguments": {"query": "x", "category": "wrong.category"},
-                                }
-                            )
-                        }
-                    }
-                ]
-            }
         return {
             "choices": [
                 {
@@ -93,6 +74,11 @@ def _run(expert_key: str):
             registry=reg,
             llm=llm,
             recorder=None,
+            retrieval_requirement=RetrievalRequirement(
+                required_tools=(), recommended_tools=("rag.search",),
+                require_web_on_rag_failure=False, reason="test assignment",
+                tool_queries=(("rag.search", "test question"),),
+            ),
         )
     )
     assert reg.calls, f"{expert_key}: rag.search not called"
@@ -119,8 +105,7 @@ def test_behavior_forces_rag_categories():
     assert args["category"] == list(_BEHAVIOR_RAG_CATEGORIES)
 
 
-def test_planner_wrong_category_overwritten():
-    """Planner may pass category=wrong.category; expert must overwrite."""
+def test_task_driven_rag_always_uses_expert_category_scope():
     args = _run("pharmacy")
     assert "wrong.category" not in args["category"]
     assert "pharmacy.*" in args["category"]

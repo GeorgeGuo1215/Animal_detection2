@@ -37,6 +37,7 @@ class EvidenceTask:
     requirement: str
     reason: str
     web_fallback_on_weak_local: bool = False
+    query: str = ""
 
     def as_dict(self) -> Dict[str, Any]:
         return {
@@ -45,6 +46,7 @@ class EvidenceTask:
             "requirement": self.requirement,
             "reason": self.reason,
             "web_fallback_on_weak_local": self.web_fallback_on_weak_local,
+            "query": self.query,
         }
 
 
@@ -54,6 +56,7 @@ class RetrievalRequirement:
     recommended_tools: Tuple[str, ...]
     require_web_on_rag_failure: bool
     reason: str
+    tool_queries: Tuple[Tuple[str, str], ...] = ()
 
     @property
     def required(self) -> bool:
@@ -80,6 +83,7 @@ def assign_evidence_tasks(
             requirement=task.requirement,
             reason=task.reason,
             web_fallback_on_weak_local=task.web_fallback_on_weak_local,
+            query=task.query,
         ))
     return tuple(assigned)
 
@@ -94,6 +98,7 @@ def resolve_retrieval_requirement(
     recommended = []
     reasons = []
     web_fallback = False
+    tool_queries: Dict[str, str] = {}
     for task in evidence_tasks:
         if task.owner != expert_key:
             continue
@@ -105,6 +110,8 @@ def resolve_retrieval_requirement(
             target.append(tool_name)
         if task.reason and task.reason not in reasons:
             reasons.append(task.reason)
+        if task.query and tool_name not in tool_queries:
+            tool_queries[tool_name] = task.query
         if task.web_fallback_on_weak_local and tool_name == RAG_TOOL:
             web_fallback = True
 
@@ -114,6 +121,7 @@ def resolve_retrieval_requirement(
         recommended_tools=tuple(recommended),
         require_web_on_rag_failure=web_fallback,
         reason="；".join(reasons) or "统一任务策略未分配外部证据任务，由专家自主判断",
+        tool_queries=tuple(tool_queries.items()),
     )
 
 

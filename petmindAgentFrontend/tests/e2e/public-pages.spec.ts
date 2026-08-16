@@ -82,7 +82,7 @@ test('first message remains visible while a new conversation starts running', as
       status: 200,
       contentType: 'text/event-stream',
       headers: { 'X-PetMind-Run-Id': 'run-new' },
-      body: 'id: 1\nevent: status\ndata: {"phase":"understanding"}\n\nid: 2\nevent: delta\ndata: {"content":"已收到病例。"}\n\nid: 3\nevent: completed\ndata: {"credits":1}\n\n',
+      body: 'id: 1\nevent: status\ndata: {"phase":"understanding"}\n\nid: 2\nevent: status\ndata: {"phase":"consulting","agent_status":"expert_calling","expert":{"expert":"clinical","name":"兽医临床专家","status":"running"}}\n\nid: 3\nevent: status\ndata: {"phase":"consulting","agent_status":"expert_complete","expert":{"expert":"clinical","name":"兽医临床专家","status":"completed","task":"评估急症风险","tools":[{"kind":"tool","tool_name":"rag.search","ok":true,"latency_ms":1200,"result":{"hits":2,"sources":["book-a"]}}],"opinion":{"conclusion":"先排查尿道梗阻。","evidence":["频繁蹲盆"],"risks":["尿闭风险"],"confidence":0.82},"execution":"single_pass"}}\n\nid: 4\nevent: delta\ndata: {"content":"已收到病例。"}\n\nid: 5\nevent: completed\ndata: {"credits":1,"finish_reason":"stop"}\n\n',
     })
   })
 
@@ -93,6 +93,9 @@ test('first message remains visible while a new conversation starts running', as
   await expect(page.getByText('这是新会话的第一条病例信息')).toBeVisible()
   await expect(page.getByText('等待会诊资源')).toBeVisible()
   await expect(page.getByText('已收到病例。')).toBeVisible()
+  await page.getByText('兽医临床专家').click()
+  await expect(page.getByText('先排查尿道梗阻。')).toBeVisible()
+  await expect(page.getByText(/仅展示任务结果，不展示系统提示词/)).toBeVisible()
 })
 
 test('conversation history can be exported and deleted', async ({ page }) => {

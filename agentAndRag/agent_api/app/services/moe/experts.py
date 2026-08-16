@@ -1,4 +1,4 @@
-"""MoE 下游专家委员会：独立多轮专家、工具执行与结构化意见。"""
+"""MoE 下游专家委员会：任务驱动工具执行与单轮结构化意见。"""
 from __future__ import annotations
 
 import asyncio
@@ -17,14 +17,12 @@ from ...prompts.moe_experts import (
     FORCE_FINAL_REMINDER,
     IMPORTANT_RETRIEVAL_POLICY,
     OUTPUT_CONTRACT,
-    PENULTIMATE_ROUND_REMINDER,
     SPECIES_BREED_GUARD,
     SPECIES_GUARD,
     build_expert_system_prompt,
 )
 from ...tools.rag_query import is_english_rag_query
 from ...tools.tool_registry import ToolRegistry
-from ..tool_call_utils import canonical_tool_call
 from ..plan_and_solve import _safe_json_loads
 from .tool_broker import ToolBroker, ToolRequest, ToolResult
 from .history_context import build_fact_state_history
@@ -184,6 +182,14 @@ def _env_int(name: str, default: int) -> int:
     return max(1, value)
 
 
+def _env_nonnegative_int(name: str, default: int) -> int:
+    try:
+        value = int(os.getenv(name, "") or default)
+    except (TypeError, ValueError):
+        return default
+    return max(0, value)
+
+
 def _env_float(name: str, default: float) -> float:
     try:
         value = float(os.getenv(name, "") or default)
@@ -194,22 +200,16 @@ def _env_float(name: str, default: float) -> float:
 
 @dataclass(frozen=True)
 class ExpertLoopConfig:
-    max_rounds: int = field(default_factory=lambda: _env_int("MOE_EXPERT_MAX_ROUNDS", 6))
-    max_tool_calls: int = field(default_factory=lambda: _env_int("MOE_EXPERT_MAX_TOOL_CALLS", 4))
     timeout_s: float = field(default_factory=lambda: _env_float("MOE_EXPERT_TIMEOUT_SEC", 120.0))
+    final_max_tokens: int = field(
+        default_factory=lambda: _env_int("MOE_EXPERT_FINAL_MAX_TOKENS", 1400)
+    )
+    repair_attempts: int = field(
+        default_factory=lambda: _env_nonnegative_int("MOE_EXPERT_FORMAT_REPAIR_ATTEMPTS", 1)
+    )
     finalize_reserve_s: float = field(
         default_factory=lambda: _env_float("MOE_EXPERT_FINALIZE_RESERVE_SEC", 12.0)
     )
-    max_repeated_calls: int = field(
-        default_factory=lambda: _env_int("MOE_EXPERT_MAX_REPEATED_CALLS", 1)
-    )
-
-
-@dataclass(frozen=True)
-class ExpertAction:
-    kind: str
-    request: Optional[ToolRequest] = None
-    opinion: Optional[Dict[str, Any]] = None
 
 
 def _tool_result_context(result: ToolResult, max_chars: int = 4000) -> str:
@@ -282,8 +282,6 @@ class ExpertAgentSession:
         self.loop_config = loop_config or ExpertLoopConfig()
         self.started_at = time.monotonic()
         self.rounds = 0
-        self.tool_call_count = 0
-        self.call_counts: Dict[str, int] = {}
         self.tool_results: List[Dict[str, Any]] = []
         self.plan_steps: List[Dict[str, Any]] = []
         self.tools_used: List[str] = []
@@ -315,6 +313,7 @@ class ExpertAgentSession:
         self.retrieval_required = retrieval.required
         self.retrieval_reason = retrieval.reason
         self.require_web_on_rag_failure = retrieval.require_web_on_rag_failure
+        self.tool_queries = dict(retrieval.tool_queries)
         for tool_name in retrieval.required_tools:
             if tool_name in self.available_tools:
                 self.required_tools.append(tool_name)
@@ -326,19 +325,10 @@ class ExpertAgentSession:
             if tool_name in self.available_tools and tool_name not in self.required_tools
         ]
 
-        tool_brief = [
-            {
-                "name": tool.name,
-                "description": tool.description,
-                "input_schema": tool.input_schema,
-            }
-            for tool in available
-        ]
         system_prompt = build_expert_system_prompt(
             persona=expert.persona,
             expert_key=expert.key,
             user_role=user_role,
-            tool_brief=tool_brief,
         )
         payload: Dict[str, Any] = {
             "user_question": query,
@@ -403,30 +393,52 @@ class ExpertAgentSession:
             ),
         }
 
-    def _protocol_feedback(self, *, code: str, message: str) -> ExpertAction:
-        self.messages.append(_tool_feedback_message(json.dumps({
-            "code": code,
-            "message": message,
-            "retrieval_state": self.retrieval_state(),
-        }, ensure_ascii=False)))
-        return ExpertAction(kind="continue")
-
     def _normalize_tool_arguments(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         normalized = dict(arguments or {})
         if tool_name == "rag.search":
             species_term = f" {self.species_en}" if self.species_en else ""
             breed_term = f" {self.breed}" if is_english_rag_query(self.breed) else ""
             default_query = f"{self.expert.rag_query_hint}{species_term}{breed_term}".strip()
-            normalized.setdefault("query", default_query)
+            assigned_query = str(self.tool_queries.get(tool_name) or "").strip()
+            normalized.setdefault(
+                "query",
+                assigned_query if is_english_rag_query(assigned_query) else default_query,
+            )
             normalized.setdefault("top_k", self.rag_top_k)
             if self.device is not None:
                 normalized.setdefault("device", self.device)
             if self.expert.rag_categories:
                 normalized["category"] = list(self.expert.rag_categories)
         elif tool_name == "mcp.web_search.web_search":
-            normalized.setdefault("query", self.query)
+            normalized.setdefault("query", self.tool_queries.get(tool_name) or self.query)
             normalized.setdefault("max_results", 5)
         return normalized
+
+    def prepare_tool_requests(self) -> List[ToolRequest]:
+        """Build deterministic calls assigned by Task Policy, without an LLM planning round."""
+        self.rounds = 1
+        planned = list(dict.fromkeys([*self.required_tools, *self.recommended_tools]))
+        requests: List[ToolRequest] = []
+        attempted = set(self.attempted_tools)
+        for tool_name in planned:
+            if tool_name in attempted or tool_name not in self.available_tools:
+                continue
+            arguments = self._normalize_tool_arguments(tool_name, {})
+            self.attempted_tools.append(tool_name)
+            self.plan_steps.append({
+                "type": "tool",
+                "tool_name": tool_name,
+                "arguments": dict(arguments),
+                "note": self.retrieval_reason,
+                "round": 1,
+                "required": tool_name in self.required_tools,
+            })
+            requests.append(ToolRequest(
+                expert=self.expert.key,
+                tool_name=tool_name,
+                arguments=arguments,
+            ).with_request_id())
+        return requests
 
     def _parse_opinion(self, obj: Dict[str, Any]) -> Dict[str, Any]:
         opinion = obj.get("opinion") if isinstance(obj.get("opinion"), dict) else obj
@@ -467,153 +479,73 @@ class ExpertAgentSession:
             "confidence": round(confidence, 3),
         }
 
-    async def next_action(self) -> ExpertAction:
-        if self.completed:
-            return ExpertAction(kind="final", opinion=self.fallback_opinion())
-
-        self.rounds += 1
-        pending_tools = self.pending_required_tools
-        force_final = (
-            not pending_tools
-            and (
-                self.rounds >= self.loop_config.max_rounds
-                or self.tool_call_count >= self.loop_config.max_tool_calls
-                or self.tool_timeout_occurred
-                or not self.available_tools
-                or self.remaining_timeout_s <= self.finalize_reserve_s
-            )
-        )
-        hard_round_limit = self.loop_config.max_rounds + max(2, len(self.required_tools) + 1)
-        if self.rounds > hard_round_limit:
-            self.completed = True
-            return ExpertAction(kind="final", opinion=self.fallback_opinion())
-        round_messages = list(self.messages)
-        round_messages.append(self._retrieval_state_message())
-        if force_final:
-            round_messages.append({
-                "role": "user",
-                "content": FORCE_FINAL_REMINDER,
-            })
-        elif not pending_tools and self.rounds == self.loop_config.max_rounds - 1:
-            round_messages.append({
-                "role": "user",
-                "content": PENULTIMATE_ROUND_REMINDER,
-            })
-
-        started = time.perf_counter()
-        resp = await self.llm.chat(
-            messages=round_messages,
-            temperature=0.2,
-            max_tokens=700,
-            response_format={"type": "json_object"},
-        )
-        latency_ms = (time.perf_counter() - started) * 1000.0
-        text = extract_text(resp)
-        self.last_output = text
-        if self.recorder is not None:
-            self.recorder.record_llm(
-                stage=f"expert:{self.expert.key}:round:{self.rounds}",
-                model=getattr(self.llm, "model", ""),
-                messages=round_messages,
-                output=text,
-                latency_ms=latency_ms,
-                usage=extract_usage(resp),
-                meta={
-                    "weight": self.weight,
-                    "force_final": force_final,
-                    "retrieval_state": self.retrieval_state(),
-                },
-            )
-
-        obj, _error = _safe_json_loads(text)
-        if not isinstance(obj, dict):
-            if force_final:
-                self.completed = True
-                return ExpertAction(kind="final", opinion=self.fallback_opinion())
-            return self._protocol_feedback(
-                code="INVALID_ACTION_JSON",
-                message="只能返回严格 JSON 的 action=tool 或 action=final 信封。",
-            )
-
-        action = str(obj.get("action") or "").strip().lower()
-        if action == "final" and isinstance(obj.get("opinion"), dict):
-            if pending_tools:
-                self.messages.append({"role": "assistant", "content": text})
-                return self._protocol_feedback(
-                    code="REQUIRED_TOOL_PENDING",
-                    message=f"尚未完成必需检索：{pending_tools}。请先按顺序调用工具。",
+    async def generate_final_opinion(self) -> Dict[str, Any]:
+        """Generate one expert opinion; a retry is format repair, not another reasoning loop."""
+        self.rounds = 1
+        messages = [*self.messages, self._retrieval_state_message(), {
+            "role": "user",
+            "content": FORCE_FINAL_REMINDER,
+        }]
+        attempts = 1 + self.loop_config.repair_attempts
+        for attempt in range(attempts):
+            started = time.perf_counter()
+            response: Dict[str, Any] = {}
+            try:
+                response = await self.llm.chat(
+                    messages=messages,
+                    temperature=0.2,
+                    max_tokens=self.loop_config.final_max_tokens,
+                    response_format={"type": "json_object"},
+                    thinking=False,
                 )
-            self.completed = True
-            return ExpertAction(kind="final", opinion=self._parse_opinion(obj))
-
-        if force_final:
-            self.completed = True
-            return ExpertAction(
-                kind="final",
-                opinion={
-                    "conclusion": "（专家在最终轮未按要求返回结构化最终意见）",
-                    "evidence": [],
-                    "risks": ["最终轮输出不合规，已禁止继续调用工具；该专家意见不应作为主要决策依据"],
-                    "confidence": 0.0,
-                },
-            )
-
-        if action != "tool":
-            self.messages.append({"role": "assistant", "content": text})
-            return self._protocol_feedback(
-                code="INVALID_ACTION_ENVELOPE",
-                message=(
-                    "最终意见必须使用 {\"action\":\"final\",\"opinion\":{...}}；"
-                    "禁止顶层 conclusion，也不接受 final_answer/call_tool 别名。"
-                ),
-            )
-
-        tool_name = str(obj.get("tool_name") or "").strip()
-        arguments = obj.get("arguments") if isinstance(obj.get("arguments"), dict) else {}
-        arguments = self._normalize_tool_arguments(tool_name, arguments)
-        self.messages.append({"role": "assistant", "content": text})
-
-        if tool_name not in self.available_tools:
-            self.messages.append(_tool_feedback_message(json.dumps({
-                "code": "TOOL_NOT_ALLOWED",
-                "tool_name": tool_name,
-            }, ensure_ascii=False)))
-            return ExpertAction(kind="continue")
-
-        if pending_tools and tool_name != pending_tools[0]:
-            return self._protocol_feedback(
-                code="REQUIRED_TOOL_ORDER",
-                message=f"当前必须先调用 {pending_tools[0]}，不能先调用 {tool_name}。",
-            )
-
-        call_key = canonical_tool_call(tool_name, arguments)
-        seen = self.call_counts.get(call_key, 0)
-        if seen >= self.loop_config.max_repeated_calls:
-            self.messages.append(_tool_feedback_message(json.dumps({
-                "code": "REPEATED_TOOL_CALL",
-                "tool_name": tool_name,
-            }, ensure_ascii=False)))
-            return ExpertAction(kind="continue")
-
-        self.call_counts[call_key] = seen + 1
-        self.tool_call_count += 1
-        self.attempted_tools.append(tool_name)
-        self.plan_steps.append({
-            "type": "tool",
-            "tool_name": tool_name,
-            "arguments": dict(arguments),
-            "note": str(obj.get("reason") or ""),
-            "round": self.rounds,
-            "required": tool_name in self.required_tools,
-        })
-        return ExpertAction(
-            kind="tool",
-            request=ToolRequest(
-                expert=self.expert.key,
-                tool_name=tool_name,
-                arguments=arguments,
-            ).with_request_id(),
-        )
+                text = extract_text(response)
+            except Exception as exc:  # noqa: BLE001
+                text = ""
+                error = str(exc)
+            else:
+                error = ""
+            self.last_output = text
+            if self.recorder is not None:
+                self.recorder.record_llm(
+                    stage=(
+                        f"expert:{self.expert.key}:final"
+                        if attempt == 0
+                        else f"expert:{self.expert.key}:format_repair:{attempt}"
+                    ),
+                    model=getattr(self.llm, "model", ""),
+                    messages=messages,
+                    output=text,
+                    latency_ms=(time.perf_counter() - started) * 1000.0,
+                    usage=extract_usage(response),
+                    meta={
+                        "weight": self.weight,
+                        "single_pass": True,
+                        "format_repair": attempt > 0,
+                        "error": error,
+                        "retrieval_state": self.retrieval_state(),
+                    },
+                )
+            obj, _parse_error = _safe_json_loads(text)
+            if (
+                isinstance(obj, dict)
+                and str(obj.get("action") or "").strip().lower() == "final"
+                and isinstance(obj.get("opinion"), dict)
+            ):
+                self.completed = True
+                return self._parse_opinion(obj)
+            if attempt + 1 < attempts:
+                messages = [*messages]
+                if text:
+                    messages.append({"role": "assistant", "content": text})
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        "FORMAT_REPAIR：上一次输出为空或不符合协议。不要解释、不要调用工具，"
+                        "只返回 {\"action\":\"final\",\"opinion\":{...}} 的完整 JSON。"
+                    ),
+                })
+        self.completed = True
+        return self.fallback_opinion()
 
     def apply_tool_result(self, result: ToolResult) -> None:
         self.messages.append(_tool_feedback_message(_tool_result_context(result)))
@@ -665,25 +597,24 @@ class ExpertAgentSession:
                 best_score=best_score,
                 latency_ms=result.latency_ms,
             )
-        else:
-            self.recorder.record_tool(
-                stage=f"expert:{self.expert.key}:round:{self.rounds}",
-                tool_name=result.tool_name,
-                arguments=result.arguments,
-                ok=result.ok,
-                latency_ms=result.latency_ms,
-                error=result.error,
-            )
+        self.recorder.record_tool(
+            stage=f"expert:{self.expert.key}:round:{self.rounds}",
+            tool_name=result.tool_name,
+            arguments=result.arguments,
+            ok=result.ok,
+            latency_ms=result.latency_ms,
+            error=result.error,
+        )
 
     def fallback_opinion(self) -> Dict[str, Any]:
         pending = self.pending_required_tools
         retrieval_risk = (
             f"必需检索尚未完成：{', '.join(pending)}；不得把该意见作为已核验结论"
             if pending
-            else "专家会话达到轮数、工具次数或超时限制，结论可能不完整。但具备一定参考价值"
+            else "专家单轮结构化输出为空、格式无效或超时，结论不可作为主要决策依据"
         )
         return {
-            "conclusion": self.last_output[:800] or "（专家在循环预算内未生成有效结论）",
+            "conclusion": "（专家未生成有效结构化结论）",
             "evidence": [],
             "risks": [retrieval_risk],
             "confidence": 0.0,
@@ -740,42 +671,41 @@ async def run_expert_sessions(
     sessions: Sequence[ExpertAgentSession],
     broker: ToolBroker,
 ) -> List[Dict[str, Any]]:
-    async def _run_session(session: ExpertAgentSession) -> Dict[str, Any]:
-        opinion: Optional[Dict[str, Any]] = None
-        while opinion is None:
-            remaining = session.remaining_timeout_s
-            if remaining <= 0:
-                opinion = session.fallback_opinion()
+    async def _execute_assigned_tools() -> None:
+        # At most two deterministic waves: assigned tasks, then weak-local web fallback.
+        for _wave in range(2):
+            ownership: Dict[str, ExpertAgentSession] = {}
+            requests: List[ToolRequest] = []
+            timeouts: Dict[str, float] = {}
+            for session in sessions:
+                for request in session.prepare_tool_requests():
+                    ownership[request.request_id] = session
+                    requests.append(request)
+                    timeouts[request.request_id] = session.tool_wait_timeout_s
+            if not requests:
                 break
-            try:
-                action = await asyncio.wait_for(session.next_action(), timeout=remaining)
-            except asyncio.TimeoutError:
-                opinion = session.fallback_opinion()
-                break
-            except Exception as exc:  # noqa: BLE001
-                session.last_output = f"（专家会话失败：{exc}）"
-                opinion = session.fallback_opinion()
-                break
-
-            if action.kind == "final":
-                session.completed = True
-                opinion = action.opinion or session.fallback_opinion()
-                break
-            elif action.kind == "tool" and action.request is not None:
-                results = await broker.execute_batch(
-                    [action.request],
-                    timeouts={action.request.request_id: session.tool_wait_timeout_s},
-                )
-                result = results.get(action.request.request_id)
+            results = await broker.execute_batch(requests, timeouts=timeouts)
+            for request in requests:
+                result = results.get(request.request_id)
                 if result is not None:
-                    session.apply_tool_result(result)
+                    ownership[request.request_id].apply_tool_result(result)
 
-            if session.remaining_timeout_s <= 0:
-                opinion = session.fallback_opinion()
+    await _execute_assigned_tools()
 
-        return session.build_result(opinion or session.fallback_opinion())
+    async def _finalize(session: ExpertAgentSession) -> Dict[str, Any]:
+        try:
+            opinion = await asyncio.wait_for(
+                session.generate_final_opinion(),
+                timeout=max(0.001, session.remaining_timeout_s),
+            )
+        except asyncio.TimeoutError:
+            opinion = session.fallback_opinion()
+        except Exception as exc:  # noqa: BLE001
+            session.last_output = f"（专家单轮生成失败：{exc}）"
+            opinion = session.fallback_opinion()
+        return session.build_result(opinion)
 
-    return list(await asyncio.gather(*(_run_session(session) for session in sessions)))
+    return list(await asyncio.gather(*(_finalize(session) for session in sessions)))
 
 
 async def run_expert(

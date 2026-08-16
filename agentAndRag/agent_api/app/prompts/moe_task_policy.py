@@ -37,6 +37,8 @@ TASK_POLICY_SYSTEM_PROMPT = (
     "- 一条请求可有 secondary_intents。primary_intent 决定最终主要交付结构。\n"
     "- 每个 evidence_task 指定唯一 owner，避免多个专家重复检索。药物证据通常归 pharmacy，"
     "诊断/指南/生命体征通常归 clinical。\n"
+    "- evidence_task.query 给出供执行层直接调用工具的检索语句；local_knowledge 和 medication_reference "
+    "必须使用简洁英文查询，current_web 可使用中文或英文。不要在 query 中写工具名或 JSON。\n"
     "- web_fallback_on_weak_local 仅用于 required 的 medication_reference/local_knowledge，"
     "表示本地证据不足时需要联网补证。\n\n"
     "【急症】只依据用户已报告的当前表现或已核实的外部结果。鉴别诊断中提到严重疾病、"
@@ -51,6 +53,7 @@ TASK_POLICY_SYSTEM_PROMPT = (
     '"pharmacy":3,"behavior":0},"emergency":{"value":false,"confidence":0.8,'
     '"evidence":[]},"evidence_tasks":[{"capability":"local_knowledge",'
     '"owner":"clinical","requirement":"recommended","reason":"一句理由",'
+    '"query":"feline lower urinary tract emergency triage",'
     '"web_fallback_on_weak_local":false}],"missing_information":[],'
     '"reason":"一句总体理由"}'
 )

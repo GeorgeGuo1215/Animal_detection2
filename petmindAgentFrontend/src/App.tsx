@@ -123,6 +123,41 @@ function Sidebar({ current, collapsed = false, onCollapsedChange, onSelect, onNe
 const phaseLabels: Record<string, string> = { queued: '等待会诊资源', reconnecting: '正在恢复会诊流', understanding: '理解问题', routing: '组织会诊路径', consulting: '专家会诊', reviewing: '安全复核', generating: '整理答复' }
 type AudienceRole = 'veterinarian' | 'pet_owner'
 
+interface ExpertToolTrace {
+  kind: 'tool'
+  tool_name: string
+  ok: boolean
+  latency_ms: number
+  result?: { hits?: number; sources?: string[]; results?: number; titles?: string[]; code?: string; status?: string; alert_level?: string }
+  error?: string
+}
+
+interface ExpertTrace {
+  expert: string
+  name: string
+  status: 'running' | 'completed'
+  task?: string
+  tools?: ExpertToolTrace[]
+  opinion?: { conclusion: string; evidence: string[]; risks: string[]; confidence: number }
+  execution?: 'single_pass'
+}
+
+function ExpertConsultation({ experts }: { experts: ExpertTrace[] }) {
+  if (!experts.length) return null
+  return <section className="expert-consultation" aria-label="专家会诊过程">
+    <div className="expert-consultation-heading"><Stethoscope /><div><strong>专家会诊</strong><small>可展开查看脱敏后的任务、工具与专家意见</small></div></div>
+    {experts.map(expert => <details className="expert-thread" key={expert.expert}>
+      <summary><span className={`expert-dot ${expert.status}`} /><span><strong>{expert.name}</strong><small>{expert.status === 'completed' ? '已提交结构化意见' : '正在执行任务'}</small></span><ChevronDown /></summary>
+      <div className="expert-thread-body">
+        <div className="expert-step"><span>任务</span><p>{expert.task || '根据统一任务策略分析当前病例'}</p></div>
+        {(expert.tools || []).map((tool, index) => <div className="expert-step" key={`${tool.tool_name}-${index}`}><span>工具</span><div><strong>{tool.tool_name}</strong><small>{tool.ok ? '调用完成' : '调用失败'} · {(tool.latency_ms / 1000).toFixed(1)} 秒</small>{tool.result?.hits !== undefined && <p>知识库命中 {tool.result.hits} 条{tool.result.sources?.length ? ` · ${tool.result.sources.join('、')}` : ''}</p>}{tool.result?.results !== undefined && <p>网络结果 {tool.result.results} 条{tool.result.titles?.length ? ` · ${tool.result.titles.join('、')}` : ''}</p>}{tool.error && <p className="expert-step-error">{tool.error}</p>}</div></div>)}
+        {expert.opinion && <div className="expert-step"><span>意见</span><div><p>{expert.opinion.conclusion}</p>{expert.opinion.evidence.length > 0 && <ul>{expert.opinion.evidence.map(item => <li key={item}>{item}</li>)}</ul>}{expert.opinion.risks.length > 0 && <small>风险边界：{expert.opinion.risks.join('；')}</small>}</div></div>}
+        <p className="expert-privacy">仅展示任务结果，不展示系统提示词或模型内部推理。</p>
+      </div>
+    </details>)}
+  </section>
+}
+
 function ChatModeSelector({ role, onRoleChange }: { role: AudienceRole; onRoleChange(role: AudienceRole): void }) {
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement | null>(null)
@@ -145,12 +180,12 @@ function ChatModeSelector({ role, onRoleChange }: { role: AudienceRole; onRoleCh
 }
 
 function ChatPage() {
-  const navigate = useNavigate(); const { conversationId } = useParams(); const [messages, setMessages] = useState<Message[]>([]); const [input, setInput] = useState(''); const [phase, setPhase] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [mobileNav, setMobileNav] = useState(false); const [sidebarCollapsed, setSidebarCollapsed] = useState(false); const [detailsOpen, setDetailsOpen] = useState(false)
+  const navigate = useNavigate(); const { conversationId } = useParams(); const [messages, setMessages] = useState<Message[]>([]); const [input, setInput] = useState(''); const [phase, setPhase] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [expertTraces, setExpertTraces] = useState<ExpertTrace[]>([]); const [mobileNav, setMobileNav] = useState(false); const [sidebarCollapsed, setSidebarCollapsed] = useState(false); const [detailsOpen, setDetailsOpen] = useState(false)
   const [audienceRole, setAudienceRole] = useState<AudienceRole>(() => localStorage.getItem('petmind-audience-role') === 'pet_owner' ? 'pet_owner' : 'veterinarian')
   const controller = useRef<AbortController | null>(null); const activeRun = useRef(''); const activeConversation = useRef(conversationId || ''); const pendingConversationNavigation = useRef(''); const lastEvent = useRef(0); const draftAnswer = useRef('')
   function changeAudienceRole(role: AudienceRole) { setAudienceRole(role); localStorage.setItem('petmind-audience-role', role) }
   useEffect(() => {
-    if (!conversationId) { activeConversation.current = ''; setMessages([]); setError(''); return }
+    if (!conversationId) { activeConversation.current = ''; setMessages([]); setExpertTraces([]); setError(''); return }
     activeConversation.current = conversationId
     setError('')
     if (pendingConversationNavigation.current === conversationId) {
@@ -181,6 +216,7 @@ function ChatPage() {
     if (id) sessionStorage.removeItem(`petmind-run:${id}`)
     activeRun.current = ''; draftAnswer.current = ''; setPhase(''); setBusy(false)
     if (event.event === 'failed') setError(String(event.data.message || '会诊任务执行失败，请稍后重试'))
+    else if (event.event === 'completed' && event.data.finish_reason === 'truncated') setError('回答已达到长度上限，内容可能不完整，请继续追问。')
     else setError('')
     if (id) void refreshMessages(id).catch(error => {
       if (event.event === 'completed') setError(error instanceof Error ? error.message : '最终回答加载失败，请刷新重试')
@@ -189,7 +225,14 @@ function ChatPage() {
   function handleEvent(event: RunEvent) {
     lastEvent.current = Math.max(lastEvent.current, event.id)
     if (activeConversation.current && activeRun.current) sessionStorage.setItem(`petmind-run:${activeConversation.current}`, JSON.stringify({ runId: activeRun.current, lastEvent: lastEvent.current }))
-    if (event.event === 'status') { setError(''); setPhase(String(event.data.phase || '')) }
+    if (event.event === 'status') {
+      setError(''); setPhase(String(event.data.phase || ''))
+      const incoming = event.data.expert as ExpertTrace | undefined
+      if (incoming?.expert) setExpertTraces(previous => {
+        const next = previous.filter(item => item.expert !== incoming.expert)
+        return [...next, incoming]
+      })
+    }
     if (event.event === 'delta') {
       setError('')
       draftAnswer.current += String(event.data.content || '')
@@ -207,9 +250,9 @@ function ChatPage() {
         if (signal.aborted || activeRun.current !== runId) return
       }
       try {
-        const snapshot = await api<{status: string; error_message?: string}>(`/api/v1/runs/${runId}`)
+        const snapshot = await api<{status: string; error?: {message?: string} | null}>(`/api/v1/runs/${runId}`)
         if (['completed', 'failed', 'cancelled'].includes(snapshot.status)) {
-          finishRun({ id: lastEvent.current, event: snapshot.status, data: { message: snapshot.error_message || '' } })
+          finishRun({ id: lastEvent.current, event: snapshot.status, data: { message: snapshot.error?.message || '' } })
           return
         }
       } catch { /* the next retry also refreshes authentication when needed */ }
@@ -226,7 +269,7 @@ function ChatPage() {
     const text = input.trim(); if (!text || busy) return
     let id = conversationId
     if (!id) { const c = await client.createConversation(); id = c.id; activeConversation.current = id; pendingConversationNavigation.current = id; navigate(`/chat/${id}`, { replace: true }) }
-    setMessages(prev => [...prev, { id: newId(), role: 'user', content: text, status: 'complete', created_at: new Date().toISOString() }]); setInput(''); setBusy(true); setError(''); setPhase('queued'); draftAnswer.current = ''; lastEvent.current = 0
+    setMessages(prev => [...prev, { id: newId(), role: 'user', content: text, status: 'complete', created_at: new Date().toISOString() }]); setInput(''); setBusy(true); setError(''); setExpertTraces([]); setPhase('queued'); draftAnswer.current = ''; lastEvent.current = 0
     controller.current = new AbortController()
     try {
       await streamRun(id!, text, audienceRole, handleEvent, controller.current.signal, runId => { activeRun.current = runId; sessionStorage.setItem(`petmind-run:${id}`, JSON.stringify({ runId, lastEvent: lastEvent.current })) })
@@ -239,8 +282,8 @@ function ChatPage() {
     }
   }
   async function stop() { if (activeRun.current) await api(`/api/v1/runs/${activeRun.current}`, { method: 'DELETE' }).catch(() => undefined); if (activeConversation.current) sessionStorage.removeItem(`petmind-run:${activeConversation.current}`); controller.current?.abort(); setBusy(false); setPhase('') }
-  function handleDeleted(id: string) { if (id === conversationId) { setMessages([]); setMobileNav(false); navigate('/chat', { replace: true }) } }
-  return <div className={`workspace ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}><div className={mobileNav ? 'mobile-sidebar shown' : 'mobile-sidebar'}><Sidebar current={conversationId} onCollapsedChange={() => setMobileNav(false)} onSelect={id => { navigate(`/chat/${id}`); setMobileNav(false) }} onNew={create} onDeleted={handleDeleted} /></div><Sidebar current={conversationId} collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} onSelect={id => navigate(`/chat/${id}`)} onNew={create} onDeleted={handleDeleted} /><section className="chat-main"><header className="chat-top"><button className="mobile-menu" aria-label="打开侧边栏" onClick={() => setMobileNav(!mobileNav)}><Menu /></button><ChatModeSelector role={audienceRole} onRoleChange={changeAudienceRole} /><div className="top-actions"><a href="/plans"><Coins />积分</a><div className="conversation-more"><button type="button" aria-label="会诊详情" aria-expanded={detailsOpen} onClick={() => setDetailsOpen(!detailsOpen)}><MoreHorizontal /></button>{detailsOpen && <div className="conversation-details"><p className="eyebrow">SESSION DETAILS</p><h3>当前会诊</h3><dl><div><dt>模型</dt><dd>PetMind Clinical MoE</dd></div><div><dt>回答身份</dt><dd>{audienceRole === 'veterinarian' ? '兽医专业模式' : '宠物主沟通模式'}</dd></div><div><dt>会话状态</dt><dd>{busy ? phaseLabels[phase] || '处理中' : '随时可用'}</dd></div></dl><a href="/settings"><Settings />个人设置</a><a href="/help"><CircleHelp />使用帮助</a><a href="/plans"><WalletCards />会员与积分</a></div>}</div></div></header><div className="message-scroll">{messages.length === 0 ? <div className="empty-chat"><img src={logoUrl} alt="" /><p className="eyebrow">PETMIND CLINICAL DESK</p><h1>今天需要一起梳理<br />哪个病例？</h1><p>请提供物种、年龄、主诉、症状时间线和已有检查。系统会组织资料检索与专家复核。</p><div className="suggestions">{['猫频繁进出猫砂盆，如何排急症？', '犬持续咳嗽的鉴别诊断路径', '帮我解读这组肝功能指标'].map(q => <button key={q} onClick={() => setInput(q)}>{q}</button>)}</div></div> : <div className="messages">{messages.map(message => <article key={message.id} className={`message ${message.role}`}><div className="message-label">{message.role === 'user' ? '我的问题' : <><Stethoscope />PetMind 会诊意见</>}</div><div className="message-body">{message.role === 'assistant' ? <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{message.content}</ReactMarkdown> : message.content}</div>{message.role === 'assistant' && message.status !== 'streaming' && <CopyButton text={message.content} />}</article>)}{phase && <div className="phase-card"><span className="phase-spinner" /><div><strong>{phaseLabels[phase] || '处理中'}</strong><small>仅展示任务阶段，不暴露模型内部推理</small></div></div>}{error && <div className="form-error">{error}</div>}</div>}</div><div className="composer-wrap"><div className="composer"><textarea aria-label="输入病例" rows={1} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }} placeholder={audienceRole === 'veterinarian' ? '描述病例，Shift + Enter 换行' : '描述宠物的症状和变化，Shift + Enter 换行'} /><button className={busy ? 'stop' : 'send'} aria-label={busy ? '停止生成' : '发送'} onClick={busy ? stop : send}>{busy ? <Square /> : <Send />}</button></div><small>PetMind 可能出错，请结合体检、实验室与影像结果独立判断。</small></div></section></div>
+  function handleDeleted(id: string) { if (id === conversationId) { setMessages([]); setExpertTraces([]); setMobileNav(false); navigate('/chat', { replace: true }) } }
+  return <div className={`workspace ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}><div className={mobileNav ? 'mobile-sidebar shown' : 'mobile-sidebar'}><Sidebar current={conversationId} onCollapsedChange={() => setMobileNav(false)} onSelect={id => { navigate(`/chat/${id}`); setMobileNav(false) }} onNew={create} onDeleted={handleDeleted} /></div><Sidebar current={conversationId} collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} onSelect={id => navigate(`/chat/${id}`)} onNew={create} onDeleted={handleDeleted} /><section className="chat-main"><header className="chat-top"><button className="mobile-menu" aria-label="打开侧边栏" onClick={() => setMobileNav(!mobileNav)}><Menu /></button><ChatModeSelector role={audienceRole} onRoleChange={changeAudienceRole} /><div className="top-actions"><a href="/plans"><Coins />积分</a><div className="conversation-more"><button type="button" aria-label="会诊详情" aria-expanded={detailsOpen} onClick={() => setDetailsOpen(!detailsOpen)}><MoreHorizontal /></button>{detailsOpen && <div className="conversation-details"><p className="eyebrow">SESSION DETAILS</p><h3>当前会诊</h3><dl><div><dt>模型</dt><dd>PetMind Clinical MoE</dd></div><div><dt>回答身份</dt><dd>{audienceRole === 'veterinarian' ? '兽医专业模式' : '宠物主沟通模式'}</dd></div><div><dt>会话状态</dt><dd>{busy ? phaseLabels[phase] || '处理中' : '随时可用'}</dd></div></dl><a href="/settings"><Settings />个人设置</a><a href="/help"><CircleHelp />使用帮助</a><a href="/plans"><WalletCards />会员与积分</a></div>}</div></div></header><div className="message-scroll">{messages.length === 0 ? <div className="empty-chat"><img src={logoUrl} alt="" /><p className="eyebrow">PETMIND CLINICAL DESK</p><h1>今天需要一起梳理<br />哪个病例？</h1><p>请提供物种、年龄、主诉、症状时间线和已有检查。系统会组织资料检索与专家复核。</p><div className="suggestions">{['猫频繁进出猫砂盆，如何排急症？', '犬持续咳嗽的鉴别诊断路径', '帮我解读这组肝功能指标'].map(q => <button key={q} onClick={() => setInput(q)}>{q}</button>)}</div></div> : <div className="messages">{messages.map(message => <article key={message.id} className={`message ${message.role}`}><div className="message-label">{message.role === 'user' ? '我的问题' : <><Stethoscope />PetMind 会诊意见</>}</div><div className="message-body">{message.role === 'assistant' ? <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{message.content}</ReactMarkdown> : message.content}</div>{message.role === 'assistant' && message.status !== 'streaming' && <CopyButton text={message.content} />}</article>)}<ExpertConsultation experts={expertTraces} />{phase && <div className="phase-card"><span className="phase-spinner" /><div><strong>{phaseLabels[phase] || '处理中'}</strong><small>仅展示任务阶段，不暴露模型内部推理</small></div></div>}{error && <div className="form-error">{error}</div>}</div>}</div><div className="composer-wrap"><div className="composer"><textarea aria-label="输入病例" rows={1} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }} placeholder={audienceRole === 'veterinarian' ? '描述病例，Shift + Enter 换行' : '描述宠物的症状和变化，Shift + Enter 换行'} /><button className={busy ? 'stop' : 'send'} aria-label={busy ? '停止生成' : '发送'} onClick={busy ? stop : send}>{busy ? <Square /> : <Send />}</button></div><small>PetMind 可能出错，请结合体检、实验室与影像结果独立判断。</small></div></section></div>
 }
 
 function AdminPage() {

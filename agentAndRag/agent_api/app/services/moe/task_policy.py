@@ -209,6 +209,7 @@ def parse_task_policy(text: str) -> TaskPolicyDecision:
             requirement=requirement,
             reason=str(raw.get("reason") or "").strip()[:500],
             web_fallback_on_weak_local=bool(raw.get("web_fallback_on_weak_local", False)),
+            query=str(raw.get("query") or "").strip()[:500],
         ))
 
     return TaskPolicyDecision(
@@ -260,8 +261,9 @@ async def decide_task_policy(
         response = await llm.chat(
             messages=messages,
             temperature=0.0,
-            max_tokens=900,
+            max_tokens=1200,
             response_format={"type": "json_object"},
+            thinking=False,
         )
         output = extract_text(response)
         decision = parse_task_policy(output)

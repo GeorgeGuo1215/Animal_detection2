@@ -46,11 +46,12 @@ class OpenAICompatClient:
         temperature: float = 0.2,
         max_tokens: int = 768,
         response_format: Optional[Dict[str, Any]] = None,
+        thinking: Optional[bool] = None,
     ) -> Dict[str, Any]:
         require_api_key(self.api_key)
         payload = build_chat_payload(
             model=self.model, messages=messages, temperature=temperature,
-            max_tokens=max_tokens, response_format=response_format,
+            max_tokens=max_tokens, response_format=response_format, thinking=thinking,
         )
 
         limits = get_resource_limits()
@@ -88,11 +89,12 @@ class AsyncOpenAIClient:
         temperature: float = 0.2,
         max_tokens: int = 768,
         response_format: Optional[Dict[str, Any]] = None,
+        thinking: Optional[bool] = None,
     ) -> Dict[str, Any]:
         require_api_key(self.api_key)
         payload = build_chat_payload(
             model=self.model, messages=messages, temperature=temperature,
-            max_tokens=max_tokens, response_format=response_format,
+            max_tokens=max_tokens, response_format=response_format, thinking=thinking,
         )
 
         limits = get_resource_limits()

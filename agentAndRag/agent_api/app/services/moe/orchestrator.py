@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import time
 from dataclasses import dataclass, field
@@ -38,6 +39,9 @@ from .tool_broker import ToolBroker
 from .trace import MoETrace, extract_usage
 from ...sql_search import fetch_animal_profile, species_label
 from ...context.request_context import get_request_animal_id
+
+
+logger = logging.getLogger(__name__)
 
 
 _OUT_OF_SCOPE_TEXT = (
@@ -727,6 +731,9 @@ class MoEOrchestrator:
         max_tokens = self._aggregator_max_tokens(query)
         collected: List[str] = []
         finish_reason = "stop"
+        stream_error = ""
+        fallback_response: Dict[str, Any] = {}
+        fallback_used = False
         t0 = time.perf_counter()
         try:
             stream_events = getattr(self.stream_llm, "chat_stream_events", None)
@@ -735,6 +742,7 @@ class MoEOrchestrator:
                     messages=messages,
                     temperature=self.config.temperature,
                     max_tokens=max_tokens,
+                    thinking=False,
                 ):
                     piece = str(item.get("content") or "")
                     if piece:
@@ -747,11 +755,44 @@ class MoEOrchestrator:
                     messages=messages,
                     temperature=self.config.temperature,
                     max_tokens=max_tokens,
+                    thinking=False,
                 ):
                     collected.append(piece)
                     yield _event(content=piece, status="streaming")
         except Exception as exc:  # noqa: BLE001
-            yield _event(content=f"\n生成失败：{exc}")
+            stream_error = str(exc)
+            logger.warning("aggregator stream failed before completion: %s", exc, exc_info=True)
+
+        if stream_error and collected:
+            # Never silently persist a partial answer as a normal completion.
+            raise RuntimeError(f"aggregator stream interrupted after partial output: {stream_error}")
+
+        if not collected:
+            fallback_used = True
+            yield _event(
+                status="generating",
+                detail={"message": "流式响应为空，正在自动重试终答", "retry": 1},
+            )
+            try:
+                fallback_response = await self.llm.chat(
+                    messages=messages,
+                    temperature=self.config.temperature,
+                    max_tokens=max_tokens,
+                    thinking=False,
+                )
+                fallback_answer = extract_text(fallback_response).strip()
+            except Exception as exc:  # noqa: BLE001
+                fallback_answer = ""
+                stream_error = "; ".join(part for part in (stream_error, str(exc)) if part)
+                logger.warning("aggregator non-stream fallback failed: %s", exc, exc_info=True)
+            if not fallback_answer:
+                reason = stream_error or "empty response without an upstream error"
+                raise RuntimeError(f"aggregator returned no visible content after fallback: {reason}")
+            finish_reason = _response_finish_reason(fallback_response)
+            for offset in range(0, len(fallback_answer), 96):
+                piece = fallback_answer[offset:offset + 96]
+                collected.append(piece)
+                yield _event(content=piece, status="streaming")
         latency = (time.perf_counter() - t0) * 1000.0
         final_answer = "".join(collected)
         self.last_finish_reason = finish_reason
@@ -762,7 +803,14 @@ class MoEOrchestrator:
                 messages=messages,
                 output=final_answer,
                 latency_ms=latency,
-                meta={"streamed": True, "max_tokens": max_tokens, "finish_reason": finish_reason},
+                usage=extract_usage(fallback_response),
+                meta={
+                    "streamed": not fallback_used,
+                    "fallback_used": fallback_used,
+                    "stream_error": stream_error,
+                    "max_tokens": max_tokens,
+                    "finish_reason": finish_reason,
+                },
             )
             recorder.final_answer = final_answer
             recorder.finalize()
@@ -844,6 +892,7 @@ class MoEOrchestrator:
             messages=messages,
             temperature=self.config.temperature,
             max_tokens=max_tokens,
+            thinking=False,
         )
         latency = (time.perf_counter() - t0) * 1000.0
         final_answer = extract_text(resp)

@@ -92,6 +92,7 @@ async def review(
             temperature=0.1,
             max_tokens=400,
             response_format={"type": "json_object"},
+            thinking=False,
         )
         latency = (time.perf_counter() - t0) * 1000.0
         text = extract_text(resp)

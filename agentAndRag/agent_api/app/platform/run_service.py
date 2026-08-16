@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import math
 from datetime import timezone
 from typing import Any, AsyncIterator
@@ -17,6 +18,9 @@ from .database import platform_session
 from .models import AgentRun, Conversation, Message, RunEvent, UsageRecord, utcnow
 from .services import settle_credits
 
+
+logger = logging.getLogger(__name__)
+
 TERMINAL_RUN_STATES = {"completed", "failed", "cancelled"}
 PUBLIC_PHASES = {
     "intent_classifying": ("understanding", "正在理解临床问题"),
@@ -28,6 +32,63 @@ PUBLIC_PHASES = {
     "reviewing": ("reviewing", "正在进行安全复核"),
     "generating": ("generating", "正在整理答复"),
 }
+
+
+def _public_tool_summary(record: dict[str, Any]) -> dict[str, Any]:
+    """Return a compact, prompt-free tool transcript safe for the web UI."""
+    tool_name = str(record.get("tool_name") or "")
+    result = record.get("result") if isinstance(record.get("result"), dict) else {}
+    summary: dict[str, Any] = {
+        "kind": "tool",
+        "tool_name": tool_name,
+        "ok": bool(record.get("ok")),
+        "latency_ms": float(record.get("latency_ms") or 0.0),
+    }
+    if tool_name == "rag.search":
+        hits = result.get("hits") if isinstance(result.get("hits"), list) else []
+        summary["result"] = {
+            "hits": len(hits),
+            "sources": [
+                str(hit.get("source_path") or hit.get("source") or "")[-160:]
+                for hit in hits[:3]
+                if isinstance(hit, dict)
+            ],
+        }
+    elif "web_search" in tool_name:
+        rows = result.get("results") if isinstance(result.get("results"), list) else []
+        summary["result"] = {
+            "results": len(rows),
+            "titles": [str(row.get("title") or "")[:160] for row in rows[:3] if isinstance(row, dict)],
+        }
+    else:
+        summary["result"] = {
+            key: result.get(key)
+            for key in ("code", "status", "alert_level")
+            if result.get(key) is not None
+        }
+    if record.get("error"):
+        summary["error"] = str(record["error"])[:300]
+    return summary
+
+
+def _public_expert_trace(opinion: dict[str, Any]) -> dict[str, Any]:
+    """Expose expert work products, never the system prompt or hidden model trace."""
+    return {
+        "expert": str(opinion.get("expert") or ""),
+        "name": str(opinion.get("name_zh") or "专家"),
+        "status": "completed",
+        "task": str(opinion.get("retrieval_reason") or "根据统一任务策略形成专业意见"),
+        "required_tools": list(opinion.get("required_tools") or []),
+        "recommended_tools": list(opinion.get("recommended_tools") or []),
+        "tools": [_public_tool_summary(row) for row in opinion.get("tool_results") or [] if isinstance(row, dict)],
+        "opinion": {
+            "conclusion": str(opinion.get("conclusion") or ""),
+            "evidence": [str(item) for item in opinion.get("evidence") or []],
+            "risks": [str(item) for item in opinion.get("risks") or []],
+            "confidence": float(opinion.get("confidence") or 0.0),
+        },
+        "execution": "single_pass",
+    }
 
 
 async def append_run_event(run_id: str, event_type: str, payload: dict[str, Any]) -> int:
@@ -93,6 +154,7 @@ async def execute_run(run_id: str) -> None:
     answer_parts: list[str] = []
     expert_calls = 0
     tool_calls = 0
+    current_phase = "queued"
     try:
         memory_injection, _ = await load_user_memory(user_id=user_id, query=query, pet_id=None)
         registry = get_registry()
@@ -125,11 +187,23 @@ async def execute_run(run_id: str) -> None:
                 await append_run_event(run_id, "delta", {"content": content})
             elif status in PUBLIC_PHASES:
                 phase, message = PUBLIC_PHASES[status]
+                current_phase = phase
                 if status == "expert_calling":
                     expert_calls += 1
                 if status == "tool_complete":
                     tool_calls += 1
-                await append_run_event(run_id, "status", {"phase": phase, "message": message})
+                payload: dict[str, Any] = {"phase": phase, "message": message, "agent_status": status}
+                detail = event.get("detail") if isinstance(event.get("detail"), dict) else {}
+                if status == "expert_calling":
+                    payload["expert"] = {
+                        "expert": str(detail.get("expert") or ""),
+                        "name": str(detail.get("name_zh") or "专家"),
+                        "status": "running",
+                    }
+                elif status == "expert_complete" and isinstance(detail.get("opinion"), dict):
+                    tool_calls += len(detail["opinion"].get("tool_results") or [])
+                    payload["expert"] = _public_expert_trace(detail["opinion"])
+                await append_run_event(run_id, "status", payload)
 
         answer = "".join(answer_parts).strip()
         if not answer:
@@ -168,15 +242,30 @@ async def execute_run(run_id: str) -> None:
                 details={"finish_reason": orchestrator.last_finish_reason, "calculated_credits": credits},
             ))
             await session.commit()
-        await write_user_memory(
-            user_id=user_id,
-            query=query,
-            answer=answer,
-            pet_id=None,
-            session_id=conversation_id,
-            turn_id=run_id,
-        )
-        await append_run_event(run_id, "completed", {"finish_reason": orchestrator.last_finish_reason, "credits": billed_credits})
+        memory_synced = True
+        try:
+            await write_user_memory(
+                user_id=user_id,
+                query=query,
+                answer=answer,
+                pet_id=None,
+                session_id=conversation_id,
+                turn_id=run_id,
+            )
+        except Exception as exc:  # noqa: BLE001
+            # The answer is already durable. Memory synchronization must not
+            # retroactively turn a successful consultation into a failed run.
+            memory_synced = False
+            logger.exception("memory sync failed after completed run run_id=%s", run_id)
+            await append_run_event(run_id, "warning", {
+                "code": "memory_sync_failed",
+                "message": "回答已完成，但长期记忆同步失败，系统将稍后重试",
+            })
+        await append_run_event(run_id, "completed", {
+            "finish_reason": orchestrator.last_finish_reason,
+            "credits": billed_credits,
+            "memory_synced": memory_synced,
+        })
     except asyncio.CancelledError:
         async with platform_session() as session:
             run = await session.get(AgentRun, run_id)
@@ -187,6 +276,7 @@ async def execute_run(run_id: str) -> None:
                 await session.commit()
         await append_run_event(run_id, "cancelled", {"message": "任务已取消"})
     except Exception as exc:  # noqa: BLE001
+        logger.exception("platform run failed run_id=%s phase=%s", run_id, current_phase)
         async with platform_session() as session:
             run = await session.get(AgentRun, run_id)
             if run is not None:
@@ -196,7 +286,12 @@ async def execute_run(run_id: str) -> None:
                 run.finished_at = utcnow()
                 await settle_credits(session, run_id=run_id, actual_amount=0)
                 await session.commit()
-        await append_run_event(run_id, "failed", {"code": "agent_run_failed", "message": "会诊任务执行失败"})
+        await append_run_event(run_id, "failed", {
+            "code": "agent_run_failed",
+            "message": "终答生成失败，请重试" if current_phase == "generating" else "会诊任务执行失败",
+            "phase": current_phase,
+            "retryable": current_phase == "generating",
+        })
 
 
 async def run_event_stream(run_id: str, *, after_sequence: int = 0) -> AsyncIterator[str]:

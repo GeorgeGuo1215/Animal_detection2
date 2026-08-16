@@ -14,7 +14,11 @@ from typing import Dict, List, Optional
 from .experts import EXPERTS
 
 
-_EMERGENCY_EXPERTS = ("clinical", "pharmacy")
+# Every emergency needs clinical triage. Pharmacy is selected by the semantic
+# score only when the task actually involves medication, poisoning, or a
+# pharmacological safety decision; forcing it for every emergency adds an
+# unrelated LLM call to cases such as urinary obstruction triage.
+_EMERGENCY_EXPERTS = ("clinical",)
 
 
 def _env_float(name: str, default: float) -> float:

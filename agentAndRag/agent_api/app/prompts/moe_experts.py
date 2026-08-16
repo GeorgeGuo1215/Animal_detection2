@@ -1,8 +1,7 @@
-"""Prompt fragments and assembly for independent MoE expert subagents."""
+"""Prompt fragments and assembly for task-driven MoE expert subagents."""
 from __future__ import annotations
 
-import json
-from typing import Any, Dict, List
+from typing import Dict
 
 
 SPECIES_GUARD = (
@@ -72,13 +71,12 @@ AUDIENCE_VET = (
 
 IMPORTANT_RETRIEVAL_POLICY: Dict[str, str] = {
     "clinical": (
-        "【检索策略】统一任务策略已经基于整段语义分配证据任务。RETRIEVAL_STATE.recommended_tools"
-        "仅是质量建议，不是固定工具链；只有 required_tools/pending_tools 非空才阻止 final。"
+        "【检索策略】统一任务策略已经基于整段语义分配并执行证据任务。你只负责结合已经返回的"
+        "工具结果形成一次最终意见，不得自行发起新工具调用。"
     ),
     "pharmacy": (
-        "【检索策略】统一任务策略根据完整语义判断具体用药结论所需证据，并将任务分配给唯一负责专家。"
-        "按 RETRIEVAL_STATE 执行；只有 pending_tools 非空时才禁止 final，本地证据不足时可能动态追加"
-        " Web Search。不得仅因出现某个药学词语而机械调用工具。"
+        "【检索策略】统一任务策略根据完整语义判断具体用药结论所需证据，并由执行层完成检索。"
+        "你只结合已返回证据形成一次最终意见；证据不足时明确局限，不得自行发起新工具调用。"
     ),
 }
 
@@ -114,10 +112,9 @@ EXPERT_PERSONAS = {
     ),
 }
 
-FORCE_FINAL_REMINDER = "循环预算已到或没有可用工具。本轮必须返回 action=final，不得再调用工具。"
-PENULTIMATE_ROUND_REMINDER = (
-    "这是倒数第二轮。你本轮仍可按需调用一次工具，但下一轮必须返回 "
-    "action=final 的结构化最终意见。请避免发起无法在下一轮完成归纳的检索。"
+FORCE_FINAL_REMINDER = (
+    "工具执行阶段已经结束。这是本任务唯一的专家意见生成轮次；必须返回 action=final，"
+    "不得返回 action=tool，不得请求追加轮次。"
 )
 
 
@@ -126,7 +123,6 @@ def build_expert_system_prompt(
     persona: str,
     expert_key: str,
     user_role: str,
-    tool_brief: List[Dict[str, Any]],
 ) -> str:
     audience = AUDIENCE_VET if user_role == "veterinarian" else AUDIENCE_OWNER
     retrieval_policy = IMPORTANT_RETRIEVAL_POLICY.get(expert_key, "")
@@ -134,14 +130,8 @@ def build_expert_system_prompt(
     return (
         f"{persona}\n{SPECIES_GUARD}\n{SPECIES_BREED_GUARD}\n{audience}\n"
         f"{retrieval_policy}\n{specialist_safety}\n\n"
-        "你是独立运行的专家 Subagent。你拥有自己的上下文，必须根据用户问题和本上下文中的"
-        "工具结果逐轮决定下一步；不要预先生成固定多步计划。每轮只能执行一个动作。\n"
-        "需要外部证据时返回 action=tool；RETRIEVAL_STATE.recommended_tools 仅供自主判断，不阻止 final；"
-        "只有 pending_tools 非空时才必须先完成对应工具调用。"
-        "不要为了形式调用工具，也不要重复相同调用。你必须只输出严格 JSON。\n"
-        "调用 rag.search 时，arguments.query 必须完全使用英语，不得包含中文、日文或韩文字符。\n"
-        "工具动作格式："
-        '{"action":"tool","tool_name":"<name>","arguments":{},"reason":"..."}\n'
-        f"最终意见格式与约束：{OUTPUT_CONTRACT}\n"
-        f"当前可用工具：{json.dumps(tool_brief, ensure_ascii=False)}"
+        "你是独立运行的专家 Subagent。统一任务策略和工具执行层已经在你运行前完成任务分派与证据获取。"
+        "你只进行一次专业归纳：结合用户问题、历史事实、RETRIEVAL_STATE 与 TOOL_RESULT，直接输出最终意见；"
+        "不得调用工具、不得要求下一轮、不得输出内部思考过程。你必须只输出严格 JSON。\n"
+        f"最终意见格式与约束：{OUTPUT_CONTRACT}"
     )

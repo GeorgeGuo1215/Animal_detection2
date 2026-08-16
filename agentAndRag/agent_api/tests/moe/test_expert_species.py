@@ -11,6 +11,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from app.services.moe.experts import EXPERTS, run_expert, _SPECIES_BREED_GUARD
+from app.services.moe.retrieval_policy import RetrievalRequirement
 
 
 class FakeRegistry:
@@ -38,20 +39,9 @@ class FakeLLM:
 
     def __init__(self):
         self.last_messages = None
-        self.plan_tools = ["rag.search"]
-        self.calls = 0
 
     async def chat(self, messages=None, **kwargs):
         self.last_messages = messages
-        self.calls += 1
-        if self.calls <= len(self.plan_tools):
-            content = json.dumps({
-                "action": "tool",
-                "tool_name": self.plan_tools[self.calls - 1],
-                "arguments": {},
-                "reason": "test",
-            })
-            return {"choices": [{"message": {"content": content}}]}
         content = json.dumps(
             {
                 "action": "final",
@@ -69,6 +59,13 @@ def _system_content(messages):
     return [m for m in messages if m["role"] == "system"][0]["content"]
 
 
+def _retrieval(tool="rag.search"):
+    return RetrievalRequirement(
+        required_tools=(), recommended_tools=(tool,),
+        require_web_on_rag_failure=False, reason="test assignment",
+    )
+
+
 def test_run_expert_injects_species():
     reg, llm = FakeRegistry(), FakeLLM()
     res = asyncio.run(
@@ -81,6 +78,7 @@ def test_run_expert_injects_species():
             species_en="cat",
             species_zh="ZH_SENTINEL",
             recorder=None,
+            retrieval_requirement=_retrieval(),
         )
     )
     assert reg.calls, "rag.search was not called"
@@ -106,6 +104,7 @@ def test_run_expert_injects_breed_and_guard():
             species_zh="犬（狗）",
             breed="French Bulldog",
             recorder=None,
+            retrieval_requirement=_retrieval(),
         )
     )
     assert "French Bulldog" in reg.calls[0][1]["query"]
@@ -132,8 +131,7 @@ def test_run_expert_without_species():
     assert "species" not in user_content
 
 
-def test_run_expert_no_forced_rag_when_other_tools_planned():
-    """Planner chose only web_search → must NOT force-insert rag.search."""
+def test_run_expert_only_executes_tool_assigned_by_task_policy():
     from app.tools.tool_registry import ToolSpec
 
     class Reg(FakeRegistry):
@@ -158,7 +156,6 @@ def test_run_expert_no_forced_rag_when_other_tools_planned():
             return next((tool for tool in self.list_tools() if tool.name == name), None)
 
     reg, llm = Reg(), FakeLLM()
-    llm.plan_tools = ["mcp.web_search.web_search"]
     res = asyncio.run(
         run_expert(
             expert=EXPERTS["clinical"],
@@ -167,6 +164,7 @@ def test_run_expert_no_forced_rag_when_other_tools_planned():
             registry=reg,
             llm=llm,
             recorder=None,
+            retrieval_requirement=_retrieval("mcp.web_search.web_search"),
         )
     )
     assert "mcp.web_search.web_search" in res["tools_used"]

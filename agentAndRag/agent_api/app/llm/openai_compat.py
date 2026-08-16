@@ -53,6 +53,7 @@ def build_chat_payload(
     max_tokens: int,
     response_format: Optional[Dict[str, Any]] = None,
     stream: bool = False,
+    thinking: Optional[bool] = None,
 ) -> Dict[str, Any]:
     payload: Dict[str, Any] = {
         "model": model,
@@ -64,6 +65,8 @@ def build_chat_payload(
         payload["response_format"] = response_format
     if stream:
         payload["stream"] = True
+    if thinking is not None:
+        payload["thinking"] = {"type": "enabled" if thinking else "disabled"}
     return payload
 
 

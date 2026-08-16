@@ -47,6 +47,7 @@ class OpenAIStreamClient:
         messages: List[Dict[str, Any]],
         temperature: float = 0.2,
         max_tokens: int = 768,
+        thinking: Optional[bool] = None,
     ) -> Iterator[str]:
         """
         Stream chat completion, yielding content chunks.
@@ -56,7 +57,7 @@ class OpenAIStreamClient:
         require_api_key(self.api_key)
         payload = build_chat_payload(
             model=self.model, messages=messages, temperature=temperature,
-            max_tokens=max_tokens, stream=True,
+            max_tokens=max_tokens, stream=True, thinking=thinking,
         )
 
         limits = get_resource_limits()
@@ -89,12 +90,18 @@ class OpenAIStreamClient:
         messages: List[Dict[str, Any]],
         temperature: float = 0.2,
         max_tokens: int = 768,
+        thinking: Optional[bool] = None,
     ) -> str:
         """
         Stream chat completion and return full content.
         """
         chunks = []
-        for chunk in self.chat_stream(messages=messages, temperature=temperature, max_tokens=max_tokens):
+        for chunk in self.chat_stream(
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            thinking=thinking,
+        ):
             chunks.append(chunk)
         return "".join(chunks)
 
@@ -121,11 +128,13 @@ class AsyncOpenAIStreamClient:
         messages: List[Dict[str, Any]],
         temperature: float = 0.2,
         max_tokens: int = 768,
+        thinking: Optional[bool] = None,
     ) -> AsyncIterator[str]:
         events = self.chat_stream_events(
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
+            thinking=thinking,
         )
         try:
             async for event in events:
@@ -141,12 +150,13 @@ class AsyncOpenAIStreamClient:
         messages: List[Dict[str, Any]],
         temperature: float = 0.2,
         max_tokens: int = 768,
+        thinking: Optional[bool] = None,
     ) -> AsyncIterator[Dict[str, Optional[str]]]:
         """Yield content deltas plus the upstream finish reason."""
         require_api_key(self.api_key)
         payload = build_chat_payload(
             model=self.model, messages=messages, temperature=temperature,
-            max_tokens=max_tokens, stream=True,
+            max_tokens=max_tokens, stream=True, thinking=thinking,
         )
 
         limits = get_resource_limits()
@@ -183,9 +193,15 @@ class AsyncOpenAIStreamClient:
         messages: List[Dict[str, Any]],
         temperature: float = 0.2,
         max_tokens: int = 768,
+        thinking: Optional[bool] = None,
     ) -> str:
         chunks: List[str] = []
-        async for chunk in self.chat_stream(messages=messages, temperature=temperature, max_tokens=max_tokens):
+        async for chunk in self.chat_stream(
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            thinking=thinking,
+        ):
             chunks.append(chunk)
         return "".join(chunks)
 
