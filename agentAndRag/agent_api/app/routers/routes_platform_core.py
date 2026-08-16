@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..platform.config import get_platform_settings
 from ..platform.database import get_platform_session, platform_session
 from ..platform.dependencies import Principal, get_current_principal, require_scope
+from ..platform.expert_consultations import consultations_by_run
 from ..platform.models import (
     AgentRun,
     Conversation,
@@ -190,6 +191,7 @@ async def list_messages(
     rows = list((await session.scalars(select(Message).where(
         Message.conversation_id == conversation_id
     ).order_by(Message.created_at.asc()).limit(limit))).all())
+    consultations = await consultations_by_run(session, (item.run_id for item in rows))
     return {"items": [{
         "id": item.id,
         "run_id": item.run_id,
@@ -197,6 +199,7 @@ async def list_messages(
         "content": item.content,
         "status": item.status,
         "created_at": item.created_at,
+        "expert_consultations": consultations.get(item.run_id or "", []),
     } for item in rows]}
 
 
@@ -301,6 +304,17 @@ async def get_run(
     session: AsyncSession = Depends(get_platform_session),
 ):
     return _run_payload(await _owned_run(session, principal.user_id, run_id))
+
+
+@router.get("/runs/{run_id}/experts")
+async def get_run_experts(
+    run_id: str,
+    principal: Principal = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_platform_session),
+):
+    await _owned_run(session, principal.user_id, run_id)
+    consultations = await consultations_by_run(session, [run_id])
+    return {"items": consultations.get(run_id, [])}
 
 
 @router.delete("/runs/{run_id}", status_code=202)

@@ -8,6 +8,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Float,
     Index,
     Integer,
     Numeric,
@@ -178,6 +179,34 @@ class RunEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class ExpertConsultation(Base, TimestampMixin):
+    """Durable, public-safe work product produced by one MoE expert."""
+
+    __tablename__ = "platform_expert_consultations"
+    __table_args__ = (
+        UniqueConstraint("run_id", "expert_key", name="uq_platform_expert_consultation_run_expert"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("platform_agent_runs.id", ondelete="CASCADE"), index=True
+    )
+    conversation_id: Mapped[str] = mapped_column(
+        ForeignKey("platform_conversations.id", ondelete="CASCADE"), index=True
+    )
+    expert_key: Mapped[str] = mapped_column(String(40))
+    expert_name: Mapped[str] = mapped_column(String(100), default="专家")
+    status: Mapped[str] = mapped_column(String(24), default="completed")
+    task: Mapped[str] = mapped_column(Text, default="")
+    required_tools: Mapped[list] = mapped_column(JSON, default=list)
+    recommended_tools: Mapped[list] = mapped_column(JSON, default=list)
+    tool_summaries: Mapped[list] = mapped_column(JSON, default=list)
+    conclusion: Mapped[str] = mapped_column(Text, default="")
+    evidence: Mapped[list] = mapped_column(JSON, default=list)
+    risks: Mapped[list] = mapped_column(JSON, default=list)
+    confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    execution: Mapped[str] = mapped_column(String(32), default="single_pass")
+
+
 class Plan(Base, TimestampMixin):
     __tablename__ = "platform_plans"
     code: Mapped[str] = mapped_column(String(40), primary_key=True)
@@ -300,4 +329,5 @@ class OutboxEvent(Base):
 
 Index("ix_platform_messages_search", Message.conversation_id, Message.created_at)
 Index("ix_platform_runs_owner_status", AgentRun.user_id, AgentRun.status)
+Index("ix_platform_expert_consultations_conversation_created", ExpertConsultation.conversation_id, ExpertConsultation.created_at)
 Index("ix_platform_orders_owner_status", Order.user_id, Order.status)

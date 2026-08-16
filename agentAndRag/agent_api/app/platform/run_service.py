@@ -15,6 +15,7 @@ from ..services.moe import MoETrace
 from ..tools.tool_registry import get_registry
 from .config import get_platform_settings
 from .database import platform_session
+from .expert_consultations import persist_expert_consultation
 from .models import AgentRun, Conversation, Message, RunEvent, UsageRecord, utcnow
 from .services import settle_credits
 
@@ -203,6 +204,7 @@ async def execute_run(run_id: str) -> None:
                 elif status == "expert_complete" and isinstance(detail.get("opinion"), dict):
                     tool_calls += len(detail["opinion"].get("tool_results") or [])
                     payload["expert"] = _public_expert_trace(detail["opinion"])
+                    await persist_expert_consultation(run_id, payload["expert"])
                 await append_run_event(run_id, "status", payload)
 
         answer = "".join(answer_parts).strip()

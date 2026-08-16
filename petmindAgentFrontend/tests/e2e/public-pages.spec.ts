@@ -72,7 +72,7 @@ test('first message remains visible while a new conversation starts running', as
     await new Promise(resolve => setTimeout(resolve, 180))
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: runCompleted ? [
       { id: 'm-new-user', role: 'user', content: '这是新会话的第一条病例信息', status: 'complete', created_at: '2026-08-14T08:00:00Z' },
-      { id: 'm-new-assistant', role: 'assistant', content: '已收到病例。', status: 'complete', created_at: '2026-08-14T08:01:00Z' },
+      { id: 'm-new-assistant', run_id: 'run-new', role: 'assistant', content: '已收到病例。', status: 'complete', created_at: '2026-08-14T08:01:00Z', expert_consultations: [{ expert: 'clinical', name: '兽医临床专家', status: 'completed', task: '评估急症风险', tools: [{ kind: 'tool', tool_name: 'rag.search', ok: true, latency_ms: 1200, result: { hits: 2, sources: ['book-a'] } }], opinion: { conclusion: '先排查尿道梗阻。', evidence: ['频繁蹲盆'], risks: ['尿闭风险'], confidence: 0.82 }, execution: 'single_pass' }] },
     ] : [] }) })
   })
   await page.route('**/api/v1/conversations/case-new/runs', async route => {
@@ -170,4 +170,33 @@ test('an in-flight consultation resumes after refresh and clears transient recov
   await expect(page.getByText('数据库中的最终回答')).toBeVisible()
   await expect(page.getByText('会诊流恢复失败，请稍后重试')).toHaveCount(0)
   await expect.poll(() => page.evaluate(() => sessionStorage.getItem('petmind-run:case-resume'))).toBeNull()
+})
+
+test('historical expert opinions stay attached before their assistant answer', async ({ page }) => {
+  const user = { id: 'user-1', email: 'vet@petmind.local', display_name: '林医生', role: 'VET', status: 'active' }
+  const conversation = { id: 'case-experts', title: '猫泌尿会诊', status: 'active', created_at: '2026-08-16T08:00:00Z', last_active_at: '2026-08-16T08:30:00Z' }
+  const expert = {
+    expert: 'clinical', name: '兽医临床专家', status: 'completed', task: '核对泌尿急症', execution: 'single_pass',
+    tools: [{ kind: 'tool', tool_name: 'rag.search', ok: true, latency_ms: 120, result: { hits: 3, sources: ['books/058.mmd'] } }],
+    opinion: { conclusion: '优先排查尿道梗阻', evidence: ['频繁蹲盆且尿量少'], risks: ['完全尿闭属于急症'], confidence: 0.91 },
+  }
+  await mockAuthenticated(page, user)
+  await page.route('**/api/v1/conversations', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [conversation] }) }))
+  await page.route('**/api/v1/conversations/case-experts/messages', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [
+    { id: 'm1', run_id: null, role: 'user', content: '猫频繁蹲盆', status: 'complete', created_at: '2026-08-16T08:00:00Z', expert_consultations: [] },
+    { id: 'm2', run_id: 'run-experts', role: 'assistant', content: '请先判断是否存在完全尿闭。', status: 'complete', created_at: '2026-08-16T08:01:00Z', expert_consultations: [expert] },
+  ] }) }))
+
+  await page.goto('/chat/case-experts')
+  const answer = page.locator('.message.assistant')
+  await expect(answer.getByText('专家会诊')).toBeVisible()
+  await answer.locator('.expert-thread summary').click()
+  await expect(answer.getByText('优先排查尿道梗阻')).toBeVisible()
+  await expect(answer.getByText('请先判断是否存在完全尿闭。')).toBeVisible()
+  expect(await answer.evaluate(node => {
+    const expertPanel = node.querySelector('.expert-consultation')
+    const body = node.querySelector('.message-body')
+    return Boolean(expertPanel && body && (expertPanel.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING))
+  })).toBe(true)
+  await expect(page.locator('.messages > .expert-consultation')).toHaveCount(0)
 })
