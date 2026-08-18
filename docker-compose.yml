@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  web:
+    build:
+      context: ./petmindAgentFrontend
+      dockerfile: Dockerfile
+    image: petmind-web:local
+    container_name: petmind-nginx
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

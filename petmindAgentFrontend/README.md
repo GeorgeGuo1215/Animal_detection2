@@ -20,6 +20,16 @@ pnpm build
 pnpm test:e2e
 ```
 
-开发服务器将 `/api` 代理到 `http://127.0.0.1:8000`。部署到独立 API 域名时设置 `VITE_API_ROOT`。Access Token 只保存在内存，Refresh Token 由后端写入安全 HttpOnly Cookie。
+`pnpm dev` 将 `/api` 代理到 `http://127.0.0.1:8002`。部署到独立 API 域名时设置 `VITE_API_ROOT`。Access Token 只保存在内存，Refresh Token 由后端写入安全 HttpOnly Cookie。
+
+## 生产（Docker Nginx）
+
+对外仍使用 **5173**。镜像内执行 `pnpm build`，由 Nginx 托管静态页并把 `/api`、`/health`、`/ready` 反代到宿主机 Agent（默认 `8002`）。
+
+```bash
+docker compose up -d --build
+```
+
+本机开发仍可用 `pnpm dev`；不要和 compose 同时占用 5173。
 
 品牌源文件是仓库根目录 `logo.jpg`，禁止覆盖。`public/brand/` 是经裁边、透明化和多尺寸缩放后的确定性派生资产。

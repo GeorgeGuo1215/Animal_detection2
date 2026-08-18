@@ -424,13 +424,15 @@ bash start_agent.sh cuda
 
 ### 14.4 前端
 
-```powershell
-cd C:\Users\ROG\Animal_detection2\petmindAgentFrontend
-pnpm install
-pnpm dev
+生产用 Docker Nginx 托管 `pnpm build` 产物，对外端口仍为 5173，`/api` 反代到 Agent：
+
+```bash
+docker compose up -d --build
 ```
 
-本地入口：前端 `http://127.0.0.1:5173`、Agent `http://127.0.0.1:8000`、Memory `http://127.0.0.1:8300`。
+本地热更新仍可用 `pnpm dev`（不要与 Nginx 同时占用 5173）。开发代理将 `/api` 转发到 `http://127.0.0.1:8002`。
+
+本地入口：前端 `http://127.0.0.1:5173`、Agent `http://127.0.0.1:8002`、Memory `http://127.0.0.1:8300`。
 
 ## 15. 关键环境变量
 

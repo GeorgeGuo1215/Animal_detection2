@@ -1,0 +1,10 @@
+node_modules
+dist
+tests
+playwright.config.ts
+vitest.config.ts
+package-lock.json
+README.md
+.git
+*.test.ts
+*.test.tsx
