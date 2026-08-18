@@ -179,11 +179,6 @@ def test_browser_pages_do_not_store_or_slice_message_history():
     assert ".workbench.collapsed .trace-body{max-height:0" in routes_chat_ui._MOE_TEST_HTML
     assert ".answer{position:relative;z-index:1" in routes_chat_ui._MOE_TEST_HTML
 
-    assert "const messages = []" in routes_chat_ui._CHAT_HTML
-    assert "[...messages, { role: 'user', content: text }].slice(-11)" in routes_chat_ui._CHAT_HTML
-    assert "messages.push(\n      { role: 'user', content: text }," in routes_chat_ui._CHAT_HTML
-    assert "fetch('/v1/chat/completions'" in routes_chat_ui._CHAT_HTML
-    assert "fetch('/chat-moe/completions'" not in routes_chat_ui._CHAT_HTML
 
 
 def test_chat_moe_reports_loaded_context_metadata(tmp_path, monkeypatch):
@@ -237,4 +232,15 @@ def test_openapi_documents_stateful_test_and_stateless_production_boundaries():
     assert request_schema["$ref"].endswith("/ChatMoeCompletionRequest")
     assert "server history only for `/chat-moe`" in chat_moe["description"]
     assert "does not create a conversation session" in production["description"]
-    assert schema["paths"]["/sessions"]["post"]["deprecated"] is True
+    assert "/sessions" not in schema["paths"]
+    for removed_path in (
+        "/tools",
+        "/tools/rag/search",
+        "/tools/rag/reindex",
+        "/tools/sql/search",
+        "/tools/call",
+        "/agent/plan_and_solve",
+        "/chat",
+        "/admin",
+    ):
+        assert removed_path not in schema["paths"]

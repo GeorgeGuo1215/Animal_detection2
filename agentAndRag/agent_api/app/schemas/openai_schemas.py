@@ -38,7 +38,7 @@ class PetHealthServerContext(BaseModel):
 
 class ChatCompletionRequest(BaseModel):
     """Stateless request; the caller supplies all conversation history in messages."""
-    model: str = Field(default="agent-plan-solve", description="Model name (agent-plan-solve for this agent)")
+    model: Literal["agent-moe"] = Field(default="agent-moe", description="The only supported Agent model")
     messages: List[ChatMessage]
     
     # OpenAI standard optional fields
@@ -85,7 +85,7 @@ class ChatCompletionRequest(BaseModel):
         description="When set, exposes sql.search to the agent; must match the pet whose daily_reports are queried.",
     )
 
-    # PetHealth_Server: external monitoring signal. Only MoE consumes this; it
+    # PetHealth_Server: external monitoring signal. The MoE consumes this; it
     # never makes the flag a patient fact without checking the MCP vitals tool.
     pethealth_server: Optional[PetHealthServerContext] = None
 
@@ -113,10 +113,7 @@ class ChatCompletionResponse(BaseModel):
     choices: List[ChatCompletionChoice]
     usage: UsageInfo = Field(default_factory=UsageInfo)
     
-    # Extension: agent-specific metadata
-    plan: Optional[List[Dict[str, Any]]] = None
-    tool_results: Optional[List[Dict[str, Any]]] = None
-    timing: Optional[List[Dict[str, Any]]] = None
+    # Extension: memory integration metadata
     memory: Optional[Dict[str, Any]] = Field(
         default=None,
         description="Agent memory retrieval/write metadata; memory content itself is not echoed.",

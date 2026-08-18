@@ -29,6 +29,9 @@ if not defined OPENAI_BASE_URL set "OPENAI_BASE_URL=https://api.deepseek.com"
 if not defined OPENAI_MODEL set "OPENAI_MODEL=deepseek-chat"
 if not defined AGENT_HOST set "AGENT_HOST=127.0.0.1"
 if not defined AGENT_PORT set "AGENT_PORT=8000"
+if not defined AGENT_WORKER_HOST set "AGENT_WORKER_HOST=127.0.0.1"
+if not defined AGENT_WORKER_PORT set "AGENT_WORKER_PORT=8102"
+if not defined AGENT_WORKER_URL set "AGENT_WORKER_URL=http://127.0.0.1:%AGENT_WORKER_PORT%"
 if not defined MEMORY_HOST set "MEMORY_HOST=127.0.0.1"
 if not defined MEMORY_PORT set "MEMORY_PORT=8300"
 if not defined AGENT_MEMORY_REQUIRED set "AGENT_MEMORY_REQUIRED=1"
@@ -64,7 +67,7 @@ echo [Config] Memory=http://%MEMORY_HOST%:%MEMORY_PORT%
 echo [Config] WarmupDevice=%AGENT_WARMUP_DEVICE%
 echo [Config] Warmup=RAG:%AGENT_WARMUP_RAG% BM25:%AGENT_WARMUP_BM25% Reranker:%AGENT_WARMUP_RERANKER% Categories:%AGENT_WARMUP_CATEGORIES% MemoryEmbedding:%MEMORY_WARMUP_EMBEDDING%
 echo [Config] MemoryRequired=%AGENT_MEMORY_REQUIRED%
-if defined AGENT_PLATFORM_REDIS_URL echo [Config] PlatformWorker=enabled
+if defined AGENT_PLATFORM_REDIS_URL echo [Config] PlatformWorker=enabled at %AGENT_WORKER_URL%
 echo [Config] Secrets loaded but not printed.
 
 "%AGENT_PYTHON%" -m agent_api.scripts.run_agent_stack ^

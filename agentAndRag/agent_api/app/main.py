@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import math
 import os
 import sys
 import threading
-import traceback
 from pathlib import Path
 
 # Repo root (Animal_detection/) so `import integration` works when running from agentAndRag
@@ -19,9 +17,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 
-from .context.request_context import ANIMAL_REQUIRED_TOOLS, filter_tools_without_animal, get_request_animal_id, set_request_animal_id
-from .concurrency import ResourceBusyError, configure_resource_limits, get_resource_limits
-from .llm.llm_client import AsyncOpenAIClient, aclose_shared_async_client, get_shared_async_client
+from .concurrency import configure_resource_limits, get_resource_limits
+from .llm.llm_client import aclose_shared_async_client
 from .llm.llm_client_stream import aclose_shared_async_stream_client
 from .lifecycle_tasks.session_cleanup import (
     start_session_cleanup_task,
@@ -36,31 +33,16 @@ from .persistence.qa_store import (
     get_feedback_stats, get_knowledge_gaps, get_qa_stats,
     init_db as _init_qa_db, query_qa_history, submit_feedback,
 )
-from .persistence.session_manager import get_session_manager
-from .persistence.trace_store import new_trace_id, write_trace
-from .routers.routes_chat_ui import router as chat_ui_router
+from .routers.routes_chat_ui import chat_moe_router
 from .routers.routes_openai import router as openai_router
 from .routers.routes_platform_admin import router as platform_admin_router
 from .routers.routes_platform_auth import router as platform_auth_router
 from .routers.routes_platform_core import router as platform_core_router
-from .schemas import (
-    AgentPlanAndSolveRequest,
-    AgentPlanAndSolveResponse,
-    RagReindexRequest,
-    RagSearchRequest,
-    SqlSearchRequest,
-    ToolCallRequest,
-    ToolListResponse,
-    ToolSpecOut,
-    ToolResponse,
-)
-from .hf_local_model import is_local_path, resolve_embedding_model_id, resolve_rerank_model_id
-from .services.plan_and_solve import AsyncPlanAndSolveAgent
-from .sql_search import sql_search_tool
-from .tools.rag_tools import rag_reindex_tool, rag_search_tool, warmup_rag_cache
 from .tools.tool_registry import get_registry
 from .tools.tools_builtin import register_builtin_tools, register_debug_tools
 from .tools.tools_mcp import register_mcp_tools_async
+from .runtime_warmup import warmup_rag_runtime
+from .worker_proxy import should_delegate_agent_execution, worker_base_url, worker_readiness
 
 from integration.api.routes_ingest import router as integration_ingest_router
 from .platform import close_platform_database, get_platform_settings, init_platform_database
@@ -79,8 +61,7 @@ app = FastAPI(
 )
 
 app.include_router(openai_router)
-if not _PLATFORM_SETTINGS.production:
-    app.include_router(chat_ui_router)
+app.include_router(chat_moe_router)
 app.include_router(integration_ingest_router, prefix="/integration", tags=["integration"])
 app.include_router(platform_auth_router)
 app.include_router(platform_core_router)
@@ -189,115 +170,11 @@ _READY: bool = False
 _WARMUP_INFO: Dict[str, Any] = {"status": "pending"}
 
 
-def _run_rag_warmup_unlimited() -> None:
-    """Blocking RAG cache warmup, run in a background thread so it never blocks
-    server startup / liveness. Marks the process ready when finished."""
-    global _READY, _WARMUP_INFO
-    try:
-        repo_root = Path(__file__).resolve().parents[2]
-        device = os.getenv("AGENT_WARMUP_DEVICE") or None
-
-        hf_offline = os.getenv("AGENT_HF_OFFLINE", "").strip().lower() in ("1", "true", "yes")
-        if hf_offline:
-            os.environ.setdefault("HF_HUB_OFFLINE", "1")
-            os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
-            print("[startup] Hugging Face hub offline mode (AGENT_HF_OFFLINE=1): use local model dirs or set AGENT_EMBEDDING_MODEL_PATH.")
-
-        embedding_model = resolve_embedding_model_id(None, repo_root)
-        rerank_model = resolve_rerank_model_id(None, repo_root)
-
-        enable_bm25 = os.getenv("AGENT_WARMUP_BM25", "1") == "1"
-        enable_reranker = os.getenv("AGENT_WARMUP_RERANKER", "1") == "1"
-        # Offline: avoid pulling CrossEncoder from Hub if only a hub name is configured
-        if hf_offline and enable_reranker and not is_local_path(rerank_model):
-            print("[startup] AGENT_HF_OFFLINE: disable reranker warmup (no local path). Set AGENT_RERANKER_MODEL_PATH or models/bge-reranker-large, or AGENT_WARMUP_RERANKER=0.")
-            enable_reranker = False
-
-        skip_warmup = hf_offline and not is_local_path(embedding_model)
-        if skip_warmup:
-            print(
-                "[startup] AGENT_HF_OFFLINE: skip RAG warmup — embedding model is not a local path. "
-                "Use agentAndRag/models/multilingual-e5-small, AGENT_EMBEDDING_MODEL_PATH, "
-                "or download once so it appears under HF_HOME/hub/models--org--name (snapshots/).",
-            )
-            _WARMUP_INFO = {"status": "skipped", "reason": "hf_offline_no_local_embedding"}
-            return
-
-        from RAG.simple_rag.category_index import (
-            default_category_root,
-            resolve_default_category_index_dirs,
-        )
-
-        cat_dirs = resolve_default_category_index_dirs(repo_root=repo_root)
-        cat_root = default_category_root(repo_root).resolve()
-        cat_warm: list[dict] = []
-        index_size = 0
-        reranker_ready = False
-        for i, d in enumerate(cat_dirs):
-            if not d.exists():
-                continue
-            try:
-                st = warmup_rag_cache(
-                    index_dir=d,
-                    embedding_model=embedding_model,
-                    device=device,
-                    enable_bm25=enable_bm25 and i == 0,
-                    enable_reranker=enable_reranker and not reranker_ready,
-                    rerank_model=rerank_model,
-                )
-                if enable_reranker:
-                    reranker_ready = True
-                size = int(st.get("index_size") or 0)
-                if size > 0:
-                    cat_warm.append({"category": d.name, "index_size": size})
-                    index_size += size
-            except Exception as cat_exc:  # noqa: BLE001
-                print(f"[startup] category warmup skip {d.name}: {cat_exc}")
-
-        actual_device = device or "cpu"
-        try:
-            import torch
-            if torch.cuda.is_available() and actual_device != "cpu":
-                gpu_name = torch.cuda.get_device_name(0)
-                print(f"[startup] Device: {actual_device} ({gpu_name})")
-            else:
-                print("[startup] Device: cpu" + (" (CUDA available but not selected)" if torch.cuda.is_available() else ""))
-        except ImportError:
-            print(f"[startup] Device: {actual_device} (torch not found, cannot detect GPU)")
-        print(f"[startup] Embedding: {embedding_model}")
-        print(f"[startup] Reranker: {rerank_model if enable_reranker else 'disabled'}")
-        print(f"[startup] BM25: {'enabled' if enable_bm25 else 'disabled'}")
-        print(f"[startup] Index: {index_size} chunks from {cat_root} ({len(cat_warm)} categories)")
-        if cat_warm:
-            print(f"[startup] Category indexes warmed: {len(cat_warm)}")
-        _WARMUP_INFO = {
-            "status": "ok",
-            "index_size": index_size,
-            "index_dir": str(cat_root),
-            "category_indexes": len(cat_warm),
-        }
-    except Exception as exc:  # noqa: BLE001
-        print("[startup] RAG warmup failed; continuing without preloaded cache.")
-        print(f"[startup] Warmup error: {exc}")
-        print(traceback.format_exc())
-        _WARMUP_INFO = {"status": "failed", "error": str(exc)}
-    finally:
-        _READY = True
-        print("[startup] Readiness: /ready is now serving 200.")
-
-
 def _run_rag_warmup() -> None:
-    limits = get_resource_limits()
-    try:
-        # Warmup is a one-off background job and may legitimately wait behind
-        # an early request longer than the normal request acquire timeout.
-        with limits.rag.slot(timeout_s=max(limits.acquire_timeout_s, 300.0)):
-            _run_rag_warmup_unlimited()
-    except ResourceBusyError as exc:
-        global _READY, _WARMUP_INFO
-        _WARMUP_INFO = {"status": "failed", "error": str(exc)}
-        _READY = True
-        print(f"[startup] RAG warmup skipped: {exc}")
+    global _READY, _WARMUP_INFO
+    _WARMUP_INFO = warmup_rag_runtime()
+    _READY = True
+    print("[startup] Readiness: /ready is now serving 200.")
 
 
 @app.on_event("startup")
@@ -315,16 +192,21 @@ async def _startup() -> None:
             await seed_platform_rbac(session)
         await start_platform_cleanup_task()
 
-    reg = get_registry()
-    if reg.get("rag.search") is None:
-        register_builtin_tools(reg)
-        register_debug_tools(reg)
-        if os.getenv("AGENT_ENABLE_MCP", "1") == "1":
-            await register_mcp_tools_async(reg)
+    if not should_delegate_agent_execution():
+        reg = get_registry()
+        if reg.get("rag.search") is None:
+            register_builtin_tools(reg)
+            register_debug_tools(reg)
+            if os.getenv("AGENT_ENABLE_MCP", "1") == "1":
+                await register_mcp_tools_async(reg)
 
     await start_session_cleanup_task()
 
-    if os.getenv("AGENT_WARMUP_RAG", "1") == "1":
+    if should_delegate_agent_execution():
+        _WARMUP_INFO = {"status": "delegated", "worker": worker_base_url()}
+        _READY = True
+        print("[startup] Gateway mode: local RAG warmup disabled; Agent execution is delegated to Worker.")
+    elif os.getenv("AGENT_WARMUP_RAG", "1") == "1":
         # Warm up off the startup path so uvicorn finishes startup immediately
         # and /health (liveness) responds right away; /ready flips when done.
         threading.Thread(target=_run_rag_warmup, name="rag-warmup", daemon=True).start()
@@ -359,197 +241,25 @@ def health() -> Dict[str, Any]:
 
 
 @app.get("/ready")
-def ready() -> JSONResponse:
+async def ready() -> JSONResponse:
     """Readiness probe — 200 once RAG warmup finished, 503 while still warming."""
-    status = 200 if _READY else 503
+    worker_ok = True
+    worker_detail: dict[str, Any] | None = None
+    if should_delegate_agent_execution():
+        worker_ok, worker_detail = await worker_readiness()
+    ready_now = _READY and worker_ok
+    status = 200 if ready_now else 503
     return JSONResponse(
         status_code=status,
         content={
-            "ready": _READY,
+            "ready": ready_now,
+            "role": "gateway" if should_delegate_agent_execution() else "standalone",
+            "worker": worker_detail,
             "warmup": _WARMUP_INFO,
             "resource_limits": get_resource_limits().snapshot(),
             "memory": memory_status(),
         },
     )
-
-
-@app.post("/tools/rag/search", response_model=ToolResponse)
-def rag_search(req: RagSearchRequest) -> ToolResponse:
-    trace_id = new_trace_id()
-    try:
-        data = rag_search_tool(**req.model_dump())
-        resp = ToolResponse(ok=True, trace_id=trace_id, data=data)
-        write_trace(trace_id, tool="rag.search", request=req.model_dump(), response=resp.model_dump())
-        return resp
-    except ResourceBusyError as e:
-        write_trace(trace_id, tool="rag.search", request=req.model_dump(), response=e.as_dict(), error=str(e))
-        raise HTTPException(status_code=503, detail=e.as_dict(), headers={"Retry-After": str(max(1, math.ceil(e.timeout_s)))}) from e
-    except Exception as e:  # noqa: BLE001
-        err = {"code": "RAG_SEARCH_FAILED", "message": str(e), "detail": {"traceback": traceback.format_exc()}}
-        resp = ToolResponse(ok=False, trace_id=trace_id, error=err)  # type: ignore[arg-type]
-        write_trace(trace_id, tool="rag.search", request=req.model_dump(), response=resp.model_dump(), error=str(e))
-        return resp
-
-
-@app.post("/tools/rag/reindex", response_model=ToolResponse)
-def rag_reindex(req: RagReindexRequest) -> ToolResponse:
-    trace_id = new_trace_id()
-    try:
-        data = rag_reindex_tool(**req.model_dump())
-        resp = ToolResponse(ok=True, trace_id=trace_id, data=data)
-        write_trace(trace_id, tool="rag.reindex", request=req.model_dump(), response=resp.model_dump())
-        return resp
-    except ResourceBusyError as e:
-        write_trace(trace_id, tool="rag.reindex", request=req.model_dump(), response=e.as_dict(), error=str(e))
-        raise HTTPException(status_code=503, detail=e.as_dict(), headers={"Retry-After": str(max(1, math.ceil(e.timeout_s)))}) from e
-    except Exception as e:  # noqa: BLE001
-        err = {"code": "RAG_REINDEX_FAILED", "message": str(e), "detail": {"traceback": traceback.format_exc()}}
-        resp = ToolResponse(ok=False, trace_id=trace_id, error=err)  # type: ignore[arg-type]
-        write_trace(trace_id, tool="rag.reindex", request=req.model_dump(), response=resp.model_dump(), error=str(e))
-        return resp
-
-
-@app.post("/tools/sql/search", response_model=ToolResponse)
-def sql_search(request: Request, req: SqlSearchRequest) -> ToolResponse:
-    trace_id = new_trace_id()
-    try:
-        set_request_animal_id(body_animal_id=req.animal_id, header_animal_id=request.headers.get("x-animal-id"))
-        data = sql_search_tool(**req.model_dump(exclude={"animal_id"}))
-        resp = ToolResponse(ok=True, trace_id=trace_id, data=data)
-        write_trace(trace_id, tool="sql.search", request=req.model_dump(), response=resp.model_dump())
-        return resp
-    except Exception as e:  # noqa: BLE001
-        err = {"code": "SQL_SEARCH_FAILED", "message": str(e), "detail": {"traceback": traceback.format_exc()}}
-        resp = ToolResponse(ok=False, trace_id=trace_id, error=err)  # type: ignore[arg-type]
-        write_trace(trace_id, tool="sql.search", request=req.model_dump(), response=resp.model_dump(), error=str(e))
-        return resp
-
-
-@app.get("/tools", response_model=ToolListResponse)
-def tools_list(request: Request) -> ToolListResponse:
-    trace_id = new_trace_id()
-    set_request_animal_id(header_animal_id=request.headers.get("x-animal-id"))
-    reg = get_registry()
-    raw = reg.list_tools()
-    if not get_request_animal_id():
-        raw = [t for t in raw if t.name not in ANIMAL_REQUIRED_TOOLS]
-    tools = [ToolSpecOut(name=t.name, description=t.description, input_schema=t.input_schema) for t in raw]
-    resp = ToolListResponse(ok=True, trace_id=trace_id, tools=tools)
-    write_trace(trace_id, tool="tools.list", request={}, response=resp.model_dump())
-    return resp
-
-
-@app.post("/tools/call", response_model=ToolResponse)
-async def tools_call(request: Request, req: ToolCallRequest) -> ToolResponse:
-    trace_id = new_trace_id()
-    set_request_animal_id(body_animal_id=req.animal_id, header_animal_id=request.headers.get("x-animal-id"))
-    reg = get_registry()
-    if req.tool_name == "sql.search" and not get_request_animal_id():
-        err = {"code": "ANIMAL_ID_REQUIRED", "message": "sql.search requires animal_id (JSON field or X-Animal-Id header)."}
-        return ToolResponse(ok=False, trace_id=trace_id, error=err)  # type: ignore[arg-type]
-    try:
-        data = await reg.call(req.tool_name, req.arguments)
-        resp = ToolResponse(ok=True, trace_id=trace_id, data=data)
-        write_trace(trace_id, tool="tools.call", request=req.model_dump(), response=resp.model_dump())
-        return resp
-    except ResourceBusyError as e:
-        write_trace(trace_id, tool="tools.call", request=req.model_dump(), response=e.as_dict(), error=str(e))
-        raise HTTPException(status_code=503, detail=e.as_dict(), headers={"Retry-After": str(max(1, math.ceil(e.timeout_s)))}) from e
-    except Exception as e:  # noqa: BLE001
-        err = {"code": "TOOL_CALL_FAILED", "message": str(e), "detail": {"traceback": traceback.format_exc()}}
-        resp = ToolResponse(ok=False, trace_id=trace_id, error=err)  # type: ignore[arg-type]
-        write_trace(trace_id, tool="tools.call", request=req.model_dump(), response=resp.model_dump(), error=str(e))
-        return resp
-
-
-@app.post("/agent/plan_and_solve", response_model=AgentPlanAndSolveResponse)
-async def agent_plan_and_solve(request: Request, req: AgentPlanAndSolveRequest) -> AgentPlanAndSolveResponse:
-    trace_id = new_trace_id()
-    try:
-        set_request_animal_id(body_animal_id=req.animal_id, header_animal_id=request.headers.get("x-animal-id"))
-        reg = get_registry()
-        # Reuse the shared pooled client for the default config; only build a
-        # throwaway client (and close it) when the caller overrides LLM config.
-        use_custom_llm = any([req.llm_base_url, req.llm_api_key, req.llm_model])
-        llm = (
-            AsyncOpenAIClient(base_url=req.llm_base_url, api_key=req.llm_api_key, model=req.llm_model)
-            if use_custom_llm
-            else get_shared_async_client()
-        )
-        agent = AsyncPlanAndSolveAgent(registry=reg, llm=llm)
-        allowed_tools = req.allowed_tools
-        if allowed_tools is not None:
-            allowed_tools = filter_tools_without_animal(allowed_tools)
-        try:
-            plan = await agent.plan(query=req.query, allowed_tools=allowed_tools)
-            answer, tool_results = await agent.solve(
-                query=req.query,
-                plan_steps=plan,
-                allowed_tools=allowed_tools,
-                temperature=req.temperature,
-                max_tokens=req.max_tokens,
-            )
-        finally:
-            if use_custom_llm:
-                await llm.close()
-        resp = AgentPlanAndSolveResponse(ok=True, trace_id=trace_id, answer=answer, plan=plan, tool_results=tool_results)
-        write_trace(trace_id, tool="agent.plan_and_solve", request=req.model_dump(), response=resp.model_dump())
-        return resp
-    except ResourceBusyError as e:
-        write_trace(trace_id, tool="agent.plan_and_solve", request=req.model_dump(), response=e.as_dict(), error=str(e))
-        raise HTTPException(status_code=503, detail=e.as_dict(), headers={"Retry-After": str(max(1, math.ceil(e.timeout_s)))}) from e
-    except Exception as e:  # noqa: BLE001
-        err = {"code": "AGENT_PLAN_SOLVE_FAILED", "message": str(e), "detail": {"traceback": traceback.format_exc()}}
-        resp = AgentPlanAndSolveResponse(ok=False, trace_id=trace_id, error=err)  # type: ignore[arg-type]
-        write_trace(trace_id, tool="agent.plan_and_solve", request=req.model_dump(), response=resp.model_dump(), error=str(e))
-        return resp
-
-
-@app.post(
-    "/sessions",
-    deprecated=True,
-    tags=["Legacy test sessions"],
-    summary="Create a legacy test session",
-)
-async def create_session():
-    """Legacy diagnostics only; `/v1/chat/completions` never reads this session."""
-    mgr = get_session_manager()
-    sess = await mgr.create()
-    return {"ok": True, "session_id": sess.session_id}
-
-
-@app.get(
-    "/sessions/{session_id}",
-    deprecated=True,
-    tags=["Legacy test sessions"],
-    summary="Inspect a legacy test session",
-)
-async def get_session(session_id: str):
-    """Inspect test state. This endpoint is not production conversation memory."""
-    mgr = get_session_manager()
-    sess = await mgr.get(session_id)
-    if not sess:
-        return {"ok": False, "error": "session not found or expired"}
-    return {
-        "ok": True,
-        "session_id": sess.session_id,
-        "messages": sess.messages,
-        "created_at": sess.created_at,
-        "last_active": sess.last_active,
-    }
-
-
-@app.delete(
-    "/sessions/{session_id}",
-    deprecated=True,
-    tags=["Legacy test sessions"],
-    summary="Delete a legacy test session",
-)
-async def delete_session(session_id: str):
-    """Delete a test session without affecting stateless production requests."""
-    mgr = get_session_manager()
-    deleted = await mgr.delete(session_id)
-    return {"ok": deleted}
 
 
 # ---------------------------------------------------------------------------

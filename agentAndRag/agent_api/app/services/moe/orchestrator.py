@@ -28,7 +28,7 @@ from ...prompts.intent_contracts import (
     build_intent_aggregator_injection,
 )
 from ...tools.tool_registry import ToolRegistry, get_registry
-from ..plan_and_solve import build_solve_prompt
+from ...prompts.solve import build_solve_prompt
 from .critic import CriticResult, review
 from .experts import EXPERTS, ExpertAgentSession, ExpertLoopConfig, run_expert_sessions
 from .history_context import fact_state_history_text

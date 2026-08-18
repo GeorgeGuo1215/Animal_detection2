@@ -9,7 +9,7 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from app.services.plan_and_solve import (
+from app.prompts.solve import (
     answer_char_budget,
     build_solve_prompt,
 )

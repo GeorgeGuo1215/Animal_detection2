@@ -1,14 +1,16 @@
-version: "3.8"
-
 services:
   web:
     build:
       context: ./petmindAgentFrontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_ROOT: ${VITE_API_ROOT:-}
     image: petmind-web:local
     container_name: petmind-nginx
     restart: unless-stopped
+    environment:
+      AGENT_UPSTREAM: ${AGENT_UPSTREAM:-http://host.docker.internal:8002}
     ports:
-      - "5173:80"
+      - "${PETMIND_WEB_PORT:-5173}:80"
     extra_hosts:
       - "host.docker.internal:host-gateway"

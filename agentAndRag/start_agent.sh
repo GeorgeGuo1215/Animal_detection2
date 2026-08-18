@@ -31,6 +31,9 @@ export OPENAI_BASE_URL="${OPENAI_BASE_URL:-https://api.deepseek.com}"
 export OPENAI_MODEL="${OPENAI_MODEL:-deepseek-chat}"
 export AGENT_HOST="${AGENT_HOST:-0.0.0.0}"
 export AGENT_PORT="${AGENT_PORT:-8000}"
+export AGENT_WORKER_HOST="${AGENT_WORKER_HOST:-127.0.0.1}"
+export AGENT_WORKER_PORT="${AGENT_WORKER_PORT:-8102}"
+export AGENT_WORKER_URL="${AGENT_WORKER_URL:-http://127.0.0.1:${AGENT_WORKER_PORT}}"
 export MEMORY_HOST="${MEMORY_HOST:-127.0.0.1}"
 export MEMORY_PORT="${MEMORY_PORT:-8300}"
 export AGENT_MEMORY_REQUIRED="${AGENT_MEMORY_REQUIRED:-1}"
@@ -68,6 +71,7 @@ echo "[Config] Warmup=RAG:$AGENT_WARMUP_RAG BM25:$AGENT_WARMUP_BM25 Reranker:$AG
 echo "[Config] MemoryRequired=$AGENT_MEMORY_REQUIRED"
 if [[ -n "${AGENT_PLATFORM_REDIS_URL:-}" ]]; then
     echo "[Config] PlatformWorker=${AGENT_PLATFORM_WORKER:-1}"
+    echo "[Config] WorkerInternal=$AGENT_WORKER_URL"
 fi
 echo "[Config] Secrets loaded but not printed."
 

@@ -2,14 +2,13 @@
 """PetMind 运行与 MoE 路径探测脚本。
 
 对已启动的 PetMind Agent API 做健康检查，并通过 `/v1/chat/completions`（SSE）
-判断是否走了 MoE 编排（routing / expert_* / reviewing），可与 plan-and-solve 对照。
+判断是否走了 MoE 编排（routing / expert_* / reviewing）。
 
 参考：`tests/moe/run_moe_live.py`（进程内 MoE）、`tests/api_live/run_api_live.py`（HTTP 全量）。
 
 用法（在 agentAndRag 目录或任意路径）：
     python agent_api/scripts/test_petmind_moe.py
     python agent_api/scripts/test_petmind_moe.py --base http://127.0.0.1:8002 -q "犬细小病毒有哪些典型症状？"
-    python agent_api/scripts/test_petmind_moe.py --compare-plan   # 同题对比 MoE vs Plan
 
 环境变量：
     AGENT_API_BASE   默认 http://127.0.0.1:8002
@@ -39,8 +38,6 @@ _AGENT_API = _THIS.parents[1]
 _AGENTANDRAG = _THIS.parents[2]
 
 MOE_STATUSES = frozenset({"routing", "expert_calling", "expert_complete", "reviewing"})
-PLAN_STATUSES = frozenset({"planning", "plan_complete"})
-MULTI_STATUSES = frozenset({"thinking", "tool_calling", "tool_complete", "decided_final"})
 
 
 def _load_dotenv() -> None:
@@ -90,10 +87,6 @@ class ChatProbe:
         s = set(self.statuses)
         if s & MOE_STATUSES:
             return "moe"
-        if s & PLAN_STATUSES:
-            return "plan-and-solve"
-        if s & MULTI_STATUSES:
-            return "multi-turn"
         if "generating" in s and not (s & MOE_STATUSES):
             return "unknown"
         return "unknown"
@@ -246,9 +239,6 @@ def parse_args() -> argparse.Namespace:
         "--question", "-q",
         default="我家成年犬最近软便、精神略差，可能是什么原因？何时必须就医？",
     )
-    p.add_argument("--model", default="agent-moe", help="显式 MoE；也可用任意非 plan/multi-turn 名称")
-    p.add_argument("--default-model", default="petmind-default", help="测试「未识别 model 走默认 MoE」")
-    p.add_argument("--compare-plan", action="store_true", help="同题再跑 agent-plan-solve 作对照")
     p.add_argument("--max-tokens", type=int, default=500)
     p.add_argument("--stream-answer", action="store_true", help="流式打印最终回答")
     p.add_argument("--skip-chat", action="store_true", help="仅探活，不调用 LLM")
@@ -280,53 +270,27 @@ async def amain() -> int:
         if args.stream_answer:
             print("\n--- 流式回答 (agent-moe) ---")
         moe_probe = await probe_chat(
-            client, base=base, model=args.model, question=args.question,
+            client, base=base, model="agent-moe", question=args.question,
             api_key=api_key, max_tokens=args.max_tokens, stream_answer=args.stream_answer,
         )
         if args.stream_answer:
             print()
-        _print_probe(f"MoE 路径 · model={args.model}", moe_probe)
-
-        # 2) 默认 model（服务端应对未识别名走 MoE）
-        default_probe = await probe_chat(
-            client, base=base, model=args.default_model, question=args.question,
-            api_key=api_key, max_tokens=min(300, args.max_tokens),
-        )
-        _print_probe(f"默认 MoE · model={args.default_model}", default_probe)
-
-        plan_probe: Optional[ChatProbe] = None
-        if args.compare_plan:
-            plan_probe = await probe_chat(
-                client, base=base, model="agent-plan-solve", question=args.question,
-                api_key=api_key, max_tokens=min(400, args.max_tokens),
-            )
-            _print_probe("对照 · agent-plan-solve", plan_probe)
+        _print_probe("MoE 路径 · model=agent-moe", moe_probe)
 
     # 判定
     print(f"\n{'=' * 60}")
     print("  结论")
     print(f"{'=' * 60}")
     exit_code = 0
-    if moe_probe.error or default_probe.error:
+    if moe_probe.error:
         print("  [FAIL] 聊天请求失败")
         exit_code = 1
     elif moe_probe.pipeline != "moe":
-        print(f"  [FAIL] model={args.model} 未观测到 MoE 状态 {sorted(MOE_STATUSES)}")
+        print(f"  [FAIL] agent-moe 未观测到 MoE 状态 {sorted(MOE_STATUSES)}")
         print(f"         实际 pipeline={moe_probe.pipeline}, statuses={moe_probe.statuses}")
         exit_code = 1
     else:
         print(f"  [PASS] MoE 已调用（statuses 含 {moe_probe.moe_evidence()['moe_status_hits']}）")
-
-    if not default_probe.error and default_probe.pipeline == "moe":
-        print("  [PASS] 未识别 model 名称仍走 MoE 默认管线")
-    elif not default_probe.error:
-        print(f"  [WARN] model={args.default_model} pipeline={default_probe.pipeline}（期望 moe）")
-
-    if plan_probe and not plan_probe.error:
-        if plan_probe.pipeline == "plan-and-solve" and moe_probe.pipeline == "moe":
-            print("  [PASS] compare-plan：MoE 与 plan-and-solve 路径已区分")
-        else:
-            print(f"  [WARN] compare-plan：plan={plan_probe.pipeline}, moe={moe_probe.pipeline}")
 
     return exit_code
 

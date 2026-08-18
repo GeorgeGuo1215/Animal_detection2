@@ -9,7 +9,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional
 
 from ...llm.llm_client import AsyncOpenAIClient, extract_text
 from ...prompts.moe_evidence_sufficiency import build_evidence_sufficiency_messages
-from ..plan_and_solve import _safe_json_loads
+from ..structured_output import safe_json_loads
 from .trace import MoETrace, extract_usage
 
 
@@ -92,7 +92,7 @@ def parse_evidence_sufficiency(
     expected_ids: Iterable[str],
 ) -> Dict[str, EvidenceSufficiencyAssessment]:
     expected = set(expected_ids)
-    obj, _error = _safe_json_loads(text)
+    obj, _error = safe_json_loads(text)
     raw_items = obj.get("assessments") if isinstance(obj, dict) else None
     if not isinstance(raw_items, list):
         return {}

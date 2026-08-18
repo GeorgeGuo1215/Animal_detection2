@@ -2,6 +2,8 @@
 
 > 最后全量核对：2026-08-16（Asia/Shanghai）
 >
+> Docker Nginx 部署复核：2026-08-18（Asia/Shanghai）
+>
 > 仓库：`C:\Users\ROG\Animal_detection2`
 >
 > Agent 工作目录：`C:\Users\ROG\Animal_detection2\agentAndRag`
@@ -31,6 +33,7 @@
 13. PetHealth 外部心率异常信号会触发真实 vitals 核实，外部 flag 本身不作为诊断事实。
 14. 生产提示词集中在 `agent_api/app/prompts/`，业务层不再散落长段 system prompt。
 15. 统一启动器可监管 Memory、Agent API 和 Redis-backed Platform Worker。
+16. 生产执行面已拆分：8002 仅承担认证、持久化、入队和 SSE 代理；8102 Worker 独占 MoE、专家、RAG、reranker 与 MCP。
 
 首期明确不做：
 
@@ -38,29 +41,30 @@
 - 不实现组织/诊所多租户。
 - 不建立宠物档案，也不绑定 PetHealth 账号或宠物数据。
 - 不接真实支付渠道；只保留订单状态机、后台确认和 HMAC 测试 Webhook。
-- `/chat-moe` 继续是开发测试入口，不作为生产会话存储。
+- `/chat-moe` 仍是诊断入口且不作为生产会话存储；生产启用时其 Agent 执行也必须转发到内部 Worker。
 - 不把系统提示词、模型内部推理或原始工具载荷暴露给网页用户。
 
 ## 2. 总体架构
 
 ```mermaid
 flowchart LR
-    WEB["PetMind Web :5173<br/>登录 / 聊天 / 套餐 / 后台"] --> API["FastAPI :8000<br/>/api/v1"]
-    SDK["第三方 SDK"] --> OAI["OpenAI 兼容接口<br/>/v1/chat/completions"]
+    WEB["PetMind Web :5173<br/>Docker Nginx"] --> API["FastAPI :8002<br/>/api/v1"]
+    SDK["第三方 SDK"] --> API
+    DEBUG["/chat-moe"] --> API
     API --> PG["Agent PostgreSQL :15433<br/>platform_* 表"]
     API --> REDIS["Redis :16379<br/>限流 / Run 队列"]
-    REDIS --> WORKER["Platform Worker<br/>默认单 GPU 串行消费"]
+    API --> WORKER["Internal Worker :8102<br/>OpenAI SSE / Chat-MoE"]
+    REDIS --> WORKER
     WORKER --> MOE["MoE / RAG / MCP"]
-    OAI --> MOE
     WORKER --> MEMORY["Memory Service :8300"]
-    OAI --> MEMORY
+    API --> MEMORY
     MEMORY --> MPG["Memory PostgreSQL + pgvector"]
     MOE --> VITALS["PetHealth Vitals PostgreSQL"]
     MOE --> MYSQL["PetMind MySQL 只读数据"]
     MOE --> WEBSEARCH["Tavily WebSearch"]
 ```
 
-生产网页调用 `/api/v1`；第三方调用方使用 `/v1`。两条入口共享 MoE、RAG、MCP 和 Memory，但认证、会话持久化与计费语义不同。
+生产网页调用 `/api/v1`；第三方调用方使用 `/v1`。8002 对两类请求完成认证和控制面工作，任何 MoE、专家、RAG、reranker 或 MCP 执行都只发生在回环地址 `127.0.0.1:8102` 的 Worker。两条入口共享执行引擎与 Memory，但认证、会话持久化与计费语义不同。
 
 ## 3. 数据边界
 
@@ -162,9 +166,9 @@ Run 的 `delivery` 支持 `sse|sync|async`。所有方式先持久化用户消�
 
 | model | 执行方式 |
 | --- | --- |
-| `agent-plan-solve` | Plan-and-Solve |
-| `agent-multi-turn` | 单 Agent 多轮工具循环 |
 | `agent-moe` | Router + 并行专家 + Critic + Aggregator |
+
+系统只接受 `agent-moe`；旧模型名不再兼容或静默回退。公开 `/tools/*`、`/agent/plan_and_solve`、旧 `/chat`、旧 `/admin` 和顶层旧 `/sessions` 已删除。`app/tools/` 作为 MoE 内部 RAG/MCP 注册与调用层继续保留，不对外暴露。
 
 `/v1` 仍由调用方重发当前 Session 的完整 `messages`。生产平台则由 PostgreSQL 读取所属会话历史。用户长期记忆只是补充，不能替代完整消息历史。
 
@@ -233,8 +237,6 @@ sequenceDiagram
 | 文件 | 职责 |
 | --- | --- |
 | `solve.py` | 共享终答、引用、证据层级与结构 |
-| `plan_and_solve.py` | Planner |
-| `multi_turn.py` | 多轮决策和工具循环 |
 | `moe_task_policy.py` | 单次统一决策：D1～D8、分类边界、证据需求和专家选择 |
 | `moe_experts.py` | 专家 persona、单轮任务归纳和结论格式 |
 | `moe_critic.py` | 事实、安全、禁忌和边界审核 |
@@ -334,6 +336,8 @@ Memory Service 默认端口 8300，使用独立 PostgreSQL + pgvector，向量�
 
 `MEMORY_WORKERS_ENABLED=0` 可只启动 API，不消费待整理记忆；适合迁移、诊断或禁止外部 LLM 读取历史数据的环境。启用 Worker 前必须确认组织已授权把相应记忆交给配置的 LLM。
 
+Memory Service 始终是独立的 8300 服务，不在 8002 进程内。Gateway 和 Agent Worker 都是它的客户端：Gateway用于测试身份初始化和健康状态，Worker负责实际推理前召回及完成后写回。
+
 ## 11. RAG、MCP 与工具
 
 主要工具：
@@ -376,7 +380,7 @@ RAG 当前使用 multilingual-e5-small、384 维向量、Dense/BM25/邻居扩展
 
 业务数据均来自 API/数据库；品牌文案、帮助说明、路由标签、视觉 Token 和固定模型展示属于前端静态配置。收费页的价格、积分、有效期和启用状态不在前端写死。
 
-开发代理将 `/api` 转发到 `http://127.0.0.1:8000`，因此浏览器网络面板会显示请求发往 5173，这是 Vite 同源代理，不代表 `/api/v1/me` 由前端静态服务器处理。
+开发代理和生产 Nginx 都采用同源 `/api`：开发代理默认转发到 `http://127.0.0.1:8002`，生产 Nginx 默认转发到 `http://host.docker.internal:8002`。因此浏览器网络面板会显示 API 请求发往 5173，这不代表 `/api/v1/me` 由前端静态服务器处理。
 
 品牌源文件 `../logo.jpg` 保持不变；`public/brand/` 保存裁边、透明和多尺寸派生资产。
 
@@ -411,26 +415,31 @@ C:\Users\ROG\anaconda3\envs\RAG\python.exe -m agent_api.scripts.bootstrap_platfo
 ### 14.3 Agent、Memory 与 Worker
 
 ```powershell
+$env:AGENT_PORT = "8002"
 .\start_agent.bat cpu
 ```
 
 ```bash
-bash start_agent.sh cuda
+AGENT_PORT=8002 bash start_agent.sh cuda
 ```
 
-统一 Supervisor 顺序：启动 Memory → 等待 `/health` → 启动 Agent → 若配置 Redis URL 则启动 Platform Worker。任一子进程退出时回收其余进程。`AGENT_PLATFORM_WORKER=0` 可在拆分部署时关闭内置 Worker。
+启动脚本为兼容旧调用默认使用 8000；与当前 Docker Nginx 的默认上游配套运行时，必须像上面一样把 `AGENT_PORT` 设为 8002。统一 Supervisor 顺序：启动 Memory → 等待 `/health` → 启动 8002 Gateway → 启动 8102 Agent Worker。Worker先完成工具注册和RAG热加载，再消费Redis Run队列并接受Gateway转发的 `/v1/chat/completions`、`/chat-moe/completions`。任一子进程退出时回收其余进程。
 
-统一启动脚本、`.env.example` 和 systemd 模板默认采用热启动：`AGENT_WARMUP_RAG=1`、`AGENT_WARMUP_BM25=1`、`AGENT_WARMUP_RERANKER=1`、`AGENT_WARMUP_CATEGORIES=1`、`MEMORY_WARMUP_EMBEDDING=1`。服务先提供 `/health`，RAG/分类索引完成加载后 `/ready` 才返回可接流量；资源不足时可显式设为 0，但会把首次请求延迟转移给用户。
+统一启动脚本、`.env.example` 和 systemd 模板默认采用热启动：`AGENT_WARMUP_RAG=1`、`AGENT_WARMUP_BM25=1`、`AGENT_WARMUP_RERANKER=1`、`AGENT_WARMUP_CATEGORIES=1`、`MEMORY_WARMUP_EMBEDDING=1`。生产模式下这些 Agent 热加载只在8102 Worker执行，8002不会注册MCP或加载RAG模型。8002 `/ready` 会继续探测8102 `/ready`；Worker未完成热启动、队列消费者退出或内部端口不可达时，Gateway返回503。
 
 ### 14.4 前端
 
-生产用 Docker Nginx 托管 `pnpm build` 产物，对外端口仍为 5173，`/api` 反代到 Agent：
+生产用 Docker Nginx 托管 `pnpm build` 产物，对外端口默认 5173，`/api` 反代到 Agent。命令必须在仓库根目录执行：
 
 ```bash
 docker compose up -d --build
+docker compose ps
+docker compose logs --tail=100 web
 ```
 
-本地热更新仍可用 `pnpm dev`（不要与 Nginx 同时占用 5173）。开发代理将 `/api` 转发到 `http://127.0.0.1:8002`。
+默认 `AGENT_UPSTREAM=http://host.docker.internal:8002`、`PETMIND_WEB_PORT=5173`。Agent 使用其他端口时，在启动 compose 前覆盖 `AGENT_UPSTREAM`；Agent 也容器化时，应接入同一 Docker 网络并使用服务名，不能继续指向容器自身的 `127.0.0.1`。
+
+本地热更新仍可用 `pnpm dev`（不要与 Nginx 同时占用 5173）。生产禁止用 Vite 开发服务器对外服务。`/healthz` 只检查 Nginx；`/health` 和 `/ready` 会穿透到 Agent，其中 `/ready` 返回成功才可接收真实流量。
 
 本地入口：前端 `http://127.0.0.1:5173`、Agent `http://127.0.0.1:8002`、Memory `http://127.0.0.1:8300`。
 
@@ -450,6 +459,10 @@ AGENT_PLATFORM_COOKIE_SECURE=1
 AGENT_PLATFORM_EXPOSE_DEV_TOKENS=0
 AGENT_PLATFORM_FRONTEND_ORIGIN=https://...
 AGENT_PLATFORM_ALLOWED_HOSTS=...
+AGENT_WORKER_HOST=127.0.0.1
+AGENT_WORKER_PORT=8102
+AGENT_WORKER_URL=http://127.0.0.1:8102
+AGENT_WORKER_TOKEN=<独立的至少32字节随机值>
 AGENT_LEGACY_API_KEYS_ENABLED=0
 AGENT_TRUST_PROXY_HEADERS=1
 AGENT_FORWARDED_ALLOW_IPS=127.0.0.1
@@ -462,15 +475,17 @@ LLM/WebSearch 密钥从 `.env` 或服务环境读取，禁止写入源码、syst
 1. 平台 PostgreSQL、Memory PostgreSQL、Redis 均使用私网和独立凭据。
 2. Redis 开启 AOF；API 和 Worker 必须使用同一 Redis URL。
 3. 先备份，再执行 Alembic；严禁生产 `create_all`。
-4. API 可横向扩容，但单 GPU Worker 默认并发 1；不要让多个 Worker 争用同一张卡。
+4. API 可横向扩容，但单 GPU Worker 默认并发 1；不要让多个 Worker 争用同一张卡。多个Gateway必须指向同一可达Worker地址，不能都使用各自容器内的127.0.0.1。
 5. 反向代理启用 TLS、精确 CORS/Host、请求体限制和至少 130 秒读取超时。
 6. SSE 路由关闭代理缓冲与缓存，并透传 `Authorization`、Cookie、`Last-Event-ID` 和请求 ID。
 7. Access JWT 15 分钟、Refresh 30 天；对话保留一年不等于登录态保留一年。
 8. 备份平台 PostgreSQL、Memory PostgreSQL 和 Redis AOF；恢复演练需覆盖未完成 Run 重入队。
 9. Memory `/health` 不应暴露公网。
 10. 日志、Trace 和审计可能包含健康信息，必须限制访问并设置脱敏/留存周期。
+11. 8102只允许绑定回环地址或GPU私网，不开放安全组/Nginx公网入口；Gateway与Worker之间使用 `AGENT_WORKER_TOKEN`。
+12. `/tools/*` 与 `/agent/plan_and_solve` 已从应用路由删除；8102上的工具仅由MoE内部调用。
 
-systemd 模板当前指向 `/home/sam/Animal_detection2/agentAndRag`、Python 环境和端口 8002/8300。复制到 `/etc/systemd/system` 前必须核对用户、工作目录、EnvironmentFile 和 Python。系统级 unit 可在无人登录时运行；用户级 unit 依赖用户会话或 linger。不要同时启动两份监听相同端口的服务。
+systemd 模板当前指向 `/home/sam/Animal_detection2/agentAndRag`、Python 环境和端口 8002/8102/8300。复制到 `/etc/systemd/system` 前必须核对用户、工作目录、EnvironmentFile 和 Python。系统级 unit 可在无人登录时运行；用户级 unit 依赖用户会话或 linger。不要同时启动两份监听相同端口的服务。
 
 ## 17. 验证基线
 
@@ -480,13 +495,14 @@ systemd 模板当前指向 `/home/sam/Animal_detection2/agentAndRag`、Python �
 | --- | --- |
 | 平台专项 pytest | 4 passed |
 | Memory Service 独立 PostgreSQL | 156 passed |
-| 前端 Vitest | 2 passed |
+| 前端 Vitest | 3 passed |
 | 前端生产构建 | passed |
 | Playwright 桌面/移动端 | 13 passed，1 个仅桌面用例在移动端 skipped |
 | Agent `/ready` | ready=true，memory=ok，MCP enabled |
 | Memory `/health` | database=ok，2 workers |
 | 真实 DeepSeek + Memory + WebSearch | passed |
 | MoE + MCP 全量单元回归 | 202 passed |
+| Gateway/Worker执行面回归 | 171 passed |
 | 真实 DeepSeek 强制检索 | 临床/药学专家各完成 RAG 8 命中 + Web Search 5 条，pending=0 |
 | 真实 DeepSeek 非锁定路径 | 普通“猫尿血怎么办”1 轮 final，无工具调用，PASS |
 | 单轮链路真实耗时 | “猫频繁进出猫砂盆，如何排急症？”由 72.6 秒降至 26.9 秒；Task Policy 14.5→2.8 秒，Critic 5.9→1.4 秒，Aggregator 24.2→8.3 秒；4 次 LLM、1 次 RAG |
@@ -495,6 +511,8 @@ systemd 模板当前指向 `/home/sam/Animal_detection2/agentAndRag`、Python �
 真实专家报告保存在本地忽略目录 `agent_api/tests/moe/reports/retrieval_policy_balanced_live_20260816_audit/`。明确要求“检索本地兽医知识库并联网核对仍适用指南”的病例中，临床与药学专家均记录 `required_tools=[rag.search, mcp.web_search.web_search]` 和相同顺序的 `attempted_tools`；RAG 分别命中 8 条（最高分 0.9173/0.9138），两次 Web Search 均成功返回 5 条，最终 `pending_tools=[]`。流式 QA 审计同步修复：记录 `id=96` 已落盘 `tools_used=[mcp.web_search.web_search, rag.search]`、`rag_hit_count=16`、`rag_best_score=0.9173`、`used_web_search=1`。普通咨询只记录 `recommended_tools`，专家 1 轮直接 final，证明建议检索不会锁死工具链。强制检索病例的旧风格验收仍因终答标题与测试脚本预设词不完全一致而标记 FAIL，但工具链与结构化专家协议本身已通过，需与内容风格测试分开理解。
 
 Memory 测试必须使用独立测试数据库。若测试与运行中的 Worker 共用 `petmemory_dev`，Worker 会抢先消费测试队列，造成“测试线程只处理 4/5”的假失败。
+
+2026-08-18 本机生产拓扑烟测（禁用真实LLM调用）：Gateway聚合 `/ready=true`、Worker `queue_consumer=true`、生产 `/chat-moe` 页面200、Gateway直接RAG工具接口503、未携带内部Token访问8102返回401。证明8002未执行本地工具，且内部执行端口未匿名开放。
 
 常用回归：
 
@@ -513,8 +531,12 @@ pnpm test:e2e
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8300/health
-Invoke-RestMethod http://127.0.0.1:8000/health
-Invoke-RestMethod http://127.0.0.1:8000/ready
+Invoke-RestMethod http://127.0.0.1:8102/health
+Invoke-RestMethod http://127.0.0.1:8102/ready
+Invoke-RestMethod http://127.0.0.1:8002/health
+Invoke-RestMethod http://127.0.0.1:8002/ready
+Invoke-RestMethod http://127.0.0.1:5173/healthz
+Invoke-RestMethod http://127.0.0.1:5173/ready
 Invoke-WebRequest http://127.0.0.1:5173/chat
 ```
 
@@ -527,8 +549,12 @@ Invoke-WebRequest http://127.0.0.1:5173/chat
 | 收起侧边栏无变化 | `.workspace.sidebar-collapsed` 是否生效，桌面宽度是否大于 800px |
 | API Key 撤销后仍可用 | 数据库 `revoked_at`、中间件 Principal、是否误用旧 `keys.txt` Key |
 | Run 长期 queued | Redis、Platform Worker、`petmind:platform:runs` 和 Worker 日志 |
+| 8002 `/ready` 返回503且 `worker` 不就绪 | 检查8102监听、Worker热加载日志、Redis URL和 `AGENT_WORKER_URL` |
+| `/v1` 或 `/chat-moe` 返回 `worker_unavailable` | Worker未启动、8102被占用、内部Token不一致或Gateway无法访问Worker |
 | Worker 重启后重复执行 | Run 状态是否为 queued/retry；检查状态领取和幂等键 |
 | SSE 没有实时输出 | Nginx buffering、读取超时、Content-Type 和代理缓存 |
+| 首页仍请求 `/src` 或 `/node_modules/.vite/deps` | 仍在运行 Vite 开发服务；停止旧进程并重新构建、启动 Docker Nginx |
+| `/healthz` 正常但 `/ready` 失败 | Nginx 正常但 Agent 不可达/未就绪；检查 `AGENT_UPSTREAM`、8002 监听地址和 Agent 日志 |
 | 没有订阅/积分时报 402 | 用户订阅、过期时间、余额、预占记录 |
 | 跨会话失忆 | `AGENT_MEMORY_ENABLED/REQUIRED`、稳定 user ID、Memory 健康和 turn ID |
 | Memory Worker 连接池超时 | PostgreSQL 连接上限、Worker 数、长事务和外部 LLM 耗时 |

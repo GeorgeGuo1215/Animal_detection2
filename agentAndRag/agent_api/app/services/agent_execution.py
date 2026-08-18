@@ -1,31 +1,14 @@
 from __future__ import annotations
 
 import os
-from enum import Enum
 from typing import Any, Dict, Iterable, List, Optional
 
 from ..tools.tool_registry import ToolRegistry, get_registry
 from .moe import MoEOrchestrator, OrchestratorConfig, RouterConfig, final_answer_max_tokens
 
 
-class AgentMode(str, Enum):
-    PLAN_AND_SOLVE = "plan_and_solve"
-    MULTI_TURN = "multi_turn"
-    MOE = "moe"
-
-
-_PLAN_MODELS = {"agent-plan", "agent-plan-solve", "plan", "plan-and-solve", "plan_and_solve"}
-_MULTI_TURN_MODELS = {"agent-multi-turn", "agent-multiturn", "multi-turn"}
+AGENT_MODEL_ID = "agent-moe"
 _PUBLIC_MOE_DEFAULT_TOOLS = ("rag.search", "mcp.web_search.web_search")
-
-
-def resolve_agent_mode(model: str) -> AgentMode:
-    normalized = str(model or "").strip().lower()
-    if normalized in _PLAN_MODELS:
-        return AgentMode.PLAN_AND_SOLVE
-    if normalized in _MULTI_TURN_MODELS:
-        return AgentMode.MULTI_TURN
-    return AgentMode.MOE
 
 
 def build_moe_orchestrator(

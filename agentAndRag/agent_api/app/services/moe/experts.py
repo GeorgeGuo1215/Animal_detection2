@@ -23,7 +23,7 @@ from ...prompts.moe_experts import (
 )
 from ...tools.rag_query import is_english_rag_query
 from ...tools.tool_registry import ToolRegistry
-from ..plan_and_solve import _safe_json_loads
+from ..structured_output import safe_json_loads
 from ..tool_call_utils import canonical_tool_call
 from .evidence_sufficiency import (
     EvidenceSufficiencyAssessment,
@@ -603,7 +603,7 @@ class ExpertAgentSession:
                         "retrieval_state": self.retrieval_state(),
                     },
                 )
-            obj, _parse_error = _safe_json_loads(text)
+            obj, _parse_error = safe_json_loads(text)
             if (
                 isinstance(obj, dict)
                 and str(obj.get("action") or "").strip().lower() == "final"

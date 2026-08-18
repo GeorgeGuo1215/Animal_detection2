@@ -1,5 +1,5 @@
 [Unit]
-Description=PetMind Agent + Memory + Platform Worker (Animal_detection2, 8002/8300)
+Description=PetMind Gateway + GPU Worker + Memory (Animal_detection2, 8002/8102/8300)
 After=network-online.target petmemory-postgres.service
 Wants=network-online.target petmemory-postgres.service
 StartLimitIntervalSec=300
@@ -15,6 +15,9 @@ Environment=PATH=/home/sam/anaconda3/envs/AnimalDetection/bin:/usr/local/cuda/bi
 Environment=LD_LIBRARY_PATH=/usr/local/cuda/lib64
 Environment=AGENT_HOST=0.0.0.0
 Environment=AGENT_PORT=8002
+Environment=AGENT_WORKER_HOST=127.0.0.1
+Environment=AGENT_WORKER_PORT=8102
+Environment=AGENT_WORKER_URL=http://127.0.0.1:8102
 Environment=MEMORY_HOST=127.0.0.1
 Environment=MEMORY_PORT=8300
 Environment=AGENT_MEMORY_REQUIRED=1

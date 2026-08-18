@@ -1,0 +1,156 @@
+from __future__ import annotations
+
+import asyncio
+import json
+
+from fastapi import Request
+from fastapi.responses import JSONResponse
+import httpx
+
+from agent_api.app.routers import routes_chat_ui, routes_openai
+from agent_api.app.schemas.chat_moe import ChatMoeCompletionRequest
+from agent_api.app.schemas.openai_schemas import ChatCompletionRequest
+from agent_api.app.platform.config import reset_platform_settings_cache
+from agent_api.app.worker_proxy import should_delegate_agent_execution
+from agent_api.app import worker_proxy
+
+
+def _request(path: str) -> Request:
+    return Request({
+        "type": "http",
+        "http_version": "1.1",
+        "method": "POST",
+        "scheme": "http",
+        "path": path,
+        "raw_path": path.encode(),
+        "query_string": b"",
+        "headers": [],
+        "client": ("127.0.0.1", 12345),
+        "server": ("127.0.0.1", 8002),
+    })
+
+
+def test_only_production_gateway_delegates(monkeypatch):
+    monkeypatch.setenv("AGENT_PLATFORM_ENV", "production")
+    monkeypatch.setenv("AGENT_PLATFORM_DB_URL", "postgresql+asyncpg://user:pass@127.0.0.1/db")
+    monkeypatch.setenv("AGENT_PLATFORM_REDIS_URL", "redis://127.0.0.1:6379/0")
+    monkeypatch.setenv("AGENT_PLATFORM_AUTO_CREATE_SCHEMA", "0")
+    monkeypatch.setenv("AGENT_PLATFORM_EXPOSE_DEV_TOKENS", "0")
+    monkeypatch.setenv("AGENT_PLATFORM_JWT_SECRET", "x" * 32)
+    monkeypatch.setenv("AGENT_EXECUTION_ROLE", "gateway")
+    reset_platform_settings_cache()
+    try:
+        assert should_delegate_agent_execution() is True
+        monkeypatch.setenv("AGENT_EXECUTION_ROLE", "worker")
+        assert should_delegate_agent_execution() is False
+    finally:
+        reset_platform_settings_cache()
+
+
+def test_openai_completion_delegates_before_local_execution(monkeypatch):
+    async def scenario():
+        captured = {}
+
+        async def fake_proxy(request, *, path, payload, stream):
+            captured.update(path=path, payload=payload, stream=stream)
+            return JSONResponse({"delegated": True})
+
+        monkeypatch.setattr(routes_openai, "should_delegate_agent_execution", lambda: True)
+        monkeypatch.setattr(routes_openai, "proxy_json_to_worker", fake_proxy)
+        request = _request("/v1/chat/completions")
+        response = await routes_openai.chat_completions(
+            ChatCompletionRequest(
+                model="agent-moe",
+                messages=[{"role": "user", "content": "猫频繁进出猫砂盆"}],
+                stream=True,
+            ),
+            request,
+        )
+
+        assert response.status_code == 200
+        assert captured["path"] == "/v1/chat/completions"
+        assert captured["stream"] is True
+        assert captured["payload"]["model"] == "agent-moe"
+
+    asyncio.run(scenario())
+
+
+def test_chat_moe_completion_delegates_to_worker(monkeypatch):
+    async def scenario():
+        captured = {}
+
+        async def fake_proxy(request, *, path, payload, stream):
+            captured.update(path=path, payload=payload, stream=stream)
+            return JSONResponse({"delegated": True})
+
+        monkeypatch.setattr(routes_chat_ui, "should_delegate_agent_execution", lambda: True)
+        monkeypatch.setattr(routes_chat_ui, "proxy_json_to_worker", fake_proxy)
+        response = await routes_chat_ui.chat_moe_public_completions(
+            ChatMoeCompletionRequest(session_id="session-1", message="猫尿闭怎么排急症"),
+            _request("/chat-moe/completions"),
+        )
+
+        assert response.status_code == 200
+        assert captured == {
+            "path": "/chat-moe/completions",
+            "payload": {
+                "session_id": "session-1",
+                "message": "猫尿闭怎么排急症",
+                "user_role": "pet_owner",
+                "response_lang": "zh",
+                "temperature": 0.3,
+            },
+            "stream": True,
+        }
+
+    asyncio.run(scenario())
+
+
+def test_worker_proxy_forwards_identity_and_stream_bytes(monkeypatch):
+    async def scenario():
+        seen = {}
+
+        class EventStream(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                yield b"data: {\"ok\":true}\n\n"
+
+        def handler(upstream: httpx.Request) -> httpx.Response:
+            seen["path"] = upstream.url.path
+            seen["token"] = upstream.headers.get("x-petmind-worker-token")
+            seen["user"] = upstream.headers.get("x-user-id")
+            seen["payload"] = json.loads(upstream.content)
+            return httpx.Response(
+                200,
+                headers={"content-type": "text/event-stream", "x-accel-buffering": "no"},
+                stream=EventStream(),
+            )
+
+        transport = httpx.MockTransport(handler)
+        monkeypatch.setenv("AGENT_WORKER_URL", "http://worker.internal:8102")
+        monkeypatch.setenv("AGENT_WORKER_TOKEN", "internal-secret")
+        monkeypatch.setattr(
+            worker_proxy,
+            "_new_worker_client",
+            lambda timeout: httpx.AsyncClient(transport=transport, timeout=timeout),
+        )
+        request = _request("/v1/chat/completions")
+        request.state.platform_user_id = "user-42"
+        response = await worker_proxy.proxy_json_to_worker(
+            request,
+            path="/v1/chat/completions",
+            payload={"stream": True, "messages": []},
+            stream=True,
+        )
+        body = b"".join([chunk async for chunk in response.body_iterator])
+
+        assert response.status_code == 200
+        assert response.headers["x-accel-buffering"] == "no"
+        assert body == b"data: {\"ok\":true}\n\n"
+        assert seen == {
+            "path": "/v1/chat/completions",
+            "token": "internal-secret",
+            "user": "user-42",
+            "payload": {"stream": True, "messages": []},
+        }
+
+    asyncio.run(scenario())

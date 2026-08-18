@@ -20,7 +20,7 @@ from ...prompts.moe_critic import (
     OWNER_FALLBACK_CONSTRAINT,
     VET_FALLBACK_CONSTRAINT,
 )
-from ..plan_and_solve import _safe_json_loads
+from ..structured_output import safe_json_loads
 from .trace import MoETrace, extract_usage
 from .history_context import build_fact_state_history
 
@@ -105,7 +105,7 @@ async def review(
                 latency_ms=latency,
                 usage=extract_usage(resp),
             )
-        obj, parse_error = _safe_json_loads(text)
+        obj, parse_error = safe_json_loads(text)
         fallback = _VET_FALLBACK_CONSTRAINT if user_role == "veterinarian" else _OWNER_FALLBACK_CONSTRAINT
         result = CriticResult(
             verdict="revise",

@@ -7,7 +7,6 @@
        mcp.web_search.* / mcp.nutritional_planner.*）；
      - sql.search 多表 + 物种软过滤（带 animal_id=cat_001 vs 不带）；
      - 越界拒答；
-     - 与原 multi-turn / plan 模式同题对比；
   3. 并发管理验证：并发打多条请求，借助连接池 [POOL] 调试打印观测在途连接峰值；
   4. 产出 markdown 报告（tests/api_live/reports/）。
 
@@ -321,25 +320,9 @@ def build_cases(quick: bool) -> List[Dict[str, Any]]:
             "q": "我家宠物这两天没什么精神、也不太爱吃东西，可能是什么问题？要注意什么？",
             "animal_id": None, "expect_tools": [],
         },
-        # 模式对比
-        {
-            "id": "mt_rag", "title": "multi-turn·同题对比 (知识检索)", "model": "agent-multi-turn",
-            "q": "犬细小病毒的典型症状有哪些？家庭护理和何时必须就医？",
-            "animal_id": None, "expect_tools": ["rag.search"], "expect_status": ["tool_calling"],
-        },
-        {
-            "id": "mt_sql", "title": "multi-turn·同题对比 (日报/物种)", "model": "agent-multi-turn",
-            "q": "我的宠物发烧了，能用对乙酰氨基酚退烧吗？另外结合它的健康日报看看风险。",
-            "animal_id": CAT_ID, "expect_tools": ["sql.search"], "expect_status": ["tool_calling"],
-        },
-        {
-            "id": "plan_rag", "title": "plan·同题对比 (知识检索)", "model": "agent-plan-solve",
-            "q": "犬细小病毒的典型症状有哪些？家庭护理和何时必须就医？",
-            "animal_id": None, "expect_tools": ["rag.search"], "expect_status": ["planning"],
-        },
     ]
     if quick:
-        keep = {"moe_rag", "moe_sql", "moe_vitals", "moe_oos", "species_cat", "species_none", "mt_rag"}
+        keep = {"moe_rag", "moe_sql", "moe_vitals", "moe_oos", "species_cat", "species_none"}
         cases = [c for c in cases if c["id"] in keep]
     return cases
 

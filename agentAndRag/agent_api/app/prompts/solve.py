@@ -2,12 +2,47 @@
 from __future__ import annotations
 
 from datetime import date
+import re
 from typing import Optional
 
 
 _CHARS_PER_TOKEN = 1.5
 _LENGTH_SAFETY_RATIO = 0.8
 _MIN_ANSWER_CHAR_BUDGET = 300
+
+_CONDITION_SIGNAL_RE = re.compile(
+    r"("
+    r"疾病|症状|诊断|治疗|手术|用药|药物|剂量|病例|感染|炎症|肿瘤|癌|骨折|"
+    r"呕吐|干呕|腹泻|软便|便秘|发烧|发热|咳嗽|抽搐|中毒|过敏|寄生虫|"
+    r"疫苗|免疫|麻醉|驱虫|尿血|血尿|尿频|尿少|排尿|猫砂|蹲很久|尿不出|"
+    r"膀胱|结石|食欲|不爱吃|精神|趴着|舔下面|喘气|呼吸|跛行|伤口|"
+    r"今天|昨天|早上|昨晚|十几分钟|持续|最近|吃药|去医院|就诊|既往|病史|"
+    r"disease|symptom|diagnos|treatment|surgery|medication|dose|infection|"
+    r"tumor|cancer|fracture|vomit|diarrhea|fever|seizure|poison|parasite|vaccine|"
+    r"hematuria|stranguria|dysuria|anorexi|letharg"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def is_medical_query(query: str) -> bool:
+    """Return whether a query contains concrete clinical/medical signals."""
+    return bool(_CONDITION_SIGNAL_RE.search(query or ""))
+
+
+def build_solve_prompt(
+    user_role: str = "pet_owner",
+    has_web_search: bool = False,
+    query: str = "",
+    max_tokens: Optional[int] = None,
+) -> str:
+    """Build the role-aware final-answer prompt used by the MoE aggregator."""
+    return build_solve_prompt_text(
+        user_role=user_role,
+        has_web_search=has_web_search,
+        medical_query=is_medical_query(query),
+        max_tokens=max_tokens,
+    )
 
 
 def answer_char_budget(max_tokens: Optional[int]) -> Optional[int]:

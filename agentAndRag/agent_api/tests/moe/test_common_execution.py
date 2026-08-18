@@ -4,24 +4,30 @@ import json
 import os
 import sys
 
+import pytest
+from pydantic import ValidationError
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from app.routers.sse import SSE_DONE, openai_sse_chunk
 from app.schemas.openai_schemas import ChatCompletionRequest
 from app.services.agent_execution import (
-    AgentMode,
+    AGENT_MODEL_ID,
     build_moe_orchestrator,
     public_moe_allowed_tools,
-    resolve_agent_mode,
 )
 from app.tools.tool_registry import ToolRegistry
 
 
-def test_agent_mode_aliases_and_default():
-    assert resolve_agent_mode("agent-plan-solve") is AgentMode.PLAN_AND_SOLVE
-    assert resolve_agent_mode("multi-turn") is AgentMode.MULTI_TURN
-    assert resolve_agent_mode("agent-moe") is AgentMode.MOE
-    assert resolve_agent_mode("unknown-model") is AgentMode.MOE
+def test_agent_model_is_moe_only():
+    assert AGENT_MODEL_ID == "agent-moe"
+    assert ChatCompletionRequest(messages=[{"role": "user", "content": "狗吐了"}]).model == AGENT_MODEL_ID
+
+    with pytest.raises(ValidationError):
+        ChatCompletionRequest(
+            model="agent-plan-solve",
+            messages=[{"role": "user", "content": "狗吐了"}],
+        )
 
 
 def test_public_moe_default_tools_are_restricted(monkeypatch):
