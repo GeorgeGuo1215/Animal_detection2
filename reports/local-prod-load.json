@@ -1,0 +1,298 @@
+{
+  "control_plane": [
+    {
+      "url": "http://127.0.0.1:5173/healthz",
+      "concurrency": 10,
+      "count": 10,
+      "codes": {
+        "200": 10
+      },
+      "errors": 0,
+      "error_rate": 0.0,
+      "p50_ms": 40256.42,
+      "p95_ms": 40927.13,
+      "max_ms": 40927.13,
+      "wall_ms": 42809.34,
+      "rps": 0.23
+    },
+    {
+      "url": "http://127.0.0.1:8002/health",
+      "concurrency": 10,
+      "count": 10,
+      "codes": {
+        "200": 10
+      },
+      "errors": 0,
+      "error_rate": 0.0,
+      "p50_ms": 43014.56,
+      "p95_ms": 44376.05,
+      "max_ms": 44376.05,
+      "wall_ms": 45099.76,
+      "rps": 0.22
+    },
+    {
+      "url": "http://127.0.0.1:8002/api/v1/me",
+      "concurrency": 10,
+      "count": 10,
+      "codes": {
+        "429": 7,
+        "401": 3
+      },
+      "errors": 7,
+      "error_rate": 0.7,
+      "p50_ms": 43462.82,
+      "p95_ms": 52355.22,
+      "max_ms": 52355.22,
+      "wall_ms": 53174.32,
+      "rps": 0.19
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/plans",
+      "concurrency": 10,
+      "count": 10,
+      "codes": {
+        "200": 6,
+        "429": 4
+      },
+      "errors": 0,
+      "error_rate": 0.0,
+      "p50_ms": 45117.8,
+      "p95_ms": 47723.77,
+      "max_ms": 47723.77,
+      "wall_ms": 48881.75,
+      "rps": 0.2
+    },
+    {
+      "url": "http://127.0.0.1:5173/healthz",
+      "concurrency": 50,
+      "count": 50,
+      "codes": {
+        "200": 50
+      },
+      "errors": 0,
+      "error_rate": 0.0,
+      "p50_ms": 29864.16,
+      "p95_ms": 52332.96,
+      "max_ms": 53526.39,
+      "wall_ms": 57985.04,
+      "rps": 0.86
+    },
+    {
+      "url": "http://127.0.0.1:8002/health",
+      "concurrency": 50,
+      "count": 50,
+      "codes": {
+        "200": 50
+      },
+      "errors": 0,
+      "error_rate": 0.0,
+      "p50_ms": 84926.56,
+      "p95_ms": 94218.71,
+      "max_ms": 94848.38,
+      "wall_ms": 97620.53,
+      "rps": 0.51
+    },
+    {
+      "url": "http://127.0.0.1:8002/api/v1/me",
+      "concurrency": 50,
+      "count": 50,
+      "codes": {
+        "502": 50
+      },
+      "errors": 50,
+      "error_rate": 1.0,
+      "p50_ms": 100960.83,
+      "p95_ms": 105844.1,
+      "max_ms": 106998.53,
+      "wall_ms": 116387.49,
+      "rps": 0.43
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/plans",
+      "concurrency": 50,
+      "count": 50,
+      "codes": {
+        "502": 50
+      },
+      "errors": 50,
+      "error_rate": 1.0,
+      "p50_ms": 42426.19,
+      "p95_ms": 52385.39,
+      "max_ms": 52534.29,
+      "wall_ms": 59518.94,
+      "rps": 0.84
+    },
+    {
+      "url": "http://127.0.0.1:5173/healthz",
+      "concurrency": 100,
+      "count": 100,
+      "codes": {
+        "200": 100
+      },
+      "errors": 0,
+      "error_rate": 0.0,
+      "p50_ms": 83203.0,
+      "p95_ms": 95211.74,
+      "max_ms": 97514.38,
+      "wall_ms": 191899.19,
+      "rps": 0.52
+    },
+    {
+      "url": "http://127.0.0.1:8002/health",
+      "concurrency": 100,
+      "count": 100,
+      "codes": {
+        "200": 100
+      },
+      "errors": 0,
+      "error_rate": 0.0,
+      "p50_ms": 39795.93,
+      "p95_ms": 53646.73,
+      "max_ms": 58378.01,
+      "wall_ms": 72218.25,
+      "rps": 1.38
+    },
+    {
+      "url": "http://127.0.0.1:8002/api/v1/me",
+      "concurrency": 100,
+      "count": 100,
+      "codes": {
+        "401": 36,
+        "429": 64
+      },
+      "errors": 64,
+      "error_rate": 0.64,
+      "p50_ms": 29820.81,
+      "p95_ms": 31281.36,
+      "max_ms": 31691.96,
+      "wall_ms": 45900.5,
+      "rps": 2.18
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/plans",
+      "concurrency": 100,
+      "count": 100,
+      "codes": {
+        "200": 41,
+        "429": 59
+      },
+      "errors": 0,
+      "error_rate": 0.0,
+      "p50_ms": 29732.22,
+      "p95_ms": 31338.22,
+      "max_ms": 31733.7,
+      "wall_ms": 49242.83,
+      "rps": 2.03
+    },
+    {
+      "url": "http://127.0.0.1:5173/healthz",
+      "concurrency": 200,
+      "count": 200,
+      "codes": {
+        "200": 200
+      },
+      "errors": 0,
+      "error_rate": 0.0,
+      "p50_ms": 29499.0,
+      "p95_ms": 34315.8,
+      "max_ms": 35528.33,
+      "wall_ms": 94694.25,
+      "rps": 2.11
+    },
+    {
+      "url": "http://127.0.0.1:8002/health",
+      "concurrency": 200,
+      "count": 200,
+      "codes": {
+        "200": 199,
+        "502": 1
+      },
+      "errors": 1,
+      "error_rate": 0.005,
+      "p50_ms": 27871.98,
+      "p95_ms": 65887.34,
+      "max_ms": 66759.69,
+      "wall_ms": 96361.34,
+      "rps": 2.08
+    },
+    {
+      "url": "http://127.0.0.1:8002/api/v1/me",
+      "concurrency": 200,
+      "count": 200,
+      "codes": {
+        "401": 108,
+        "503": 9,
+        "502": 3,
+        "429": 80
+      },
+      "errors": 92,
+      "error_rate": 0.46,
+      "p50_ms": 15380.51,
+      "p95_ms": 72025.78,
+      "max_ms": 77734.22,
+      "wall_ms": 91012.09,
+      "rps": 2.2
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/plans",
+      "concurrency": 200,
+      "count": 200,
+      "codes": {
+        "200": 86,
+        "429": 114
+      },
+      "errors": 0,
+      "error_rate": 0.0,
+      "p50_ms": 27136.32,
+      "p95_ms": 30469.5,
+      "max_ms": 31495.56,
+      "wall_ms": 87442.05,
+      "rps": 2.29
+    }
+  ],
+  "rate_limit": {
+    "url": "http://127.0.0.1:8002/api/v1/plans",
+    "codes": {
+      "200": 20,
+      "429": 1
+    },
+    "first_429_at": 21,
+    "sent": 21
+  },
+  "xff": {
+    "url": "http://127.0.0.1:8002/api/v1/plans",
+    "unique_xff": 40,
+    "codes": {
+      "200": 40
+    }
+  },
+  "execution": {
+    "gpu_before": "3028 MiB, 27 %",
+    "runs": [
+      {
+        "label": "a",
+        "conv_status": 201,
+        "run_status": 200,
+        "run_id": "9052afe9909c46b3b99c3f8bf7b6fc21",
+        "events": 3404,
+        "first_event_ms": 60.1,
+        "terminal": "completed",
+        "elapsed_ms": 26589.5,
+        "gateway_ready": 200
+      },
+      {
+        "label": "b",
+        "conv_status": 201,
+        "run_status": 200,
+        "run_id": "5e92eafd20db44bb93a464d0e68119d4",
+        "events": 3568,
+        "first_event_ms": 61.3,
+        "terminal": "completed",
+        "elapsed_ms": 51089.0,
+        "gateway_ready": 200
+      }
+    ],
+    "login_status": 200,
+    "gpu_after": "3321 MiB, 27 %"
+  }
+}

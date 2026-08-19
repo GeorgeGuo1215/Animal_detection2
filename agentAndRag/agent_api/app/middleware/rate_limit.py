@@ -51,7 +51,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             "/docs",
             "/openapi.json",
             "/redoc",
-            "/integration/ingest",
         }
 
     def _extract_key(self, request: Request) -> str:

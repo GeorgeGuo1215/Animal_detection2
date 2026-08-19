@@ -1,6 +1,6 @@
 # PetMind 兽医 Agent 生产平台规格
 
-本目录是生产平台的实现契约。接口、迁移、前端和测试均以此处为准；`/chat-moe` 继续作为开发测试入口，不是生产会话服务。
+本目录是生产平台的实现契约。接口、迁移、前端和测试均以此处为准；`/chat-moe` 是受控诊断入口，不是生产会话服务，生产只允许超级管理员或内部 Worker。
 
 ## 交付边界
 
@@ -23,7 +23,7 @@ Subscription: active -> expired | suspended | cancelled
 
 ## 不变量
 
-1. 用户身份来自 JWT 或数据库 API Key，不能来自请求体。
+1. 用户身份来自认证上下文，不能来自请求体或自定义用户头；浏览器平台接口只接受 JWT，数据库 API Key 只访问 OpenAI 兼容接口。
 2. 所有会话、消息、任务和搜索查询必须包含 `user_id` 所有权条件。
 3. `client_message_id`、`Idempotency-Key`、支付事件 ID 和 Memory `turn_id` 均需幂等。
 4. 积分采用预占—结算；失败且无可核实用量时不扣费。
@@ -39,3 +39,4 @@ Subscription: active -> expired | suspended | cancelled
 - [界面状态](ui-state-spec.md)
 - [验收标准](acceptance.md)
 - [生产部署](deployment.md)
+- [设置与记忆管理](settings-memory-management.md)

@@ -14,7 +14,6 @@ from .platform.config import get_platform_settings
 _FORWARDED_REQUEST_HEADERS = (
     "x-animal-id",
     "x-request-id",
-    "x-user-id",
     "last-event-id",
 )
 _FORWARDED_RESPONSE_HEADERS = (

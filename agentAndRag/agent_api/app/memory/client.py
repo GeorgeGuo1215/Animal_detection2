@@ -29,6 +29,7 @@ class AgentMemoryConfig:
     base_url: str
     timeout_s: float
     max_context_chars: int
+    management_token: str = ""
 
 
 def load_memory_config() -> AgentMemoryConfig:
@@ -38,6 +39,7 @@ def load_memory_config() -> AgentMemoryConfig:
         base_url=(os.getenv("AGENT_MEMORY_URL") or "http://127.0.0.1:8300").rstrip("/"),
         timeout_s=_number("AGENT_MEMORY_TIMEOUT", 3.0),
         max_context_chars=max(1000, int(os.getenv("AGENT_MEMORY_MAX_CONTEXT_CHARS") or 12000)),
+        management_token=os.getenv("MEMORY_MANAGEMENT_TOKEN", ""),
     )
 
 
@@ -130,6 +132,55 @@ class MemoryClient:
                 "session_id": session_id,
                 "turn_id": turn_id,
             },
+        )
+        response.raise_for_status()
+        return dict(response.json())
+
+    def _management_headers(self) -> Dict[str, str]:
+        return {"Authorization": f"Bearer {self.config.management_token}"} if self.config.management_token else {}
+
+    async def manage_list(self, *, user_id: str, limit: int = 100) -> Dict[str, Any]:
+        response = await self._http.get(
+            f"/v1/memory/manage/{user_id}",
+            params={"limit": limit},
+            headers=self._management_headers(),
+        )
+        response.raise_for_status()
+        return dict(response.json())
+
+    async def manage_delete(self, *, user_id: str, item_id: str) -> Dict[str, Any]:
+        response = await self._http.delete(
+            f"/v1/memory/manage/{user_id}/items/{item_id}",
+            headers=self._management_headers(),
+        )
+        response.raise_for_status()
+        return dict(response.json())
+
+    async def manage_clear(self, *, user_id: str, scope: str) -> Dict[str, Any]:
+        response = await self._http.request(
+            "DELETE",
+            f"/v1/memory/manage/{user_id}",
+            json={"scope": scope},
+            headers=self._management_headers(),
+        )
+        response.raise_for_status()
+        return dict(response.json())
+
+    async def manage_export_snapshot(self, *, user_id: str) -> Dict[str, Any]:
+        response = await self._http.get(
+            f"/v1/memory/manage/{user_id}/snapshot",
+            headers=self._management_headers(),
+        )
+        response.raise_for_status()
+        return dict(response.json())
+
+    async def manage_restore_snapshot(
+        self, *, user_id: str, snapshot: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        response = await self._http.post(
+            f"/v1/memory/manage/{user_id}/snapshot/restore",
+            json={"confirmation": "覆盖恢复用户数据", "snapshot": snapshot},
+            headers=self._management_headers(),
         )
         response.raise_for_status()
         return dict(response.json())

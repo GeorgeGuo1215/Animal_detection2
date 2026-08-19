@@ -20,16 +20,29 @@ let refreshing: Promise<User | null> | null = null
 export function setAccessToken(token: string) { accessToken = token }
 export function getAccessToken() { return accessToken }
 
+function wait(milliseconds: number) {
+  return new Promise<void>(resolve => globalThis.setTimeout(resolve, milliseconds))
+}
+
+async function requestRefresh(retryRotated = true): Promise<User | null> {
+  const response = await fetch(`${API_ROOT}/api/v1/auth/refresh`, {
+    method: 'POST', credentials: 'include',
+  })
+  if (response.status === 409 && retryRotated) {
+    // Another tab won refresh rotation. Give the shared cookie jar a moment
+    // to apply that response, then retry once with the replacement cookie.
+    await wait(150)
+    return requestRefresh(false)
+  }
+  if (!response.ok) return null
+  const data = await response.json() as { access_token: string; user: User }
+  setAccessToken(data.access_token)
+  return data.user
+}
+
 async function refresh(): Promise<User | null> {
   if (!refreshing) {
-    refreshing = fetch(`${API_ROOT}/api/v1/auth/refresh`, {
-      method: 'POST', credentials: 'include',
-    }).then(async response => {
-      if (!response.ok) return null
-      const data = await response.json() as { access_token: string; user: User }
-      setAccessToken(data.access_token)
-      return data.user
-    }).finally(() => { refreshing = null })
+    refreshing = requestRefresh().finally(() => { refreshing = null })
   }
   return refreshing
 }

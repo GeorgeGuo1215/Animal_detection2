@@ -45,7 +45,7 @@ WHERE "id" IN (
     ORDER BY "createdAt" DESC, "id" DESC
     OFFSET %(keep)s
 )
-RETURNING "id", "petId", "sessionId", "userInput", "agentResponse", "createdAt"
+RETURNING "id", "petId", "sessionId", "turnId", "userInput", "agentResponse", "createdAt"
 """
 
 

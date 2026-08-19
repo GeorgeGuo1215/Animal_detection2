@@ -77,7 +77,12 @@ def _run_sql_file(dsn: str, path: Path) -> None:
 
 
 def schema_file_names(*, include_fixture: bool) -> list[str]:
-    names = ["001_schema.sql", "002_memory_subjects_migration.sql"]
+    names = [
+        "001_schema.sql",
+        "002_memory_subjects_migration.sql",
+        "003_memory_derivations.sql",
+        "004_remove_turn_provenance.sql",
+    ]
     if include_fixture:
         names.insert(0, "000_petserver_fixture.sql")
     return names
@@ -111,6 +116,7 @@ def _verify(dsn: str) -> None:
             "memory_profiles",
             "memory_knowledge",
             "memory_tasks",
+            "memory_derivations",
         }
         missing = expected - set(names)
         if missing:

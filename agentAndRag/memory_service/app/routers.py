@@ -9,21 +9,26 @@
 
 from __future__ import annotations
 
+import hmac
 import logging
 
 import psycopg
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 
 from . import db
 from .config import MemoryConfig
 from .embedding import get_embedder
-from .memory import consolidator, long_term, mid_term, queue, retriever, short_term, subjects
+from .memory import consolidator, long_term, management, mid_term, queue, retriever, short_term, subjects
 from .schemas import (
     ContextIn,
     ContextOut,
     HealthOut,
     MessageIn,
     MessageOut,
+    MemoryClearIn,
+    MemoryRestoreIn,
+    MemoryDeleteOut,
+    MemoryManageOut,
     ProfileOut,
     StatsOut,
     SubjectIn,
@@ -35,6 +40,14 @@ logger = logging.getLogger(__name__)
 
 def build_router(cfg: MemoryConfig, worker_pool=None) -> APIRouter:
     router = APIRouter()
+
+    def require_management_token(authorization: str) -> None:
+        if not cfg.management_token:
+            logger.error("memory_service: management API disabled because MEMORY_MANAGEMENT_TOKEN is unset")
+            raise HTTPException(status_code=503, detail="memory management is not configured")
+        supplied = authorization[7:].strip() if authorization.lower().startswith("bearer ") else ""
+        if not hmac.compare_digest(supplied, cfg.management_token):
+            raise HTTPException(status_code=401, detail="invalid management credential")
 
     @router.post("/v1/memory/subjects/ensure", response_model=SubjectOut, tags=["memory"])
     def ensure_subject(payload: SubjectIn) -> SubjectOut:
@@ -146,9 +159,130 @@ def build_router(cfg: MemoryConfig, worker_pool=None) -> APIRouter:
                     user_id=user_id,
                     short_term=short_term.count(conn, user_id),
                     segments=mid_term.count_segments(conn, user_id),
+                    pages=int(conn.execute(
+                        'SELECT count(*) AS n FROM memory_pages WHERE "userId"=%s',
+                        (user_id,),
+                    ).fetchone()["n"]),
                     knowledge=long_term.count_knowledge(conn, user_id),
                     heat=heat,
                 )
+        except db.MemoryDbError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    @router.get(
+        "/v1/memory/manage/{user_id}",
+        response_model=MemoryManageOut,
+        tags=["memory-management"],
+    )
+    def manage_list(
+        user_id: str,
+        limit: int = 100,
+        authorization: str = Header(default=""),
+    ) -> MemoryManageOut:
+        require_management_token(authorization)
+        try:
+            with db.connection() as conn:
+                return MemoryManageOut(
+                    user_id=user_id,
+                    items=management.list_items(
+                        conn, user_id=user_id, limit=max(1, min(limit, 200))
+                    ),
+                )
+        except db.MemoryDbError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    @router.delete(
+        "/v1/memory/manage/{user_id}/items/{item_id:path}",
+        response_model=MemoryDeleteOut,
+        tags=["memory-management"],
+    )
+    def manage_delete(
+        user_id: str,
+        item_id: str,
+        authorization: str = Header(default=""),
+    ) -> MemoryDeleteOut:
+        require_management_token(authorization)
+        try:
+            with db.connection() as conn:
+                if not db.try_user_lock(conn, user_id):
+                    raise HTTPException(status_code=409, detail="memory is busy")
+                try:
+                    return MemoryDeleteOut(
+                        **management.delete_item(conn, user_id=user_id, item_id=item_id)
+                    )
+                except KeyError as exc:
+                    raise HTTPException(status_code=404, detail="memory item not found") from exc
+        except db.MemoryDbError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    @router.delete(
+        "/v1/memory/manage/{user_id}",
+        response_model=dict,
+        tags=["memory-management"],
+    )
+    def manage_clear(
+        user_id: str,
+        payload: MemoryClearIn,
+        authorization: str = Header(default=""),
+    ) -> dict:
+        require_management_token(authorization)
+        try:
+            with db.connection() as conn:
+                if not db.try_user_lock(conn, user_id):
+                    raise HTTPException(status_code=409, detail="memory is busy")
+                return {
+                    "user_id": user_id,
+                    "scope": payload.scope,
+                    "deleted": management.clear_scope(
+                        conn, user_id=user_id, scope=payload.scope
+                    ),
+                }
+        except db.MemoryDbError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    @router.get(
+        "/v1/memory/manage/{user_id}/snapshot",
+        response_model=dict,
+        tags=["memory-management"],
+    )
+    def manage_export_snapshot(
+        user_id: str,
+        authorization: str = Header(default=""),
+    ) -> dict:
+        require_management_token(authorization)
+        try:
+            with db.connection() as conn:
+                try:
+                    return management.export_snapshot(conn, user_id=user_id)
+                except KeyError as exc:
+                    raise HTTPException(status_code=404, detail="memory subject not found") from exc
+        except db.MemoryDbError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    @router.post(
+        "/v1/memory/manage/{user_id}/snapshot/restore",
+        response_model=dict,
+        tags=["memory-management"],
+    )
+    def manage_restore_snapshot(
+        user_id: str,
+        payload: MemoryRestoreIn,
+        authorization: str = Header(default=""),
+    ) -> dict:
+        require_management_token(authorization)
+        if payload.confirmation != "覆盖恢复用户数据":
+            raise HTTPException(status_code=422, detail="invalid confirmation")
+        try:
+            with db.connection() as conn:
+                if not db.try_user_lock(conn, user_id):
+                    raise HTTPException(status_code=409, detail="memory is busy")
+                try:
+                    restored = management.restore_snapshot(
+                        conn, user_id=user_id, snapshot=payload.snapshot
+                    )
+                except ValueError as exc:
+                    raise HTTPException(status_code=422, detail=str(exc)) from exc
+                return {"user_id": user_id, "restored": restored}
         except db.MemoryDbError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
 

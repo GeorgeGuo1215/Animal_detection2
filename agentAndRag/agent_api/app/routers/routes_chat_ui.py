@@ -1,12 +1,14 @@
 """Stateful MoE diagnostic console; legacy /chat and /admin pages were removed."""
 from __future__ import annotations
 
+import hmac
 import uuid
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..memory import (
     chat_moe_memory_user_id,
@@ -16,13 +18,31 @@ from ..memory import (
     write_user_memory,
 )
 from ..persistence.session_manager import get_session_manager
+from ..platform.config import get_platform_settings
+from ..platform.database import get_platform_session
+from ..platform.dependencies import get_current_principal
 from ..schemas.chat_moe import ChatMoeCompletionRequest, ChatMoeSessionRequest, ChatMoeSessionResponse
 from ..services.agent_execution import build_moe_orchestrator, public_moe_allowed_tools
 from ..tools.tool_registry import get_registry
-from ..worker_proxy import proxy_json_to_worker, should_delegate_agent_execution
+from ..worker_proxy import proxy_json_to_worker, should_delegate_agent_execution, worker_token
 from .sse import SSE_DONE, SSE_RESPONSE_HEADERS, openai_sse_chunk
 
-chat_moe_router = APIRouter()
+async def _require_diagnostic_access(
+    request: Request,
+    session: AsyncSession = Depends(get_platform_session),
+) -> None:
+    """Keep the diagnostic console open in development and admin-only in production."""
+    if not get_platform_settings().production:
+        return
+    supplied_worker_token = request.headers.get("x-petmind-worker-token", "")
+    if supplied_worker_token and hmac.compare_digest(supplied_worker_token, worker_token()):
+        return
+    principal = await get_current_principal(request, session)
+    if principal.auth_kind != "jwt" or principal.role != "SUPER_ADMIN":
+        raise HTTPException(status_code=403, detail="diagnostic console requires SUPER_ADMIN")
+
+
+chat_moe_router = APIRouter(dependencies=[Depends(_require_diagnostic_access)])
 
 _MOE_TEST_HTML_PATH = Path(__file__).resolve().parents[1] / "static" / "chat_moe.html"
 _MOE_TEST_HTML = _MOE_TEST_HTML_PATH.read_text(encoding="utf-8")
@@ -75,9 +95,10 @@ def _moe_system_context(response_lang: str, memory_injection: Optional[str] = No
 )
 async def chat_moe_public_completions(body: ChatMoeCompletionRequest, request: Request = None):
     """Use server history only for `/chat-moe`; production requests remain stateless."""
-    if should_delegate_agent_execution():
-        if request is None:
-            raise HTTPException(status_code=500, detail="request context is required for Worker delegation")
+    # FastAPI always injects Request in production. Direct unit/in-process
+    # callers deliberately omit it and must exercise the local orchestration
+    # branch instead of accidentally inheriting a machine-level worker flag.
+    if request is not None and should_delegate_agent_execution():
         return await proxy_json_to_worker(
             request,
             path="/chat-moe/completions",
@@ -169,6 +190,8 @@ async def chat_moe_public_completions(body: ChatMoeCompletionRequest, request: R
                     emitted_finish = emitted_finish or bool(finish)
                     if event.get("status") == "streaming" and event.get("content"):
                         final_parts.append(str(event["content"]))
+                    elif event.get("status") == "answer_reset":
+                        final_parts.clear()
                     yield openai_sse_chunk(
                         request_id=request_id, model="agent-moe",
                         status=event.get("status"), detail=event.get("detail") or {},

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..platform.config import get_platform_settings
 from ..platform.database import get_platform_session, platform_session
-from ..platform.dependencies import Principal, get_current_principal, require_scope
+from ..platform.dependencies import Principal, require_user_session, require_scope
 from ..platform.expert_consultations import consultations_by_run
 from ..platform.models import (
     AgentRun,
@@ -81,7 +81,7 @@ async def _owned_run(session: AsyncSession, user_id: str, run_id: str) -> AgentR
 async def create_conversation(
     body: ConversationCreateRequest,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
     idem = idempotency_key.strip()[:100] if idempotency_key else None
@@ -99,7 +99,7 @@ async def create_conversation(
 async def list_conversations(
     status_filter: str | None = Query(default=None, alias="status"),
     limit: int = Query(default=50, ge=1, le=100),
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
     statement = select(Conversation).where(
@@ -116,7 +116,7 @@ async def list_conversations(
 async def search_conversations(
     q: str = Query(min_length=1, max_length=200),
     limit: int = Query(default=30, ge=1, le=100),
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
     pattern = f"%{q}%"
@@ -144,7 +144,7 @@ async def search_conversations(
 @router.get("/conversations/{conversation_id}")
 async def get_conversation(
     conversation_id: str,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
     return _conversation_payload(await _owned_conversation(session, principal.user_id, conversation_id))
@@ -154,7 +154,7 @@ async def get_conversation(
 async def update_conversation(
     conversation_id: str,
     body: ConversationUpdateRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
     item = await _owned_conversation(session, principal.user_id, conversation_id)
@@ -170,10 +170,13 @@ async def update_conversation(
 @router.delete("/conversations/{conversation_id}", status_code=204)
 async def delete_conversation(
     conversation_id: str,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
     item = await _owned_conversation(session, principal.user_id, conversation_id)
+    # User-facing deletion hides the conversation while retaining the complete
+    # platform record for later recovery, audit, and analysis. Consolidated
+    # memory remains independently managed by /me/memories.
     item.deleted_at = utcnow()
     item.status = "deleted"
     await session.commit()
@@ -184,7 +187,7 @@ async def delete_conversation(
 async def list_messages(
     conversation_id: str,
     limit: int = Query(default=200, ge=1, le=500),
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
     await _owned_conversation(session, principal.user_id, conversation_id)
@@ -300,7 +303,7 @@ async def create_run(
 @router.get("/runs/{run_id}")
 async def get_run(
     run_id: str,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
     return _run_payload(await _owned_run(session, principal.user_id, run_id))
@@ -309,7 +312,7 @@ async def get_run(
 @router.get("/runs/{run_id}/experts")
 async def get_run_experts(
     run_id: str,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
     await _owned_run(session, principal.user_id, run_id)
@@ -320,7 +323,7 @@ async def get_run_experts(
 @router.delete("/runs/{run_id}", status_code=202)
 async def cancel_run(
     run_id: str,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
     run = await _owned_run(session, principal.user_id, run_id)
@@ -341,7 +344,7 @@ async def cancel_run(
 async def get_run_events(
     run_id: str,
     last_event_id: int = Header(default=0, alias="Last-Event-ID"),
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
     await _owned_run(session, principal.user_id, run_id)
@@ -372,7 +375,7 @@ async def list_plans(session: AsyncSession = Depends(get_platform_session)):
 async def create_order(
     body: OrderCreateRequest,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
     idem = idempotency_key.strip()[:100] if idempotency_key else None
@@ -397,7 +400,7 @@ async def create_order(
 
 @router.get("/orders")
 async def list_orders(
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
     rows = list((await session.scalars(select(Order).where(Order.user_id == principal.user_id).order_by(Order.created_at.desc()))).all())
@@ -406,7 +409,7 @@ async def list_orders(
 
 @router.get("/subscription")
 async def get_subscription(
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
     item = await session.scalar(select(Subscription).where(
@@ -418,7 +421,7 @@ async def get_subscription(
 
 @router.get("/credits")
 async def get_credits(
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
     account = await session.get(CreditAccount, principal.user_id)

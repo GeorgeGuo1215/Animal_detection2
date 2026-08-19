@@ -39,6 +39,7 @@ class PlatformSettings:
     jwt_audience: str
     access_ttl_seconds: int
     refresh_ttl_seconds: int
+    refresh_reuse_grace_seconds: int
     invite_ttl_seconds: int
     reset_ttl_seconds: int
     cookie_secure: bool
@@ -72,6 +73,20 @@ class PlatformSettings:
                 raise RuntimeError("Production schema must be managed by Alembic, not create_all")
             if self.expose_dev_tokens:
                 raise RuntimeError("Development token exposure is forbidden in production")
+            if _bool("AGENT_ALLOW_INSECURE_DEFAULT_KEY", False):
+                raise RuntimeError("Insecure default API key is forbidden in production")
+            if not self.cookie_secure:
+                raise RuntimeError("Production refresh cookies require AGENT_PLATFORM_COOKIE_SECURE=1")
+            if not self.frontend_origin.startswith("https://"):
+                raise RuntimeError("Production frontend origin must use HTTPS")
+            worker_secret = os.getenv("AGENT_WORKER_TOKEN", "")
+            if len(worker_secret.encode("utf-8")) < 32 or worker_secret == self.jwt_secret:
+                raise RuntimeError("Production AGENT_WORKER_TOKEN must be an independent 32-byte secret")
+            memory_secret = os.getenv("MEMORY_MANAGEMENT_TOKEN", "")
+            if _bool("AGENT_MEMORY_ENABLED", True) and len(memory_secret.encode("utf-8")) < 32:
+                raise RuntimeError("Production MEMORY_MANAGEMENT_TOKEN must contain at least 32 bytes")
+            if len(self.payment_webhook_secret.encode("utf-8")) < 32 or self.payment_webhook_secret == "development-webhook-secret":
+                raise RuntimeError("Production payment webhook secret must contain at least 32 bytes")
 
 
 @lru_cache(maxsize=1)
@@ -89,6 +104,7 @@ def get_platform_settings() -> PlatformSettings:
         jwt_audience=os.getenv("AGENT_PLATFORM_JWT_AUDIENCE", "petmind-agent-web"),
         access_ttl_seconds=_int("AGENT_PLATFORM_ACCESS_TTL_SEC", 15 * 60),
         refresh_ttl_seconds=_int("AGENT_PLATFORM_REFRESH_TTL_SEC", 30 * 24 * 3600),
+        refresh_reuse_grace_seconds=_int("AGENT_PLATFORM_REFRESH_REUSE_GRACE_SEC", 5, minimum=0),
         invite_ttl_seconds=_int("AGENT_PLATFORM_INVITE_TTL_SEC", 7 * 24 * 3600),
         reset_ttl_seconds=_int("AGENT_PLATFORM_RESET_TTL_SEC", 30 * 60),
         cookie_secure=_bool("AGENT_PLATFORM_COOKIE_SECURE", environment == "production"),

@@ -93,10 +93,26 @@ async def get_current_principal(
     return principal
 
 
+async def require_user_session(
+    principal: Principal = Depends(get_current_principal),
+) -> Principal:
+    """Restrict browser/platform APIs to short-lived JWT login sessions.
+
+    Database API keys are intentionally limited to the OpenAI-compatible
+    surface and must never inherit profile or administrator privileges.
+    """
+    if principal.auth_kind != "jwt":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="interactive login required",
+        )
+    return principal
+
+
 def require_roles(*roles: str) -> Callable:
     allowed = set(roles)
 
-    async def dependency(principal: Principal = Depends(get_current_principal)) -> Principal:
+    async def dependency(principal: Principal = Depends(require_user_session)) -> Principal:
         if principal.role not in allowed:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="insufficient role")
         return principal
@@ -105,7 +121,7 @@ def require_roles(*roles: str) -> Callable:
 
 
 def require_scope(scope: str) -> Callable:
-    async def dependency(principal: Principal = Depends(get_current_principal)) -> Principal:
+    async def dependency(principal: Principal = Depends(require_user_session)) -> Principal:
         if scope not in principal.scopes and principal.role != "SUPER_ADMIN":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="missing API scope")
         return principal

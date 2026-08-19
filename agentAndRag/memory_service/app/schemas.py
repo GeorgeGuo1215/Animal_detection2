@@ -7,7 +7,7 @@ userId 沿用 pet-server 的 cuid 字符串，服务端不校验其格式，只�
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -112,6 +112,7 @@ class StatsOut(BaseModel):
     user_id: str
     short_term: int
     segments: int
+    pages: int
     knowledge: int
     heat: HeatStats
 
@@ -121,3 +122,31 @@ class HealthOut(BaseModel):
     database: str
     queue: Dict[str, int] = Field(default_factory=dict)
     workers: Dict[str, int] = Field(default_factory=dict)
+
+
+class MemoryManageItem(BaseModel):
+    id: str
+    type: str
+    label: str
+    content: Any
+    created_at: Optional[datetime] = None
+    source_count: int = 0
+    generation_tags: List[str] = Field(default_factory=list)
+
+
+class MemoryManageOut(BaseModel):
+    user_id: str
+    items: List[MemoryManageItem] = Field(default_factory=list)
+
+
+class MemoryDeleteOut(BaseModel):
+    deleted: int
+
+
+class MemoryClearIn(BaseModel):
+    scope: Literal["short_term", "knowledge", "profile"]
+
+
+class MemoryRestoreIn(BaseModel):
+    confirmation: str
+    snapshot: Dict[str, Any]

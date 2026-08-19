@@ -37,5 +37,7 @@ def test_normal_schema_initialization_does_not_create_pethealth_fixture_tables()
     assert schema_file_names(include_fixture=False) == [
         "001_schema.sql",
         "002_memory_subjects_migration.sql",
+        "003_memory_derivations.sql",
+        "004_remove_turn_provenance.sql",
     ]
     assert schema_file_names(include_fixture=True)[0] == "000_petserver_fixture.sql"

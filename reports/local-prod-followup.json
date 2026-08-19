@@ -1,0 +1,177 @@
+{
+  "skipped": {
+    "sql_mcp_attack_payloads": "Not sending injection or exploit strings. Used whitelist + bound-parameter canary only.",
+    "cross_host_scan": "Did not scan LAN/other hosts. Only listed local listen addresses.",
+    "syn_flood": "Refused. Flood/kernel attack traffic is out of scope."
+  },
+  "tls": {
+    "https_5173": {
+      "ok": false,
+      "error": "SSLError",
+      "detail": "[SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1000)"
+    },
+    "https_8002": {
+      "ok": false,
+      "error": "SSLError",
+      "detail": "[SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1000)"
+    },
+    "listen_443": false,
+    "nginx_ssl": false,
+    "hsts_header": null,
+    "http_chat_status": 200
+  },
+  "webhook": {
+    "cases": [
+      {
+        "name": "missing_sig",
+        "status": 401,
+        "preview": "{\"code\":\"invalid_webhook_signature\",\"message\":\"invalid webhook signature\",\"request_id\":\"e069ab6b35114d6c847daa98dc7b7ae7\",\"details\":null}"
+      },
+      {
+        "name": "wrong_sig",
+        "status": 401,
+        "preview": "{\"code\":\"invalid_webhook_signature\",\"message\":\"invalid webhook signature\",\"request_id\":\"5339aeeda4504529b87882ea426dfb46\",\"details\":null}"
+      },
+      {
+        "name": "stale_timestamp",
+        "status": 401,
+        "preview": "{\"code\":\"invalid_webhook_signature\",\"message\":\"invalid webhook signature\",\"request_id\":\"b1f6f113bc8e47f3a190502cde100f03\",\"details\":null}"
+      },
+      {
+        "name": "valid_sig_unknown_order",
+        "status": 404,
+        "preview": "{\"code\":\"order_not_found\",\"message\":\"order not found\",\"request_id\":\"7671b17a421b4e1cb79a97d8cfa2774f\",\"details\":null}"
+      }
+    ]
+  },
+  "refresh_family": {
+    "login": 200,
+    "rotate": 200,
+    "cookie_a_present": true,
+    "cookie_b_present": true,
+    "cookie_changed": true,
+    "replay_old": {
+      "status": 401,
+      "preview": "{\"code\":\"refresh_token_reuse_detected\",\"message\":\"refresh token reuse detected\",\"request_id\":\"7bf1a3da62cc419a8e603139b37b12ea\",\"details\":null}"
+    },
+    "refresh_new_after_replay": {
+      "status": 401,
+      "preview": "{\"code\":\"refresh_token_reuse_detected\",\"message\":\"refresh token reuse detected\",\"request_id\":\"62dc36cd08044ebbbe847a673cdfc8bc\",\"details\":null}"
+    },
+    "access_after_family_kill": 200,
+    "login_access_still_set": true
+  },
+  "sql_canary": {
+    "table_whitelist": [
+      {
+        "table": "not_a_whitelisted_table",
+        "accepted": false,
+        "error": "Unknown or disallowed table: 'not_a_whitelisted_table'. Allowed: ['animals', 'da"
+      },
+      {
+        "table": "information_schema",
+        "accepted": false,
+        "error": "Unknown or disallowed table: 'information_schema'. Allowed: ['animals', 'daily_r"
+      },
+      {
+        "table": "mysql",
+        "accepted": false,
+        "error": "Unknown or disallowed table: 'mysql'. Allowed: ['animals', 'daily_reports', 'sen"
+      },
+      {
+        "table": "pg_catalog",
+        "accepted": false,
+        "error": "Unknown or disallowed table: 'pg_catalog'. Allowed: ['animals', 'daily_reports',"
+      }
+    ],
+    "compiled": {
+      "sql": "SELECT `animal_id`, `report_date` FROM `daily_reports` WHERE `report_text` LIKE %s LIMIT %s",
+      "param_count": 2,
+      "canary_in_sql_text": false,
+      "canary_is_bound_param": true,
+      "uses_placeholders": true
+    },
+    "tool_call": {
+      "ok": true,
+      "error": null,
+      "message": "",
+      "row_count": 0
+    }
+  },
+  "mcp": {
+    "web_search_uses_json_api": false,
+    "vitals_uses_bound_params": true,
+    "note": "MCP not invoked with attacker strings; web_search would only forward a JSON query field to Tavily."
+  },
+  "localhost_exposure": {
+    "listen": [
+      {
+        "LocalAddress": "::1",
+        "LocalPort": 16379
+      },
+      {
+        "LocalAddress": "::",
+        "LocalPort": 16379
+      },
+      {
+        "LocalAddress": "::1",
+        "LocalPort": 15433
+      },
+      {
+        "LocalAddress": "::",
+        "LocalPort": 15433
+      },
+      {
+        "LocalAddress": "::1",
+        "LocalPort": 5432
+      },
+      {
+        "LocalAddress": "::",
+        "LocalPort": 5432
+      },
+      {
+        "LocalAddress": "::1",
+        "LocalPort": 5173
+      },
+      {
+        "LocalAddress": "::",
+        "LocalPort": 5173
+      },
+      {
+        "LocalAddress": "127.0.0.1",
+        "LocalPort": 8300
+      },
+      {
+        "LocalAddress": "127.0.0.1",
+        "LocalPort": 8102
+      },
+      {
+        "LocalAddress": "0.0.0.0",
+        "LocalPort": 8002
+      }
+    ],
+    "wildcard_binds": [
+      {
+        "LocalAddress": "::",
+        "LocalPort": 16379
+      },
+      {
+        "LocalAddress": "::",
+        "LocalPort": 15433
+      },
+      {
+        "LocalAddress": "::",
+        "LocalPort": 5432
+      },
+      {
+        "LocalAddress": "::",
+        "LocalPort": 5173
+      },
+      {
+        "LocalAddress": "0.0.0.0",
+        "LocalPort": 8002
+      }
+    ],
+    "scanned_foreign_hosts": false
+  }
+}

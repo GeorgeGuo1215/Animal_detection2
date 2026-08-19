@@ -1,6 +1,6 @@
 # PetMind 兽医 Agent 生产平台维护文档
 
-> 最后全量核对：2026-08-16（Asia/Shanghai）
+> 最后全量核对：2026-08-20（Asia/Shanghai）
 >
 > Docker Nginx 部署复核：2026-08-18（Asia/Shanghai）
 >
@@ -34,6 +34,14 @@
 14. 生产提示词集中在 `agent_api/app/prompts/`，业务层不再散落长段 system prompt。
 15. 统一启动器可监管 Memory、Agent API 和 Redis-backed Platform Worker。
 16. 生产执行面已拆分：8002 仅承担认证、持久化、入队和 SSE 代理；8102 Worker 独占 MoE、专家、RAG、reranker 与 MCP。
+17. Refresh Token 重放使用服务端时间和5秒并发宽限；确认重放后撤销令牌族并递增 `token_version`，立即使既有Access Token失效。
+18. 登录后聊天、套餐、帮助、设置和后台共享持久侧边栏；会话切换显示加载状态，新问题提交后立即更新左侧标题，生成阶段固定在专家卡片与正文之间。
+19. Docker Nginx已加入CSP、禁止iframe、MIME嗅探防护、Referrer/Permissions/COOP和HSTS响应头；Logo预加载且跨页面不重复挂载。
+20. 废弃的 `/integration` 与n8n Webhook代码已删除；`/chat-moe` 诊断入口在生产仅允许超级管理员或内部 Worker 调用。
+21. 设置中心已接入账号资料、主题、专家默认展开、常用语、额度/API Key、邀请码、浅层记忆管理、帮助、反馈、用户协议和隐私政策。
+22. 会话删除与记忆删除已解耦：用户删除时仅从历史列表隐藏，数据库保留会话、消息、Run、事件与专家意见，也不触发 Memory 删除；近期、长期与画像记忆只能在记忆管理中明确删除或分类清空。
+23. 管理员可导出并覆盖恢复单个用户的完整会话与全部记忆层；大快照使用 gzip、版本与 SHA-256 校验。
+24. Aggregator 流中断会自动非流式重试并通过持久 `reset` 事件替换半截答复，数据库不保存重复或不完整终答。
 
 首期明确不做：
 
@@ -41,7 +49,7 @@
 - 不实现组织/诊所多租户。
 - 不建立宠物档案，也不绑定 PetHealth 账号或宠物数据。
 - 不接真实支付渠道；只保留订单状态机、后台确认和 HMAC 测试 Webhook。
-- `/chat-moe` 仍是诊断入口且不作为生产会话存储；生产启用时其 Agent 执行也必须转发到内部 Worker。
+- `/chat-moe` 仍是诊断入口且不作为生产会话存储；生产环境要求超级管理员 JWT 或内部 Worker Token，其 Agent 执行必须转发到内部 Worker。
 - 不把系统提示词、模型内部推理或原始工具载荷暴露给网页用户。
 
 ## 2. 总体架构
@@ -79,7 +87,7 @@ flowchart LR
 | PetMind MySQL | `animals`、`daily_reports`、`sensor_events` 等只读业务数据 | 与平台账号、Memory 库相互独立 |
 | RAG 索引 | 兽医教材和分类知识证据 | 一般医学证据不能证明当前患者确诊 |
 
-平台迁移只创建 `platform_*` 表，不覆盖 PetHealth、Memory 或 SQLite 数据。对话最后活跃满 365 天后软删除，30 天宽限期后物理清理；订单、积分账本和审计不随聊天清理。
+平台迁移只创建 `platform_*` 表，不覆盖 PetHealth、Memory 或 SQLite 数据。用户删除会话时写入 `status/deleted_at` 并从历史列表隐藏，完整记录在配置的清理期限内继续保留；365 天自动清理同样先隐藏，经过 30 天宽限期后才物理清理。具体期限可通过环境变量调整。隐藏过程不修改 Memory。订单、积分账本和审计不随聊天清理。
 
 ## 4. 目录结构
 
@@ -183,7 +191,9 @@ Run 的 `delivery` 支持 `sse|sync|async`。所有方式先持久化用户消�
 - `pm_live_*` API Key 完整值只在创建时返回一次；数据库保存前缀和摘要。
 - API Key 支持作用域、过期、撤销和最后使用时间；撤销接口已实装。
 - 旧 `keys.txt/AGENT_API_KEYS` 由 `AGENT_LEGACY_API_KEYS_ENABLED` 控制兼容期，并记录使用审计。
-- 用户身份只从 JWT/API Key Principal 获得；平台路由不信任 body 中的 `user_id`。
+- 兼容开关关闭后不再读取旧 Key；生产环境禁止启用内置开发默认 Key。
+- 浏览器 `/api/v1/*` 只接受 JWT 登录会话；数据库 API Key 仅允许 `/v1/models` 和 `/v1/chat/completions`。
+- 用户身份只从 JWT/API Key Principal 获得；平台与 Memory 不信任 body/OpenAI `user`/`X-User-Id` 中的身份声明。
 - `/v1` 使用数据库 API Key 时，会把认证用户写入请求上下文并作为 Memory `user_id`。
 - 平台 Schema 使用严格 Pydantic 模型和 `extra="forbid"`。
 - 统一平台错误格式为 `code/message/request_id/details`，响应带 `X-Request-Id`。
@@ -316,11 +326,16 @@ Memory Service 默认端口 8300，使用独立 PostgreSQL + pgvector，向量�
 
 核心规则：
 
-- 平台：`platform_users.id` 是稳定 `user_id`，`agent_runs.id` 是 `turn_id`。
-- `/v1`：优先使用认证 Principal，其次兼容 `user_id/user/X-User-Id`。
+- 平台：`platform_users.id` 是稳定 `user_id`；`agent_runs.id` 只作为短期写入幂等 `turn_id`。
+- `/v1`：只有数据库 API Key 解析出的认证 Principal 才能启用用户记忆；旧文件 Key 和调用方提供的 `user_id/user/X-User-Id` 不建立记忆归属。
 - `/chat-moe`：规范化测试用户名后映射到独立 `chatmoe:` 命名空间。
 - 不同用户必须完全隔离；宠物 ID 不能代替用户 ID。
 - 写回失败不应伪造成功；required 模式下加载失败阻止推理。
+- 短期提升后不把 `turn_id` 写入中期页，也不保留 `turn -> memory` 来源边。
+- `memory_derivations` 只保存活跃中期段到长期知识/画像字段的生成依赖与标签。
+- 删除长期知识或画像字段会删除目标及依赖边，并清理不再支撑其他长期目标的独占中期段；共享中期段保持不变。
+- 管理页按近期记忆、长期记忆、用户画像分区展示，支持单条删除与分类清空；清空近期记忆不会删除已形成的长期记忆和画像。
+- 删除历史会话只影响平台可见性，不调用 Memory 删除或重建。
 
 常用变量：
 
@@ -333,10 +348,18 @@ Memory Service 默认端口 8300，使用独立 PostgreSQL + pgvector，向量�
 | `MEMORY_DB_DSN` | Memory PostgreSQL |
 | `MEMORY_WORKERS_ENABLED` | 是否在 Memory API 进程启动后台整理 Worker |
 | `MEMORY_WORKER_CONCURRENCY` | 默认 2 |
+| `MEMORY_MANAGEMENT_TOKEN` | 8002 调用记忆管理、快照接口的服务间凭证 |
 
 `MEMORY_WORKERS_ENABLED=0` 可只启动 API，不消费待整理记忆；适合迁移、诊断或禁止外部 LLM 读取历史数据的环境。启用 Worker 前必须确认组织已授权把相应记忆交给配置的 LLM。
 
 Memory Service 始终是独立的 8300 服务，不在 8002 进程内。Gateway 和 Agent Worker 都是它的客户端：Gateway用于测试身份初始化和健康状态，Worker负责实际推理前召回及完成后写回。
+
+用户数据快照：
+
+- `GET /api/v1/admin/users/{user_id}/data-snapshot` 导出平台会话、消息、Run、事件、专家意见和 Memory 全部表。
+- `POST /api/v1/admin/users/{user_id}/data-snapshot/restore-file` 接收 gzip 覆盖恢复，要求 SUPER_ADMIN 和 `X-Restore-Confirmation: OVERWRITE_USER_DATA`。
+- 普通 JSON 请求仍限制 1 MiB；压缩快照限制 8 MiB，解压后限制 64 MiB。
+- 命令行脚本：`python agent_api/scripts/backup_restore_user_data.py export|restore --user-id ... --file backup.json.gz`；恢复必须加 `--confirm`。
 
 ## 11. RAG、MCP 与工具
 
@@ -357,7 +380,7 @@ MoE 在专家执行前只进行一次统一任务策略调用，同时输出 D1-
 
 MoE 专家采用 Task-driven single pass：分配工具最多执行两批（分配任务；必需本地证据较弱或语义覆盖不足时再做 Web 兜底），随后各专家并行生成一次结构化意见；仅在 JSON 为空或格式损坏时允许一次协议修复，不重新做诊疗决策。同一专家的多个证据任务即使映射到相同工具，也按“工具名＋规范化参数”保留不同查询，仅对完全相同调用去重。可通过 `MOE_EXPERT_TIMEOUT_SEC`、`MOE_EXPERT_FINAL_MAX_TOKENS`、`MOE_EXPERT_FORMAT_REPAIR_ATTEMPTS` 和 `MOE_EXPERT_FINALIZE_RESERVE_SEC` 调整。RAG 默认启用 reranker；必需本地证据先由 `RAG_WEB_FALLBACK_MIN_HITS=2`、`RAG_RELEVANCE_THRESHOLD=0.90` 做数值初筛，通过初筛的多个证据任务再合并为一次非思考模式的语义充分性审计，逐项判断 `supported/partial/unsupported`，后两者补充 Web 证据。该审计默认启用，可通过 `MOE_EVIDENCE_SUFFICIENCY_ENABLED` 和 `MOE_EVIDENCE_SUFFICIENCY_TIMEOUT_SEC` 控制。急症只保底启用临床专家，药学专家仅在中毒、剂量、相互作用或用药安全等语义相关时启用。
 
-MoE 的 Task Policy、专家结构化意见、Critic 与 Aggregator 对 DeepSeek 显式关闭 thinking mode，避免默认隐藏推理占满输出预算并造成长时间零 delta。Aggregator 流式正文为空时自动进行一次非流式兜底；部分正文后连接中断则明确失败，不把截断内容误记为成功终答。网页端只持久化并展示脱敏后的专家任务、工具摘要和结构化意见，不下发系统提示词、隐藏推理或原始工具载荷。
+MoE 的 Task Policy、专家结构化意见、Critic 与 Aggregator 对 DeepSeek 显式关闭 thinking mode，避免默认隐藏推理占满输出预算并造成长时间零 delta。Aggregator 流式正文为空或连接中断时自动进行一次非流式兜底；若已经输出部分正文，会发出 `answer_reset`，平台持久为 `reset` 事件并清空旧 delta 后写入完整替代答案。网页端只持久化并展示脱敏后的专家任务、工具摘要和结构化意见，不下发系统提示词、隐藏推理或原始工具载荷。
 
 RAG 当前使用 multilingual-e5-small、384 维向量、Dense/BM25/邻居扩展/可选 CrossEncoder 重排和分类索引。索引位于 `RAG/data/`，体积大且禁止提交。分类配置复制到 data 中，但活动路径迁移服务器后必须重新核对。MoE 专家提交 `rag.search.query` 时使用英语，用户输入和最终回答仍可为中文。
 
@@ -365,7 +388,7 @@ RAG 当前使用 multilingual-e5-small、384 维向量、Dense/BM25/邻居扩展
 
 ## 12. 前端实现
 
-页面：登录、接受邀请、忘记/重置密码、套餐、聊天、设置/API Key、帮助和后台。
+页面：登录、接受邀请、忘记/重置密码、套餐、聊天、完整设置中心、邀请码、反馈、协议、API Key 和后台。
 
 聊天页支持：
 
@@ -401,7 +424,7 @@ cd C:\Users\ROG\Animal_detection2\agentAndRag
 docker compose -f docker-compose.platform.yml up -d
 ```
 
-默认开发端口：Agent PostgreSQL `15433`，Redis `16379`。Memory PostgreSQL 使用独立实例/数据库，当前本机为 `127.0.0.1:5432/petmemory_dev`。
+默认开发端口：Agent PostgreSQL `15433`，Redis `16379`，Compose仅发布到 `127.0.0.1`。Memory PostgreSQL 使用独立实例/数据库，当前本机为 `127.0.0.1:5432/petmemory_dev`。
 
 ### 14.2 迁移与管理员
 
@@ -411,6 +434,7 @@ C:\Users\ROG\anaconda3\envs\RAG\python.exe -m agent_api.scripts.bootstrap_platfo
 ```
 
 密码建议通过交互输入，避免进入 Shell 历史。开发环境可设置 `AGENT_PLATFORM_AUTO_CREATE_SCHEMA=1`；生产必须为 0，并先执行 Alembic。
+本机长期验收账号可额外使用 `--credits 2000000000 --subscription-days 36500`，只用于隔离测试库，不能替代正式套餐和账本策略。
 
 ### 14.3 Agent、Memory 与 Worker
 
@@ -456,6 +480,7 @@ AGENT_PLATFORM_AUTO_CREATE_SCHEMA=0
 AGENT_PLATFORM_JWT_SECRET=<至少32字节随机值>
 AGENT_PLATFORM_PAYMENT_WEBHOOK_SECRET=<独立随机值>
 AGENT_PLATFORM_COOKIE_SECURE=1
+AGENT_PLATFORM_REFRESH_REUSE_GRACE_SEC=5
 AGENT_PLATFORM_EXPOSE_DEV_TOKENS=0
 AGENT_PLATFORM_FRONTEND_ORIGIN=https://...
 AGENT_PLATFORM_ALLOWED_HOSTS=...
@@ -478,26 +503,29 @@ LLM/WebSearch 密钥从 `.env` 或服务环境读取，禁止写入源码、syst
 4. API 可横向扩容，但单 GPU Worker 默认并发 1；不要让多个 Worker 争用同一张卡。多个Gateway必须指向同一可达Worker地址，不能都使用各自容器内的127.0.0.1。
 5. 反向代理启用 TLS、精确 CORS/Host、请求体限制和至少 130 秒读取超时。
 6. SSE 路由关闭代理缓冲与缓存，并透传 `Authorization`、Cookie、`Last-Event-ID` 和请求 ID。
-7. Access JWT 15 分钟、Refresh 30 天；对话保留一年不等于登录态保留一年。
+7. Access JWT 15 分钟、Refresh 30 天；并发刷新宽限默认5秒，超过窗口复用已轮换Token会撤销整个令牌族并立即失效该用户Access Token。判断只使用服务器时间，不信任客户端时间戳。
 8. 备份平台 PostgreSQL、Memory PostgreSQL 和 Redis AOF；恢复演练需覆盖未完成 Run 重入队。
 9. Memory `/health` 不应暴露公网。
 10. 日志、Trace 和审计可能包含健康信息，必须限制访问并设置脱敏/留存周期。
 11. 8102只允许绑定回环地址或GPU私网，不开放安全组/Nginx公网入口；Gateway与Worker之间使用 `AGENT_WORKER_TOKEN`。
 12. `/tools/*` 与 `/agent/plan_and_solve` 已从应用路由删除；8102上的工具仅由MoE内部调用。
+13. 正式域名必须使用HTTPS并设置 `AGENT_PLATFORM_COOKIE_SECURE=1`；本机HTTP验收可临时设为0，否则浏览器不会向HTTP接口发送Refresh Cookie。
+14. PostgreSQL和Redis如只由宿主机进程访问，端口必须绑定 `127.0.0.1`；8002因Docker Nginx通过宿主机网关访问可暂时监听所有接口，但必须由防火墙阻止公网直连。
 
 systemd 模板当前指向 `/home/sam/Animal_detection2/agentAndRag`、Python 环境和端口 8002/8102/8300。复制到 `/etc/systemd/system` 前必须核对用户、工作目录、EnvironmentFile 和 Python。系统级 unit 可在无人登录时运行；用户级 unit 依赖用户会话或 linger。不要同时启动两份监听相同端口的服务。
 
 ## 17. 验证基线
 
-2026-08-16 最新实测：
+2026-08-20 最新自动化回归（真实 DeepSeek 生命周期测试见下方独立记录）：
 
 | 范围 | 结果 |
 | --- | --- |
-| 平台专项 pytest | 4 passed |
-| Memory Service 独立 PostgreSQL | 156 passed |
-| 前端 Vitest | 3 passed |
-| 前端生产构建 | passed |
-| Playwright 桌面/移动端 | 13 passed，1 个仅桌面用例在移动端 skipped |
+| Agent API + Memory + RAG 全量 pytest | 438 passed |
+| Alembic 空库升级/全量回滚/再次升级 | passed（revision `20260820_0003`） |
+| 前端 Vitest | 4 passed |
+| 前端 ESLint | passed（0 error，0 warning） |
+| 前端 TypeScript + Vite 生产构建 | passed |
+| Playwright 桌面/移动端 | 24 passed，2 skipped |
 | Agent `/ready` | ready=true，memory=ok，MCP enabled |
 | Memory `/health` | database=ok，2 workers |
 | 真实 DeepSeek + Memory + WebSearch | passed |
@@ -506,13 +534,18 @@ systemd 模板当前指向 `/home/sam/Animal_detection2/agentAndRag`、Python �
 | 真实 DeepSeek 强制检索 | 临床/药学专家各完成 RAG 8 命中 + Web Search 5 条，pending=0 |
 | 真实 DeepSeek 非锁定路径 | 普通“猫尿血怎么办”1 轮 final，无工具调用，PASS |
 | 单轮链路真实耗时 | “猫频繁进出猫砂盆，如何排急症？”由 72.6 秒降至 26.9 秒；Task Policy 14.5→2.8 秒，Critic 5.9→1.4 秒，Aggregator 24.2→8.3 秒；4 次 LLM、1 次 RAG |
-| 终答流式恢复 | 真实 DeepSeek 流式完整输出；空流单测验证自动降级，部分流中断不会误记成功 |
+| 终答流式恢复 | 真实调用暴露 partial stream 中断；修复后单测与前端验证 `reset + 完整替代答案` |
+| 长期记忆真实生命周期 | 4 会话 × 6 完成轮次；形成 1 个中期段、10 页、5 条长期知识和画像 v1 |
+| 会话/记忆删除边界 | 隐藏会话前后中期段/页/长期知识不变；删除 1 条长期知识后段 1→1、页 10→10、知识 5→4 |
+| 全量覆盖恢复 | 约 954 KiB gzip 快照通过校验恢复；会话与记忆恢复到删除前，知识 4→5 |
+
+长期记忆生命周期的真实对话、Run ID、回答正文、删除前后统计和恢复校验保存在本地忽略报告 `agent_api/tests/api_live/reports/platform_memory_lifecycle_20260820.json`。
 
 真实专家报告保存在本地忽略目录 `agent_api/tests/moe/reports/retrieval_policy_balanced_live_20260816_audit/`。明确要求“检索本地兽医知识库并联网核对仍适用指南”的病例中，临床与药学专家均记录 `required_tools=[rag.search, mcp.web_search.web_search]` 和相同顺序的 `attempted_tools`；RAG 分别命中 8 条（最高分 0.9173/0.9138），两次 Web Search 均成功返回 5 条，最终 `pending_tools=[]`。流式 QA 审计同步修复：记录 `id=96` 已落盘 `tools_used=[mcp.web_search.web_search, rag.search]`、`rag_hit_count=16`、`rag_best_score=0.9173`、`used_web_search=1`。普通咨询只记录 `recommended_tools`，专家 1 轮直接 final，证明建议检索不会锁死工具链。强制检索病例的旧风格验收仍因终答标题与测试脚本预设词不完全一致而标记 FAIL，但工具链与结构化专家协议本身已通过，需与内容风格测试分开理解。
 
 Memory 测试必须使用独立测试数据库。若测试与运行中的 Worker 共用 `petmemory_dev`，Worker 会抢先消费测试队列，造成“测试线程只处理 4/5”的假失败。
 
-2026-08-18 本机生产拓扑烟测（禁用真实LLM调用）：Gateway聚合 `/ready=true`、Worker `queue_consumer=true`、生产 `/chat-moe` 页面200、Gateway直接RAG工具接口503、未携带内部Token访问8102返回401。证明8002未执行本地工具，且内部执行端口未匿名开放。
+2026-08-18 本机生产拓扑烟测（禁用真实LLM调用）：Gateway聚合 `/ready=true`、Worker `queue_consumer=true`、Gateway直接RAG工具接口503、未携带内部Token访问8102返回401。此后安全收口进一步把生产 `/chat-moe` 限制为超级管理员或内部 Worker；8002不执行本地工具，内部执行端口不匿名开放。
 
 常用回归：
 
@@ -557,6 +590,8 @@ Invoke-WebRequest http://127.0.0.1:5173/chat
 | `/healthz` 正常但 `/ready` 失败 | Nginx 正常但 Agent 不可达/未就绪；检查 `AGENT_UPSTREAM`、8002 监听地址和 Agent 日志 |
 | 没有订阅/积分时报 402 | 用户订阅、过期时间、余额、预占记录 |
 | 跨会话失忆 | `AGENT_MEMORY_ENABLED/REQUIRED`、稳定 user ID、Memory 健康和 turn ID |
+| 删除聊天后记忆消失 | 属于错误行为；会话 DELETE 只能隐藏平台会话链，不得调用 Memory 删除 |
+| 快照恢复返回 413 | 使用 `.json.gz` 和 `/data-snapshot/restore-file`，不要把全量向量快照放进普通 JSON 请求 |
 | Memory Worker 连接池超时 | PostgreSQL 连接上限、Worker 数、长事务和外部 LLM 耗时 |
 | WebSearch 未调用 | Tavily Key、MCP 注册、工具白名单和 QA `tools_used` |
 | 心率 flag 没有真实值 | VITALS DSN、animal ID、MCP 状态和显式工具禁用语义 |
@@ -581,7 +616,7 @@ Invoke-WebRequest http://127.0.0.1:5173/chat
 
 ## 20. 后续技术债
 
-1. 为 Memory API 增加服务间认证、用户记忆导出/删除与审计。
+1. 为用户数据快照增加对象存储、加密保管、保留周期和跨服务恢复失败补偿任务。
 2. 将 Memory Worker 的外部 LLM 计算移出长事务，并做版本条件提交。
 3. 为 Redis Run 队列补充租约、可见性超时和更完整的重试/死信策略。
 4. 当前平台专项测试数量较少，需要补齐认证重放、跨用户越权、真实 PostgreSQL 迁移和 Redis 故障恢复测试。

@@ -7,7 +7,7 @@
 - 邀请制登录、接受邀请、找回和重置密码。
 - 会话历史、全文搜索、Markdown 答复、SSE 续传、停止生成。
 - 套餐、订单、会员和积分入口。
-- 设置、帮助、会员计划、API Key 悬浮菜单。
+- 设置、帮助、会员计划、API Key 悬浮菜单；设置中心覆盖账号、主题、常用语、邀请码、反馈、协议与分层记忆管理。
 - 管理邀请、用户、订单、任务和审计的后台入口。
 
 ## 开发
@@ -15,6 +15,7 @@
 ```bash
 pnpm install
 pnpm dev
+pnpm lint
 pnpm test
 pnpm build
 pnpm test:e2e
@@ -59,6 +60,8 @@ docker inspect --format '{{.State.Health.Status}}' petmind-nginx
 ```
 
 `/healthz` 只证明 Nginx 和静态站点存活，`/ready` 才证明 Agent 已完成热启动。发布新前端必须重新执行 `docker compose up -d --build`；只重启旧容器不会重新构建资源。
+
+镜像默认返回 CSP、`X-Frame-Options: DENY`、`X-Content-Type-Options: nosniff`、Referrer/Permissions Policy、COOP 和 HSTS。正式域名必须使用 HTTPS，并让后端设置 `AGENT_PLATFORM_COOKIE_SECURE=1`；生产配置使用 HTTP Origin 或非 Secure Cookie 会直接启动失败。本机 HTTP 验收必须使用 development 环境。
 
 本机开发仍可用 `pnpm dev`；不要和 compose 同时占用 5173。生产环境不要使用 `pnpm dev` 或 `vite --host` 对外服务。
 

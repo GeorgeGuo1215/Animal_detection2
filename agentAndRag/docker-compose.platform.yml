@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: petmind
       POSTGRES_PASSWORD: ${PETMIND_POSTGRES_PASSWORD:-petmind-dev-password}
     ports:
-      - "15433:5432"
+      - "127.0.0.1:15433:5432"
     volumes:
       - petmind_agent_pg:/var/lib/postgresql/data
     healthcheck:
@@ -19,7 +19,7 @@ services:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "16379:6379"
+      - "127.0.0.1:16379:6379"
     volumes:
       - petmind_agent_redis:/data
     healthcheck:

@@ -9,10 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..memory import ensure_memory_subject
 from ..platform.config import get_platform_settings
 from ..platform.database import get_platform_session
-from ..platform.dependencies import Principal, get_current_principal
+from ..platform.dependencies import Principal, require_user_session
 from ..platform.models import (
     ApiKey,
     Invitation,
+    LegalAcceptance,
     OutboxEvent,
     PasswordResetToken,
     Plan,
@@ -21,6 +22,7 @@ from ..platform.models import (
     new_id,
     utcnow,
 )
+from ..platform.legal_documents import PRIVACY_VERSION, TERMS_VERSION
 from ..platform.schemas import (
     ApiKeyCreateRequest,
     ForgotPasswordRequest,
@@ -60,7 +62,25 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
 
 
 def _clear_refresh_cookie(response: Response) -> None:
-    response.delete_cookie("petmind_refresh", path="/api/v1/auth")
+    settings = get_platform_settings()
+    response.delete_cookie(
+        "petmind_refresh",
+        path="/api/v1/auth",
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite="strict",
+    )
+
+
+def _invalid_refresh(detail: str) -> HTTPException:
+    """Build an auth error that also clears the browser refresh cookie."""
+    response = Response()
+    _clear_refresh_cookie(response)
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=detail,
+        headers={"Set-Cookie": response.headers["set-cookie"]},
+    )
 
 
 async def _issue_session(session: AsyncSession, user: PlatformUser, response: Response, *, family_id: str | None = None):
@@ -91,6 +111,13 @@ async def accept_invitation(
     request: Request,
     session: AsyncSession = Depends(get_platform_session),
 ):
+    if (
+        not body.accept_terms
+        or not body.accept_privacy
+        or body.terms_version != TERMS_VERSION
+        or body.privacy_version != PRIVACY_VERSION
+    ):
+        raise HTTPException(status_code=422, detail="current legal documents must be accepted")
     invitation = await session.scalar(
         select(Invitation).where(Invitation.token_hash == hash_secret(body.token)).with_for_update()
     )
@@ -118,6 +145,12 @@ async def accept_invitation(
     session.add(user)
     invitation.accepted_at = utcnow()
     await session.flush()
+    client_ip = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent", "")[:500]
+    session.add_all([
+        LegalAcceptance(user_id=user.id, document_type="terms", version=TERMS_VERSION, ip_address=client_ip, user_agent=user_agent),
+        LegalAcceptance(user_id=user.id, document_type="privacy", version=PRIVACY_VERSION, ip_address=client_ip, user_agent=user_agent),
+    ])
     if invitation.initial_plan_code:
         plan = await session.get(Plan, invitation.initial_plan_code)
         if plan is not None:
@@ -189,20 +222,39 @@ async def refresh_session(
         select(RefreshToken).where(RefreshToken.token_hash == hash_secret(raw)).with_for_update()
     )
     if record is None or _aware(record.expires_at) <= utcnow():
-        _clear_refresh_cookie(response)
-        raise HTTPException(status_code=401, detail="invalid refresh token")
+        raise _invalid_refresh("invalid refresh token")
     if record.revoked_at is not None:
+        settings = get_platform_settings()
+        replayed_after = (utcnow() - _aware(record.revoked_at)).total_seconds()
+        if record.replaced_by_id and replayed_after <= settings.refresh_reuse_grace_seconds:
+            # A second browser tab can submit the just-rotated cookie before it
+            # observes the winning response. Do not destroy the whole session
+            # family for this short, server-timed concurrency window.
+            raise HTTPException(status_code=409, detail="refresh token already rotated")
+        user = await session.get(PlatformUser, record.user_id)
         await session.execute(update(RefreshToken).where(
             RefreshToken.family_id == record.family_id,
             RefreshToken.revoked_at.is_(None),
         ).values(revoked_at=utcnow()))
+        if user is not None:
+            # Access JWT validation compares this version on every request, so
+            # confirmed refresh-token reuse invalidates all outstanding access
+            # tokens immediately instead of waiting for their 15-minute TTL.
+            user.token_version += 1
+        await audit(
+            session,
+            action="auth.refresh.reuse_detected",
+            resource_type="refresh_token_family",
+            actor_user_id=record.user_id,
+            resource_id=record.family_id,
+            ip_address=request.client.host if request.client else None,
+            detail={"replayed_after_seconds": round(replayed_after, 3)},
+        )
         await session.commit()
-        _clear_refresh_cookie(response)
-        raise HTTPException(status_code=401, detail="refresh token reuse detected")
+        raise _invalid_refresh("refresh token reuse detected")
     user = await session.get(PlatformUser, record.user_id)
     if user is None or user.status != "active":
-        _clear_refresh_cookie(response)
-        raise HTTPException(status_code=401, detail="account is unavailable")
+        raise _invalid_refresh("account is unavailable")
     record.revoked_at = utcnow()
     payload, replacement = await _issue_session(session, user, response, family_id=record.family_id)
     record.replaced_by_id = replacement.id
@@ -284,7 +336,7 @@ async def reset_password(
 
 @router.get("/me")
 async def me(
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
     user = await session.get(PlatformUser, principal.user_id)
@@ -293,7 +345,7 @@ async def me(
 
 @router.get("/me/api-keys")
 async def list_api_keys(
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
     rows = list((await session.scalars(select(ApiKey).where(
@@ -315,7 +367,7 @@ async def list_api_keys(
 async def create_user_api_key(
     body: ApiKeyCreateRequest,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
     idem = idempotency_key.strip()[:100] if idempotency_key else None
@@ -342,7 +394,7 @@ async def create_user_api_key(
 @router.delete("/me/api-keys/{key_id}", status_code=204)
 async def revoke_user_api_key(
     key_id: str,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
     key = await session.scalar(select(ApiKey).where(ApiKey.id == key_id, ApiKey.user_id == principal.user_id))

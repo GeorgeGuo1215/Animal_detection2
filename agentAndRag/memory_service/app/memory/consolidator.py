@@ -26,12 +26,23 @@ from .. import prompts
 from ..config import MemoryConfig
 from ..heat import cosine, is_continuous
 from ..llm import LLMClient, as_string_list, parse_json_object
-from . import long_term, mid_term, short_term
+from . import long_term, mid_term, provenance, short_term
 
 logger = logging.getLogger(__name__)
 
 # 单次提升最多处理多少页，防止长期沉睡的用户突然回来时一次性灌爆提示词。
 _MAX_PAGES_PER_ANALYSIS = 30
+
+
+def _profile_leaf_paths(value: Any, prefix: str = "") -> List[str]:
+    """Return stable JSON paths so provenance matches user-visible profile items."""
+    if isinstance(value, dict):
+        result: List[str] = []
+        for key, child in value.items():
+            path = f"{prefix}.{key}" if prefix else str(key)
+            result.extend(_profile_leaf_paths(child, path))
+        return result
+    return [prefix] if prefix and value not in (None, "", [], {}) else []
 
 
 def should_promote(short_term_size: int, cfg: MemoryConfig) -> bool:
@@ -300,9 +311,21 @@ def promote_mid_to_long(
 
     profile_raw = llm.complete(prompts.profile_messages(turns), temperature=0.2, max_tokens=800)
     delta = parse_json_object(profile_raw)
-    updated = long_term.update_profile(
+    updated_profile = long_term.update_profile(
         conn, user_id=user_id, delta=delta, now=now
-    ) is not None
+    )
+    updated = updated_profile is not None
+    if updated:
+        for field in sorted(_profile_leaf_paths(delta)):
+            provenance.link(
+                conn,
+                user_id=user_id,
+                source_type="segment",
+                source_id=segment["id"],
+                target_type="profile",
+                target_id=field,
+                generation_tag="profile_extraction",
+            )
 
     knowledge_raw = llm.complete(prompts.knowledge_messages(turns), temperature=0.2, max_tokens=800)
     facts = as_string_list(parse_json_object(knowledge_raw).get("facts"))
@@ -311,7 +334,7 @@ def promote_mid_to_long(
     if facts:
         vectors = embedder.embed_documents(facts)
         for fact, vector in zip(facts, vectors):
-            if long_term.add_knowledge(
+            knowledge_id = long_term.add_knowledge(
                 conn,
                 user_id=user_id,
                 content=fact,
@@ -319,8 +342,18 @@ def promote_mid_to_long(
                 pet_id=segment.get("petId"),
                 source="extraction",
                 now=now,
-            ):
+            )
+            if knowledge_id:
                 added += 1
+                provenance.link(
+                    conn,
+                    user_id=user_id,
+                    source_type="segment",
+                    source_id=segment["id"],
+                    target_type="knowledge",
+                    target_id=knowledge_id,
+                    generation_tag="knowledge_extraction",
+                )
 
     mid_term.mark_analyzed(
         conn,
@@ -371,7 +404,7 @@ def evict(
         if not summary:
             continue
         # 复用段摘要已有的向量，省掉一次编码。
-        if long_term.add_knowledge(
+        knowledge_id = long_term.add_knowledge(
             conn,
             user_id=user_id,
             content=summary,
@@ -379,7 +412,8 @@ def evict(
             pet_id=victim.get("petId"),
             source="evicted_segment",
             now=now,
-        ):
+        )
+        if knowledge_id:
             distilled += 1
 
     mid_term.delete_segments(conn, [v["id"] for v in victims])

@@ -15,7 +15,7 @@ def register_builtin_tools(registry: ToolRegistry) -> None:
     """
     Register built-in tools here.
 
-    Keep the spec stable: n8n workflows will depend on tool name + input schema.
+    Keep tool names and input schemas stable for Agent callers.
     """
 
     registry.register(

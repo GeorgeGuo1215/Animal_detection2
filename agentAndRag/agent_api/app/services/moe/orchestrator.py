@@ -763,15 +763,15 @@ class MoEOrchestrator:
             stream_error = str(exc)
             logger.warning("aggregator stream failed before completion: %s", exc, exc_info=True)
 
-        if stream_error and collected:
-            # Never silently persist a partial answer as a normal completion.
-            raise RuntimeError(f"aggregator stream interrupted after partial output: {stream_error}")
-
-        if not collected:
+        if stream_error or not collected:
             fallback_used = True
             yield _event(
                 status="generating",
-                detail={"message": "流式响应为空，正在自动重试终答", "retry": 1},
+                detail={
+                    "message": "终答流中断，正在自动重试" if stream_error else "流式响应为空，正在自动重试终答",
+                    "retry": 1,
+                    "stream_error": bool(stream_error),
+                },
             )
             try:
                 fallback_response = await self.llm.chat(
@@ -788,6 +788,15 @@ class MoEOrchestrator:
             if not fallback_answer:
                 reason = stream_error or "empty response without an upstream error"
                 raise RuntimeError(f"aggregator returned no visible content after fallback: {reason}")
+            if collected:
+                # The caller may already have rendered/persisted partial deltas.  A
+                # durable reset event lets every first-party consumer replace that
+                # incomplete text instead of appending a second answer to it.
+                yield _event(
+                    status="answer_reset",
+                    detail={"reason": "aggregator_stream_interrupted", "replacement": True},
+                )
+                collected.clear()
             finish_reason = _response_finish_reason(fallback_response)
             for offset in range(0, len(fallback_answer), 96):
                 piece = fallback_answer[offset:offset + 96]

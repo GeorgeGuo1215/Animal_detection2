@@ -1,14 +1,7 @@
 from __future__ import annotations
 
 import os
-import sys
 import threading
-from pathlib import Path
-
-# Repo root (Animal_detection/) so `import integration` works when running from agentAndRag
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
 from typing import Any, Dict, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
@@ -38,13 +31,13 @@ from .routers.routes_openai import router as openai_router
 from .routers.routes_platform_admin import router as platform_admin_router
 from .routers.routes_platform_auth import router as platform_auth_router
 from .routers.routes_platform_core import router as platform_core_router
+from .routers.routes_platform_settings import router as platform_settings_router
 from .tools.tool_registry import get_registry
 from .tools.tools_builtin import register_builtin_tools, register_debug_tools
 from .tools.tools_mcp import register_mcp_tools_async
 from .runtime_warmup import warmup_rag_runtime
 from .worker_proxy import should_delegate_agent_execution, worker_base_url, worker_readiness
 
-from integration.api.routes_ingest import router as integration_ingest_router
 from .platform import close_platform_database, get_platform_settings, init_platform_database
 from .platform.cleanup import start_platform_cleanup_task, stop_platform_cleanup_task
 from .platform.database import platform_session
@@ -62,9 +55,9 @@ app = FastAPI(
 
 app.include_router(openai_router)
 app.include_router(chat_moe_router)
-app.include_router(integration_ingest_router, prefix="/integration", tags=["integration"])
 app.include_router(platform_auth_router)
 app.include_router(platform_core_router)
+app.include_router(platform_settings_router)
 app.include_router(platform_admin_router)
 
 app.add_middleware(APIKeyAuthMiddleware)
@@ -145,7 +138,7 @@ if _cors_on:
             allow_origins=["*"],
             allow_credentials=False,
             allow_methods=["*"],
-            allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With", "X-Animal-Id", "X-User-Id", "X-API-Key", "Idempotency-Key", "Last-Event-ID", "X-Request-Id"],
+            allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With", "X-Animal-Id", "X-API-Key", "Idempotency-Key", "Last-Event-ID", "X-Request-Id"],
             expose_headers=["X-Request-Id", "X-PetMind-Run-Id", "X-RateLimit-Limit", "X-RateLimit-Remaining", "Retry-After"],
         )
     else:
@@ -157,7 +150,7 @@ if _cors_on:
             allow_origin_regex=_CORS_LOCAL_ORIGIN_REGEX,
             allow_credentials=True,
             allow_methods=["*"],
-            allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With", "X-Animal-Id", "X-User-Id", "X-API-Key", "Idempotency-Key", "Last-Event-ID", "X-Request-Id"],
+            allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With", "X-Animal-Id", "X-API-Key", "Idempotency-Key", "Last-Event-ID", "X-Request-Id"],
             expose_headers=["X-Request-Id", "X-PetMind-Run-Id", "X-RateLimit-Limit", "X-RateLimit-Remaining", "Retry-After"],
         )
 
@@ -249,6 +242,10 @@ async def ready() -> JSONResponse:
         worker_ok, worker_detail = await worker_readiness()
     ready_now = _READY and worker_ok
     status = 200 if ready_now else 503
+    if _PLATFORM_SETTINGS.production:
+        # This endpoint is normally exposed through the public reverse proxy.
+        # Keep filesystem paths, dependency URLs and capacity details internal.
+        return JSONResponse(status_code=status, content={"ready": ready_now})
     return JSONResponse(
         status_code=status,
         content={

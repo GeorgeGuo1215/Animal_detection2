@@ -175,7 +175,7 @@ def test_empty_stream_and_empty_fallback_raise_explicit_generation_error():
         asyncio.run(collect())
 
 
-def test_interrupted_partial_stream_is_not_marked_as_normal_completion():
+def test_interrupted_partial_stream_resets_and_uses_complete_fallback():
     orchestrator = _StageOrchestrator(
         registry=ToolRegistry(), llm=_FallbackAnswerLLM(), stream_llm=_InterruptedStreamLLM(),
         config=OrchestratorConfig(max_tokens=100, allowed_tools=[]),
@@ -184,8 +184,14 @@ def test_interrupted_partial_stream_is_not_marked_as_normal_completion():
     async def collect():
         return [event async for event in orchestrator.stream(query="case")]
 
-    with pytest.raises(RuntimeError, match="interrupted after partial output"):
-        asyncio.run(collect())
+    events = asyncio.run(collect())
+    reset_index = next(index for index, event in enumerate(events) if event.get("status") == "answer_reset")
+    assert any(event.get("content") == "partial" for event in events[:reset_index])
+    assert "".join(
+        event.get("content") or "" for event in events[reset_index + 1:]
+    ) == "fallback answer"
+    assert events[-1]["finish"] == "stop"
+    assert orchestrator.last_finish_reason == "stop"
 
 
 def test_stream_client_preserves_upstream_length_reason(monkeypatch: pytest.MonkeyPatch):

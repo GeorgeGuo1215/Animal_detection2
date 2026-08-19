@@ -120,6 +120,97 @@ class ApiKey(Base, TimestampMixin):
     idempotency_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
 
+class UserPreference(Base, TimestampMixin):
+    __tablename__ = "platform_user_preferences"
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("platform_users.id", ondelete="CASCADE"), primary_key=True
+    )
+    theme: Mapped[str] = mapped_column(String(16), default="system")
+    locale: Mapped[str] = mapped_column(String(16), default="zh-CN")
+    default_expand_experts: Mapped[bool] = mapped_column(Boolean, default=True)
+    memory_recall_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    memory_write_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class CommonPhrase(Base, TimestampMixin):
+    __tablename__ = "platform_common_phrases"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("platform_users.id", ondelete="CASCADE"), index=True
+    )
+    title: Mapped[str] = mapped_column(String(100), default="")
+    content: Mapped[str] = mapped_column(Text)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class UserFeedback(Base, TimestampMixin):
+    __tablename__ = "platform_feedback"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("platform_users.id", ondelete="CASCADE"), index=True
+    )
+    email_snapshot: Mapped[str] = mapped_column(String(320))
+    display_name_snapshot: Mapped[str] = mapped_column(String(100), default="")
+    category: Mapped[str] = mapped_column(String(40), default="product")
+    content: Mapped[str] = mapped_column(Text)
+    contact: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    page_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    status: Mapped[str] = mapped_column(String(24), default="submitted", index=True)
+    admin_note: Mapped[str] = mapped_column(Text, default="")
+
+
+class ActivationCode(Base, TimestampMixin):
+    __tablename__ = "platform_activation_codes"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    code_prefix: Mapped[str] = mapped_column(String(16), index=True)
+    code_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    plan_code: Mapped[str | None] = mapped_column(
+        ForeignKey("platform_plans.code"), nullable=True
+    )
+    extra_credits: Mapped[int] = mapped_column(Integer, default=0)
+    max_redemptions: Mapped[int] = mapped_column(Integer, default=1)
+    redemption_count: Mapped[int] = mapped_column(Integer, default=0)
+    per_user_limit: Mapped[int] = mapped_column(Integer, default=1)
+    starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String(24), default="active", index=True)
+    created_by: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+
+class ActivationRedemption(Base):
+    __tablename__ = "platform_activation_redemptions"
+    __table_args__ = (
+        UniqueConstraint("code_id", "user_id", name="uq_platform_activation_redemption_user"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    code_id: Mapped[str] = mapped_column(
+        ForeignKey("platform_activation_codes.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("platform_users.id", ondelete="CASCADE"), index=True
+    )
+    plan_code: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    credits_granted: Mapped[int] = mapped_column(Integer, default=0)
+    redeemed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    idempotency_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+
+class LegalAcceptance(Base):
+    __tablename__ = "platform_legal_acceptances"
+    __table_args__ = (
+        UniqueConstraint("user_id", "document_type", "version", name="uq_platform_legal_acceptance"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("platform_users.id", ondelete="CASCADE"), index=True
+    )
+    document_type: Mapped[str] = mapped_column(String(20))
+    version: Mapped[str] = mapped_column(String(32))
+    accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+
 class Conversation(Base, TimestampMixin):
     __tablename__ = "platform_conversations"
     __table_args__ = (UniqueConstraint("user_id", "idempotency_key", name="uq_platform_conversation_idem"),)

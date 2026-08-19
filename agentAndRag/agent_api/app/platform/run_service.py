@@ -16,7 +16,7 @@ from ..tools.tool_registry import get_registry
 from .config import get_platform_settings
 from .database import platform_session
 from .expert_consultations import persist_expert_consultation
-from .models import AgentRun, Conversation, Message, RunEvent, UsageRecord, utcnow
+from .models import AgentRun, Conversation, Message, RunEvent, UsageRecord, UserPreference, utcnow
 from .services import settle_credits
 
 
@@ -142,6 +142,9 @@ async def execute_run(run_id: str) -> None:
         user_id = run.user_id
         conversation_id = run.conversation_id
         parameters = dict(run.parameters or {})
+        preference = await session.get(UserPreference, run.user_id)
+        memory_recall_enabled = preference.memory_recall_enabled if preference else True
+        memory_write_enabled = preference.memory_write_enabled if preference else True
         user_role = str(parameters.get("user_role") or "veterinarian")
         if user_role not in {"pet_owner", "veterinarian"}:
             user_role = "veterinarian"
@@ -157,7 +160,9 @@ async def execute_run(run_id: str) -> None:
     tool_calls = 0
     current_phase = "queued"
     try:
-        memory_injection, _ = await load_user_memory(user_id=user_id, query=query, pet_id=None)
+        memory_injection = ""
+        if memory_recall_enabled:
+            memory_injection, _ = await load_user_memory(user_id=user_id, query=query, pet_id=None)
         registry = get_registry()
         allowed_tools = public_moe_allowed_tools(tool.name for tool in registry.list_tools())
         orchestrator = build_moe_orchestrator(
@@ -186,6 +191,13 @@ async def execute_run(run_id: str) -> None:
             if status == "streaming" and content:
                 answer_parts.append(content)
                 await append_run_event(run_id, "delta", {"content": content})
+            elif status == "answer_reset":
+                answer_parts.clear()
+                detail = event.get("detail") if isinstance(event.get("detail"), dict) else {}
+                await append_run_event(run_id, "reset", {
+                    "reason": str(detail.get("reason") or "answer_replaced"),
+                    "message": "终答连接中断，已自动重新生成完整答复",
+                })
             elif status in PUBLIC_PHASES:
                 phase, message = PUBLIC_PHASES[status]
                 current_phase = phase
@@ -246,14 +258,15 @@ async def execute_run(run_id: str) -> None:
             await session.commit()
         memory_synced = True
         try:
-            await write_user_memory(
-                user_id=user_id,
-                query=query,
-                answer=answer,
-                pet_id=None,
-                session_id=conversation_id,
-                turn_id=run_id,
-            )
+            if memory_write_enabled:
+                await write_user_memory(
+                    user_id=user_id,
+                    query=query,
+                    answer=answer,
+                    pet_id=None,
+                    session_id=conversation_id,
+                    turn_id=run_id,
+                )
         except Exception as exc:  # noqa: BLE001
             # The answer is already durable. Memory synchronization must not
             # retroactively turn a successful consultation into a failed run.

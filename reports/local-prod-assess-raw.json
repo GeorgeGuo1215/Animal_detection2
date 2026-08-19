@@ -1,0 +1,1021 @@
+{
+  "surface": [
+    {
+      "url": "http://127.0.0.1:5173/docs",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Connection": "keep-alive",
+        "Last-Modified": "Wed, 19 Aug 2026 15:22:57 GMT",
+        "Cache-Control": "no-store, must-revalidate",
+        "Date": "Wed, 19 Aug 2026 15:23:48 GMT",
+        "Server": "nginx",
+        "Accept-Ranges": "bytes",
+        "ETag": "\"6a85ca51-29b\"",
+        "Content-Type": "text/html",
+        "Content-Length": "667"
+      },
+      "body_preview": "<!doctype html> <html lang=\"zh-CN\"> <head> <meta charset=\"UTF-8\" /> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" /> <meta name=\"theme-color\" content=\"#f3eadb\" /> <link rel=\"icon\" href=\"/brand/fav",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/docs",
+      "method": "GET",
+      "status": 404,
+      "headers": {
+        "[x-response-time-ms, System.String[]]": null,
+        "[Date, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[X-Request-ID, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:5173/redoc",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Connection": "keep-alive",
+        "Last-Modified": "Wed, 19 Aug 2026 15:22:57 GMT",
+        "Cache-Control": "no-store, must-revalidate",
+        "Date": "Wed, 19 Aug 2026 15:23:48 GMT",
+        "Server": "nginx",
+        "Accept-Ranges": "bytes",
+        "ETag": "\"6a85ca51-29b\"",
+        "Content-Type": "text/html",
+        "Content-Length": "667"
+      },
+      "body_preview": "<!doctype html> <html lang=\"zh-CN\"> <head> <meta charset=\"UTF-8\" /> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" /> <meta name=\"theme-color\" content=\"#f3eadb\" /> <link rel=\"icon\" href=\"/brand/fav",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/redoc",
+      "method": "GET",
+      "status": 404,
+      "headers": {
+        "[x-response-time-ms, System.String[]]": null,
+        "[Date, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[X-Request-ID, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:5173/openapi.json",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Connection": "keep-alive",
+        "Last-Modified": "Wed, 19 Aug 2026 15:22:57 GMT",
+        "Cache-Control": "no-store, must-revalidate",
+        "Date": "Wed, 19 Aug 2026 15:23:48 GMT",
+        "Server": "nginx",
+        "Accept-Ranges": "bytes",
+        "ETag": "\"6a85ca51-29b\"",
+        "Content-Type": "text/html",
+        "Content-Length": "667"
+      },
+      "body_preview": "<!doctype html> <html lang=\"zh-CN\"> <head> <meta charset=\"UTF-8\" /> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" /> <meta name=\"theme-color\" content=\"#f3eadb\" /> <link rel=\"icon\" href=\"/brand/fav",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/openapi.json",
+      "method": "GET",
+      "status": 404,
+      "headers": {
+        "[x-response-time-ms, System.String[]]": null,
+        "[Date, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[X-Request-ID, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:5173/chat-moe",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Connection": "keep-alive",
+        "Last-Modified": "Wed, 19 Aug 2026 15:22:57 GMT",
+        "Cache-Control": "no-store, must-revalidate",
+        "Date": "Wed, 19 Aug 2026 15:23:48 GMT",
+        "Server": "nginx",
+        "Accept-Ranges": "bytes",
+        "ETag": "\"6a85ca51-29b\"",
+        "Content-Type": "text/html",
+        "Content-Length": "667"
+      },
+      "body_preview": "<!doctype html> <html lang=\"zh-CN\"> <head> <meta charset=\"UTF-8\" /> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" /> <meta name=\"theme-color\" content=\"#f3eadb\" /> <link rel=\"icon\" href=\"/brand/fav",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/chat-moe",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Server": "uvicorn",
+        "Date": "Wed, 19 Aug 2026 15:23:47 GMT",
+        "X-Request-ID": "8aab68d20e05480e9c348b80ea491456",
+        "Content-Type": "text/html; charset=utf-8",
+        "x-response-time-ms": "5.6",
+        "Content-Length": "32094"
+      },
+      "body_preview": "<!DOCTYPE html> <html lang=\"zh-CN\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> <title>PetMind 会诊手记</title> <script src=\"https://cdn.jsdelivr.net/npm/marked/marked.mi",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:5173/chat-moe/sessions",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Connection": "keep-alive",
+        "Last-Modified": "Wed, 19 Aug 2026 15:22:57 GMT",
+        "Cache-Control": "no-store, must-revalidate",
+        "Date": "Wed, 19 Aug 2026 15:23:48 GMT",
+        "Server": "nginx",
+        "Accept-Ranges": "bytes",
+        "ETag": "\"6a85ca51-29b\"",
+        "Content-Type": "text/html",
+        "Content-Length": "667"
+      },
+      "body_preview": "<!doctype html> <html lang=\"zh-CN\"> <head> <meta charset=\"UTF-8\" /> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" /> <meta name=\"theme-color\" content=\"#f3eadb\" /> <link rel=\"icon\" href=\"/brand/fav",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/chat-moe/sessions",
+      "method": "GET",
+      "status": 405,
+      "headers": {
+        "[x-response-time-ms, System.String[]]": null,
+        "[Date, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[X-Request-ID, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:5173/admin",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Connection": "keep-alive",
+        "Last-Modified": "Wed, 19 Aug 2026 15:22:57 GMT",
+        "Cache-Control": "no-store, must-revalidate",
+        "Date": "Wed, 19 Aug 2026 15:23:48 GMT",
+        "Server": "nginx",
+        "Accept-Ranges": "bytes",
+        "ETag": "\"6a85ca51-29b\"",
+        "Content-Type": "text/html",
+        "Content-Length": "667"
+      },
+      "body_preview": "<!doctype html> <html lang=\"zh-CN\"> <head> <meta charset=\"UTF-8\" /> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" /> <meta name=\"theme-color\" content=\"#f3eadb\" /> <link rel=\"icon\" href=\"/brand/fav",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/admin",
+      "method": "GET",
+      "status": 404,
+      "headers": {
+        "[x-response-time-ms, System.String[]]": null,
+        "[Date, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[X-Request-ID, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:5173/qa/feedback",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Connection": "keep-alive",
+        "Last-Modified": "Wed, 19 Aug 2026 15:22:57 GMT",
+        "Cache-Control": "no-store, must-revalidate",
+        "Date": "Wed, 19 Aug 2026 15:23:48 GMT",
+        "Server": "nginx",
+        "Accept-Ranges": "bytes",
+        "ETag": "\"6a85ca51-29b\"",
+        "Content-Type": "text/html",
+        "Content-Length": "667"
+      },
+      "body_preview": "<!doctype html> <html lang=\"zh-CN\"> <head> <meta charset=\"UTF-8\" /> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" /> <meta name=\"theme-color\" content=\"#f3eadb\" /> <link rel=\"icon\" href=\"/brand/fav",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/qa/feedback",
+      "method": "GET",
+      "status": 405,
+      "headers": {
+        "[x-response-time-ms, System.String[]]": null,
+        "[Date, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[X-Request-ID, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:5173/integration/ingest",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Connection": "keep-alive",
+        "Last-Modified": "Wed, 19 Aug 2026 15:22:57 GMT",
+        "Cache-Control": "no-store, must-revalidate",
+        "Date": "Wed, 19 Aug 2026 15:23:48 GMT",
+        "Server": "nginx",
+        "Accept-Ranges": "bytes",
+        "ETag": "\"6a85ca51-29b\"",
+        "Content-Type": "text/html",
+        "Content-Length": "667"
+      },
+      "body_preview": "<!doctype html> <html lang=\"zh-CN\"> <head> <meta charset=\"UTF-8\" /> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" /> <meta name=\"theme-color\" content=\"#f3eadb\" /> <link rel=\"icon\" href=\"/brand/fav",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/integration/ingest",
+      "method": "GET",
+      "status": 405,
+      "headers": {
+        "[x-response-time-ms, System.String[]]": null,
+        "[Date, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[X-Request-ID, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:5173/integration/debug/foo",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Connection": "keep-alive",
+        "Last-Modified": "Wed, 19 Aug 2026 15:22:57 GMT",
+        "Cache-Control": "no-store, must-revalidate",
+        "Date": "Wed, 19 Aug 2026 15:23:48 GMT",
+        "Server": "nginx",
+        "Accept-Ranges": "bytes",
+        "ETag": "\"6a85ca51-29b\"",
+        "Content-Type": "text/html",
+        "Content-Length": "667"
+      },
+      "body_preview": "<!doctype html> <html lang=\"zh-CN\"> <head> <meta charset=\"UTF-8\" /> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" /> <meta name=\"theme-color\" content=\"#f3eadb\" /> <link rel=\"icon\" href=\"/brand/fav",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/integration/debug/foo",
+      "method": "GET",
+      "status": 404,
+      "headers": {
+        "[x-response-time-ms, System.String[]]": null,
+        "[Date, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[X-Request-ID, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/me",
+      "method": "GET",
+      "status": 401,
+      "headers": {
+        "[Date, System.String[]]": null,
+        "[x-ratelimit-limit, System.String[]]": null,
+        "[X-Request-ID, System.String[]]": null,
+        "[x-response-time-ms, System.String[]]": null,
+        "[Connection, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[x-ratelimit-remaining, System.String[]]": null,
+        "[X-Accel-Buffering, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/api/v1/me",
+      "method": "GET",
+      "status": 401,
+      "headers": {
+        "[Date, System.String[]]": null,
+        "[x-ratelimit-limit, System.String[]]": null,
+        "[X-Request-ID, System.String[]]": null,
+        "[x-response-time-ms, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[x-ratelimit-remaining, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/plans",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+        "Server": "nginx",
+        "Date": "Wed, 19 Aug 2026 15:23:48 GMT",
+        "X-Request-ID": "903a9dd03b184185b73a1ba3ef521761",
+        "x-ratelimit-remaining": "19",
+        "x-ratelimit-limit": "20",
+        "Content-Type": "application/json",
+        "x-response-time-ms": "16.3",
+        "Content-Length": "254"
+      },
+      "body_preview": "{\"items\":[{\"code\":\"trial\",\"name\":\"兽医试用\",\"description\":\"一次性试用积分，用于体验专家会诊。\",\"billing_period\":\"once\",\"price_cents\":0,\"currency\":\"CNY\",\"credit_grant\":100,\"duration_days\":7,\"features\":{\"chat\":true,\"api_keys\":false}}]}",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/api/v1/plans",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Server": "uvicorn",
+        "Date": "Wed, 19 Aug 2026 15:23:47 GMT",
+        "X-Request-ID": "e797ef55061d4d96b49468d7ad828a43",
+        "x-ratelimit-remaining": "19",
+        "x-ratelimit-limit": "20",
+        "Content-Type": "application/json",
+        "x-response-time-ms": "5.6",
+        "Content-Length": "254"
+      },
+      "body_preview": "{\"items\":[{\"code\":\"trial\",\"name\":\"兽医试用\",\"description\":\"一次性试用积分，用于体验专家会诊。\",\"billing_period\":\"once\",\"price_cents\":0,\"currency\":\"CNY\",\"credit_grant\":100,\"duration_days\":7,\"features\":{\"chat\":true,\"api_keys\":false}}]}",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/admin/overview",
+      "method": "GET",
+      "status": 401,
+      "headers": {
+        "[Date, System.String[]]": null,
+        "[x-ratelimit-limit, System.String[]]": null,
+        "[X-Request-ID, System.String[]]": null,
+        "[x-response-time-ms, System.String[]]": null,
+        "[Connection, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[x-ratelimit-remaining, System.String[]]": null,
+        "[X-Accel-Buffering, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/api/v1/admin/overview",
+      "method": "GET",
+      "status": 401,
+      "headers": {
+        "[Date, System.String[]]": null,
+        "[x-ratelimit-limit, System.String[]]": null,
+        "[X-Request-ID, System.String[]]": null,
+        "[x-response-time-ms, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[x-ratelimit-remaining, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:5173/health",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Connection": "keep-alive",
+        "Server": "nginx",
+        "Date": "Wed, 19 Aug 2026 15:23:48 GMT",
+        "X-Request-ID": "8eb312fcb39447f79ed0dfe9d0f948a8",
+        "Content-Type": "application/json",
+        "x-response-time-ms": "1.1",
+        "Content-Length": "11"
+      },
+      "body_preview": "{\"ok\":true}",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/health",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Server": "uvicorn",
+        "Date": "Wed, 19 Aug 2026 15:23:47 GMT",
+        "X-Request-ID": "af82415fb1784b33b767762384f92e4e",
+        "Content-Type": "application/json",
+        "x-response-time-ms": "1.0",
+        "Content-Length": "11"
+      },
+      "body_preview": "{\"ok\":true}",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:5173/ready",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Connection": "keep-alive",
+        "Server": "nginx",
+        "Date": "Wed, 19 Aug 2026 15:23:48 GMT",
+        "Transfer-Encoding": "chunked",
+        "X-Request-ID": "31afe6e884f84ca1a46063f1e821cc9e",
+        "Content-Type": "application/json",
+        "x-response-time-ms": "322.2"
+      },
+      "body_preview": "{\"ready\":true,\"role\":\"gateway\",\"worker\":{\"ready\":true,\"role\":\"worker\",\"queue_consumer\":true,\"warmup\":{\"status\":\"ok\",\"device\":\"cuda\",\"index_size\":111244,\"index_dir\":\"C:\\\\Users\\\\ROG\\\\Animal_detection2\\\\agentAndRag\\\\RAG\\\\da",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/ready",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Server": "uvicorn",
+        "Date": "Wed, 19 Aug 2026 15:23:47 GMT",
+        "X-Request-ID": "d16588dc321740b08ebf9c9460596cd8",
+        "Content-Type": "application/json",
+        "x-response-time-ms": "321.2",
+        "Content-Length": "1496"
+      },
+      "body_preview": "{\"ready\":true,\"role\":\"gateway\",\"worker\":{\"ready\":true,\"role\":\"worker\",\"queue_consumer\":true,\"warmup\":{\"status\":\"ok\",\"device\":\"cuda\",\"index_size\":111244,\"index_dir\":\"C:\\\\Users\\\\ROG\\\\Animal_detection2\\\\agentAndRag\\\\RAG\\\\da",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:5173/v1/models",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Connection": "keep-alive",
+        "Last-Modified": "Wed, 19 Aug 2026 15:22:57 GMT",
+        "Cache-Control": "no-store, must-revalidate",
+        "Date": "Wed, 19 Aug 2026 15:23:48 GMT",
+        "Server": "nginx",
+        "Accept-Ranges": "bytes",
+        "ETag": "\"6a85ca51-29b\"",
+        "Content-Type": "text/html",
+        "Content-Length": "667"
+      },
+      "body_preview": "<!doctype html> <html lang=\"zh-CN\"> <head> <meta charset=\"UTF-8\" /> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" /> <meta name=\"theme-color\" content=\"#f3eadb\" /> <link rel=\"icon\" href=\"/brand/fav",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/v1/models",
+      "method": "GET",
+      "status": 401,
+      "headers": {
+        "[Date, System.String[]]": null,
+        "[x-ratelimit-limit, System.String[]]": null,
+        "[X-Request-ID, System.String[]]": null,
+        "[x-response-time-ms, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[x-ratelimit-remaining, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    }
+  ],
+  "worker": [
+    {
+      "url": "http://127.0.0.1:8102/health",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Content-Length": "27",
+        "Server": "uvicorn",
+        "Date": "Wed, 19 Aug 2026 15:23:47 GMT",
+        "Content-Type": "application/json"
+      },
+      "body_preview": "{\"ok\":true,\"role\":\"worker\"}",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8102/ready",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Content-Length": "817",
+        "Server": "uvicorn",
+        "Date": "Wed, 19 Aug 2026 15:23:47 GMT",
+        "Content-Type": "application/json"
+      },
+      "body_preview": "{\"ready\":true,\"role\":\"worker\",\"queue_consumer\":true,\"warmup\":{\"status\":\"ok\",\"device\":\"cuda\",\"index_size\":111244,\"index_dir\":\"C:\\\\Users\\\\ROG\\\\Animal_detection2\\\\agentAndRag\\\\RAG\\\\data\\\\rag_index_e5_by_cat\",\"category_index",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8102/v1/models",
+      "method": "GET",
+      "status": 401,
+      "headers": {
+        "[Server, System.String[]]": null,
+        "[Date, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8102/chat-moe",
+      "method": "GET",
+      "status": 401,
+      "headers": {
+        "[Server, System.String[]]": null,
+        "[Date, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8102/v1/chat/completions",
+      "method": "POST",
+      "status": 401,
+      "headers": {
+        "[Server, System.String[]]": null,
+        "[Date, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    }
+  ],
+  "memory": [
+    {
+      "url": "http://127.0.0.1:8300/health",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Content-Length": "91",
+        "Server": "uvicorn",
+        "Date": "Wed, 19 Aug 2026 15:23:48 GMT",
+        "Content-Type": "application/json"
+      },
+      "body_preview": "{\"status\":\"ok\",\"database\":\"ok\",\"queue\":{},\"workers\":{\"workers\":2,\"processed\":0,\"failed\":0}}",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8300/ready",
+      "method": "GET",
+      "status": 404,
+      "headers": {
+        "[Server, System.String[]]": null,
+        "[Date, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8300/",
+      "method": "GET",
+      "status": 404,
+      "headers": {
+        "[Server, System.String[]]": null,
+        "[Date, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    }
+  ],
+  "host": [
+    {
+      "url": "http://127.0.0.1:8002/health",
+      "method": "GET",
+      "status": 400,
+      "headers": {
+        "[Server, System.String[]]": null,
+        "[Date, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/api/v1/plans",
+      "method": "GET",
+      "status": 400,
+      "headers": {
+        "[Server, System.String[]]": null,
+        "[Date, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:5173/healthz",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Content-Type": "text/plain",
+        "Server": "nginx",
+        "Content-Length": "3",
+        "Date": "Wed, 19 Aug 2026 15:23:48 GMT",
+        "Connection": "keep-alive"
+      },
+      "body_preview": "ok ",
+      "error": ""
+    }
+  ],
+  "cors": [
+    {
+      "url": "http://127.0.0.1:8002/api/v1/me",
+      "method": "OPTIONS",
+      "status": 200,
+      "headers": {
+        "Server": "uvicorn",
+        "Date": "Wed, 19 Aug 2026 15:23:47 GMT",
+        "Vary": "Origin",
+        "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+        "Access-Control-Allow-Credentials": "true",
+        "Content-Length": "2",
+        "Content-Type": "text/plain; charset=utf-8",
+        "Access-Control-Max-Age": "600",
+        "Access-Control-Allow-Headers": "Accept, Accept-Language, Authorization, Content-Language, Content-Type, Idempotency-Key, Last-Event-ID, X-API-Key, X-Request-Id",
+        "Access-Control-Allow-Origin": "http://127.0.0.1:5173"
+      },
+      "body_preview": "OK",
+      "error": "",
+      "origin": "http://127.0.0.1:5173"
+    },
+    {
+      "url": "http://127.0.0.1:8002/api/v1/me",
+      "method": "OPTIONS",
+      "status": 400,
+      "headers": {
+        "[Date, System.String[]]": null,
+        "[Access-Control-Allow-Credentials, System.String[]]": null,
+        "[Access-Control-Allow-Headers, System.String[]]": null,
+        "[Access-Control-Allow-Methods, System.String[]]": null,
+        "[Vary, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[Access-Control-Max-Age, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": "",
+      "origin": "https://evil.example"
+    },
+    {
+      "url": "http://127.0.0.1:8002/api/v1/me",
+      "method": "OPTIONS",
+      "status": 400,
+      "headers": {
+        "[Date, System.String[]]": null,
+        "[Access-Control-Allow-Credentials, System.String[]]": null,
+        "[Access-Control-Allow-Headers, System.String[]]": null,
+        "[Access-Control-Allow-Methods, System.String[]]": null,
+        "[Vary, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[Access-Control-Max-Age, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": "",
+      "origin": "http://localhost:9999"
+    },
+    {
+      "url": "http://127.0.0.1:8002/api/v1/me",
+      "method": "OPTIONS",
+      "status": 400,
+      "headers": {
+        "[Date, System.String[]]": null,
+        "[Access-Control-Allow-Credentials, System.String[]]": null,
+        "[Access-Control-Allow-Headers, System.String[]]": null,
+        "[Access-Control-Allow-Methods, System.String[]]": null,
+        "[Vary, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[Access-Control-Max-Age, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": "",
+      "origin": "null"
+    }
+  ],
+  "login": {
+    "set_cookie": "petmind_refresh=REDACTED; HttpOnly; Max-Age=2592000; Path=/api/v1/auth; SameSite=strict",
+    "has_access_token": true,
+    "samesite": "strict",
+    "token_in_body": true,
+    "status": 200,
+    "secure": false,
+    "httponly": true
+  },
+  "authz": [
+    {
+      "url": "http://127.0.0.1:8002/api/v1/me",
+      "method": "GET",
+      "status": 401,
+      "headers": {
+        "[Date, System.String[]]": null,
+        "[x-ratelimit-limit, System.String[]]": null,
+        "[X-Request-ID, System.String[]]": null,
+        "[x-response-time-ms, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[x-ratelimit-remaining, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/api/v1/me",
+      "method": "GET",
+      "status": 401,
+      "headers": {
+        "[Date, System.String[]]": null,
+        "[x-ratelimit-limit, System.String[]]": null,
+        "[X-Request-ID, System.String[]]": null,
+        "[x-response-time-ms, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[x-ratelimit-remaining, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/api/v1/admin/overview",
+      "method": "GET",
+      "status": 401,
+      "headers": {
+        "[Date, System.String[]]": null,
+        "[x-ratelimit-limit, System.String[]]": null,
+        "[X-Request-ID, System.String[]]": null,
+        "[x-response-time-ms, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[x-ratelimit-remaining, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/admin/overview",
+      "method": "GET",
+      "status": 401,
+      "headers": {
+        "[Date, System.String[]]": null,
+        "[x-ratelimit-limit, System.String[]]": null,
+        "[X-Request-ID, System.String[]]": null,
+        "[x-response-time-ms, System.String[]]": null,
+        "[Connection, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[x-ratelimit-remaining, System.String[]]": null,
+        "[X-Accel-Buffering, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/api/v1/me",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Server": "uvicorn",
+        "Date": "Wed, 19 Aug 2026 15:23:48 GMT",
+        "X-Request-ID": "8e6afa2290fc4974b4ed3f1230718af7",
+        "x-ratelimit-remaining": "19",
+        "x-ratelimit-limit": "20",
+        "Content-Type": "application/json",
+        "x-response-time-ms": "18.1",
+        "Content-Length": "184"
+      },
+      "body_preview": "{\"id\":\"3e127d27439a49b495c9108d00430dce\",\"email\":\"admin@local.test\",\"display_name\":\"Local Admin\",\"role\":\"SUPER_ADMIN\",\"status\":\"active\",\"created_at\":\"2026-08-19T15:21:07.207741+00:00\"}",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/me",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+        "Server": "nginx",
+        "Date": "Wed, 19 Aug 2026 15:23:49 GMT",
+        "X-Request-ID": "3902db2a1d9642d2ace8e3d51a2e6d8d",
+        "x-ratelimit-remaining": "19",
+        "x-ratelimit-limit": "20",
+        "Content-Type": "application/json",
+        "x-response-time-ms": "11.4",
+        "Content-Length": "184"
+      },
+      "body_preview": "{\"id\":\"3e127d27439a49b495c9108d00430dce\",\"email\":\"admin@local.test\",\"display_name\":\"Local Admin\",\"role\":\"SUPER_ADMIN\",\"status\":\"active\",\"created_at\":\"2026-08-19T15:21:07.207741+00:00\"}",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/api/v1/admin/overview",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Server": "uvicorn",
+        "Date": "Wed, 19 Aug 2026 15:23:48 GMT",
+        "X-Request-ID": "4490ff35266641ef9f7b618ce0f55ab6",
+        "x-ratelimit-remaining": "19",
+        "x-ratelimit-limit": "20",
+        "Content-Type": "application/json",
+        "x-response-time-ms": "25.3",
+        "Content-Length": "46"
+      },
+      "body_preview": "{\"users\":2,\"pending_orders\":0,\"active_runs\":0}",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/tools/rag.search",
+      "method": "GET",
+      "status": 401,
+      "headers": {
+        "[x-response-time-ms, System.String[]]": null,
+        "[Date, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[X-Request-ID, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/v1/models",
+      "method": "GET",
+      "status": 401,
+      "headers": {
+        "[Date, System.String[]]": null,
+        "[x-ratelimit-limit, System.String[]]": null,
+        "[X-Request-ID, System.String[]]": null,
+        "[x-response-time-ms, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[x-ratelimit-remaining, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    }
+  ],
+  "static": [
+    {
+      "url": "http://127.0.0.1:5173/../etc/passwd",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Connection": "keep-alive",
+        "Last-Modified": "Wed, 19 Aug 2026 15:22:57 GMT",
+        "Cache-Control": "no-store, must-revalidate",
+        "Date": "Wed, 19 Aug 2026 15:23:49 GMT",
+        "Server": "nginx",
+        "Accept-Ranges": "bytes",
+        "ETag": "\"6a85ca51-29b\"",
+        "Content-Type": "text/html",
+        "Content-Length": "667"
+      },
+      "body_preview": "<!doctype html> <html lang=\"zh-CN\"> <head> <meta charset=\"UTF-8\" /> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" /> <meta name=\"theme-color\" content=\"#f3eadb\" /> <link rel=\"icon\" href=\"/brand/fav",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:5173/%2e%2e/%2e%2e/etc/passwd",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Connection": "keep-alive",
+        "Last-Modified": "Wed, 19 Aug 2026 15:22:57 GMT",
+        "Cache-Control": "no-store, must-revalidate",
+        "Date": "Wed, 19 Aug 2026 15:23:49 GMT",
+        "Server": "nginx",
+        "Accept-Ranges": "bytes",
+        "ETag": "\"6a85ca51-29b\"",
+        "Content-Type": "text/html",
+        "Content-Length": "667"
+      },
+      "body_preview": "<!doctype html> <html lang=\"zh-CN\"> <head> <meta charset=\"UTF-8\" /> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" /> <meta name=\"theme-color\" content=\"#f3eadb\" /> <link rel=\"icon\" href=\"/brand/fav",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:5173/assets/../index.html",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Connection": "keep-alive",
+        "Last-Modified": "Wed, 19 Aug 2026 15:22:57 GMT",
+        "Cache-Control": "no-store, must-revalidate",
+        "Date": "Wed, 19 Aug 2026 15:23:49 GMT",
+        "Server": "nginx",
+        "Accept-Ranges": "bytes",
+        "ETag": "\"6a85ca51-29b\"",
+        "Content-Type": "text/html",
+        "Content-Length": "667"
+      },
+      "body_preview": "<!doctype html> <html lang=\"zh-CN\"> <head> <meta charset=\"UTF-8\" /> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" /> <meta name=\"theme-color\" content=\"#f3eadb\" /> <link rel=\"icon\" href=\"/brand/fav",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:5173/nonexistent-page-xyz",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "Connection": "keep-alive",
+        "Last-Modified": "Wed, 19 Aug 2026 15:22:57 GMT",
+        "Cache-Control": "no-store, must-revalidate",
+        "Date": "Wed, 19 Aug 2026 15:23:49 GMT",
+        "Server": "nginx",
+        "Accept-Ranges": "bytes",
+        "ETag": "\"6a85ca51-29b\"",
+        "Content-Type": "text/html",
+        "Content-Length": "667"
+      },
+      "body_preview": "<!doctype html> <html lang=\"zh-CN\"> <head> <meta charset=\"UTF-8\" /> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" /> <meta name=\"theme-color\" content=\"#f3eadb\" /> <link rel=\"icon\" href=\"/brand/fav",
+      "error": ""
+    }
+  ],
+  "input": [
+    {
+      "url": "http://127.0.0.1:8002/api/v1/auth/login",
+      "method": "POST",
+      "status": 422,
+      "headers": {
+        "[Date, System.String[]]": null,
+        "[x-ratelimit-limit, System.String[]]": null,
+        "[X-Request-ID, System.String[]]": null,
+        "[x-response-time-ms, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[x-ratelimit-remaining, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/api/v1/auth/login",
+      "method": "POST",
+      "status": 422,
+      "headers": {
+        "[Date, System.String[]]": null,
+        "[x-ratelimit-limit, System.String[]]": null,
+        "[X-Request-ID, System.String[]]": null,
+        "[x-response-time-ms, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[x-ratelimit-remaining, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    },
+    {
+      "url": "http://127.0.0.1:8002/api/v1/conversations/search?q=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "method": "GET",
+      "status": 401,
+      "headers": {
+        "[Date, System.String[]]": null,
+        "[x-ratelimit-limit, System.String[]]": null,
+        "[X-Request-ID, System.String[]]": null,
+        "[x-response-time-ms, System.String[]]": null,
+        "[Server, System.String[]]": null,
+        "[x-ratelimit-remaining, System.String[]]": null
+      },
+      "body_preview": "",
+      "error": ""
+    }
+  ],
+  "frontend_headers": {
+    "Connection": "keep-alive",
+    "Last-Modified": "Wed, 19 Aug 2026 15:22:57 GMT",
+    "Cache-Control": "no-store, must-revalidate",
+    "Date": "Wed, 19 Aug 2026 15:23:49 GMT",
+    "Server": "nginx",
+    "Accept-Ranges": "bytes",
+    "ETag": "\"6a85ca51-29b\"",
+    "Content-Type": "text/html",
+    "Content-Length": "667"
+  },
+  "infra_listen": [
+    {
+      "addr": "::1",
+      "port": 16379
+    },
+    {
+      "addr": "::",
+      "port": 16379
+    },
+    {
+      "addr": "::1",
+      "port": 15433
+    },
+    {
+      "addr": "::",
+      "port": 15433
+    },
+    {
+      "addr": "::1",
+      "port": 5432
+    },
+    {
+      "addr": "::",
+      "port": 5432
+    },
+    {
+      "addr": "::1",
+      "port": 5173
+    },
+    {
+      "addr": "::",
+      "port": 5173
+    },
+    {
+      "addr": "127.0.0.1",
+      "port": 8300
+    },
+    {
+      "addr": "127.0.0.1",
+      "port": 8102
+    },
+    {
+      "addr": "0.0.0.0",
+      "port": 8002
+    }
+  ]
+}

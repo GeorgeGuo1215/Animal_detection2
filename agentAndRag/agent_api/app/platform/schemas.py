@@ -14,6 +14,10 @@ class InvitationAcceptRequest(StrictModel):
     token: str = Field(min_length=32, max_length=300)
     password: str = Field(min_length=10, max_length=200)
     display_name: str = Field(min_length=1, max_length=100)
+    terms_version: str = Field(min_length=1, max_length=32)
+    privacy_version: str = Field(min_length=1, max_length=32)
+    accept_terms: bool
+    accept_privacy: bool
 
 
 class LoginRequest(StrictModel):
@@ -50,6 +54,51 @@ class ApiKeyCreateRequest(StrictModel):
         if not normalized or any(scope not in allowed for scope in normalized):
             raise ValueError("unsupported API key scope")
         return normalized
+
+
+class ProfileUpdateRequest(StrictModel):
+    display_name: str = Field(min_length=1, max_length=100)
+
+
+class PreferenceUpdateRequest(StrictModel):
+    theme: Literal["light", "dark", "system"] | None = None
+    default_expand_experts: bool | None = None
+    memory_recall_enabled: bool | None = None
+    memory_write_enabled: bool | None = None
+
+
+class CommonPhraseCreateRequest(StrictModel):
+    title: str = Field(default="", max_length=100)
+    content: str = Field(min_length=1, max_length=2000)
+    sort_order: int = Field(default=0, ge=0, le=10000)
+
+
+class CommonPhraseUpdateRequest(StrictModel):
+    title: str | None = Field(default=None, max_length=100)
+    content: str | None = Field(default=None, min_length=1, max_length=2000)
+    sort_order: int | None = Field(default=None, ge=0, le=10000)
+
+
+class FeedbackCreateRequest(StrictModel):
+    category: Literal["product", "answer", "billing", "security", "other"] = "product"
+    content: str = Field(min_length=5, max_length=4000)
+    contact: str | None = Field(default=None, max_length=320)
+    page_path: str | None = Field(default=None, max_length=500)
+
+
+class ActivationCodeRedeemRequest(StrictModel):
+    code: str = Field(min_length=8, max_length=64, pattern=r"^[A-Za-z0-9-]+$")
+
+
+class LegalAcceptRequest(StrictModel):
+    terms_version: str = Field(min_length=1, max_length=32)
+    privacy_version: str = Field(min_length=1, max_length=32)
+    accept_terms: bool
+    accept_privacy: bool
+
+
+class MemoryClearRequest(StrictModel):
+    scope: Literal["short_term", "knowledge", "profile"]
 
 
 class ConversationCreateRequest(StrictModel):
@@ -114,3 +163,8 @@ class AdminSubscriptionUpdateRequest(StrictModel):
 
 class AdminOrderUpdateRequest(StrictModel):
     status: Literal["cancelled", "expired", "refunded"]
+
+
+class AdminUserDataRestoreRequest(StrictModel):
+    confirmation: Literal["覆盖恢复用户数据"]
+    snapshot: dict[str, Any]

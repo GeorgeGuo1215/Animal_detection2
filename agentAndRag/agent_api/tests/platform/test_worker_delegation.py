@@ -15,7 +15,7 @@ from agent_api.app.worker_proxy import should_delegate_agent_execution
 from agent_api.app import worker_proxy
 
 
-def _request(path: str) -> Request:
+def _request(path: str, headers: list[tuple[bytes, bytes]] | None = None) -> Request:
     return Request({
         "type": "http",
         "http_version": "1.1",
@@ -24,7 +24,7 @@ def _request(path: str) -> Request:
         "path": path,
         "raw_path": path.encode(),
         "query_string": b"",
-        "headers": [],
+        "headers": headers or [],
         "client": ("127.0.0.1", 12345),
         "server": ("127.0.0.1", 8002),
     })
@@ -37,6 +37,11 @@ def test_only_production_gateway_delegates(monkeypatch):
     monkeypatch.setenv("AGENT_PLATFORM_AUTO_CREATE_SCHEMA", "0")
     monkeypatch.setenv("AGENT_PLATFORM_EXPOSE_DEV_TOKENS", "0")
     monkeypatch.setenv("AGENT_PLATFORM_JWT_SECRET", "x" * 32)
+    monkeypatch.setenv("AGENT_PLATFORM_COOKIE_SECURE", "1")
+    monkeypatch.setenv("AGENT_PLATFORM_FRONTEND_ORIGIN", "https://agent.example.com")
+    monkeypatch.setenv("AGENT_WORKER_TOKEN", "w" * 32)
+    monkeypatch.setenv("MEMORY_MANAGEMENT_TOKEN", "m" * 32)
+    monkeypatch.setenv("AGENT_PLATFORM_PAYMENT_WEBHOOK_SECRET", "p" * 32)
     monkeypatch.setenv("AGENT_EXECUTION_ROLE", "gateway")
     reset_platform_settings_cache()
     try:
@@ -152,5 +157,45 @@ def test_worker_proxy_forwards_identity_and_stream_bytes(monkeypatch):
             "user": "user-42",
             "payload": {"stream": True, "messages": []},
         }
+
+    asyncio.run(scenario())
+
+
+def test_caller_cannot_spoof_memory_identity_or_forwarded_user_header(monkeypatch):
+    async def scenario():
+        seen = {}
+
+        def handler(upstream: httpx.Request) -> httpx.Response:
+            seen["user"] = upstream.headers.get("x-user-id")
+            return httpx.Response(200, json={"ok": True})
+
+        monkeypatch.setenv("AGENT_WORKER_URL", "http://worker.internal:8102")
+        monkeypatch.setenv("AGENT_WORKER_TOKEN", "internal-secret")
+        monkeypatch.setattr(
+            worker_proxy,
+            "_new_worker_client",
+            lambda timeout: httpx.AsyncClient(
+                transport=httpx.MockTransport(handler), timeout=timeout
+            ),
+        )
+        request = _request(
+            "/v1/chat/completions",
+            headers=[(b"x-user-id", b"victim-user")],
+        )
+        req = ChatCompletionRequest(
+            model="agent-moe",
+            messages=[{"role": "user", "content": "test"}],
+            user="victim-openai-user",
+            user_id="victim-body-user",
+        )
+        assert routes_openai._memory_user_id(req, request) is None
+        response = await worker_proxy.proxy_json_to_worker(
+            request,
+            path="/v1/chat/completions",
+            payload=req.model_dump(mode="json", exclude_none=True),
+            stream=False,
+        )
+        assert response.status_code == 200
+        assert seen["user"] is None
 
     asyncio.run(scenario())

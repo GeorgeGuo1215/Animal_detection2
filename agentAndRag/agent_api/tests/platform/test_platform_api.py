@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import timedelta
 
 import httpx
 from fastapi import FastAPI
@@ -9,7 +10,7 @@ from sqlalchemy import select
 from agent_api.app.platform.config import reset_platform_settings_cache
 from agent_api.app.platform.database import close_platform_database, init_platform_database, platform_session
 from agent_api.app.platform.expert_consultations import persist_expert_consultation
-from agent_api.app.platform.models import AgentRun, Conversation, ExpertConsultation, Message, PlatformUser, RunEvent, utcnow
+from agent_api.app.platform.models import AgentRun, Conversation, ExpertConsultation, Invitation, Message, PlatformUser, RefreshToken, RunEvent, utcnow
 from agent_api.app.platform.security import hash_password
 from agent_api.app.platform.services import grant_plan, seed_platform_plans, seed_platform_rbac
 from agent_api.app.middleware.auth import APIKeyAuthMiddleware
@@ -86,6 +87,8 @@ def test_auth_conversation_isolation_and_api_key(tmp_path, monkeypatch):
             key_headers = {"Authorization": f"Bearer {raw_key}"}
             assert (await client.get("/v1/models", headers=key_headers)).status_code == 200
             assert (await client.get("/tools", headers=key_headers)).status_code == 403
+            assert (await client.get("/api/v1/me", headers=key_headers)).status_code == 403
+            assert (await client.get("/api/v1/conversations", headers=key_headers)).status_code == 403
             listed = await client.get("/api/v1/me/api-keys", headers=headers)
             assert raw_key not in listed.text
 
@@ -118,6 +121,7 @@ def test_refresh_rotation_rejects_replay(tmp_path, monkeypatch):
         await close_platform_database()
         monkeypatch.setenv("AGENT_PLATFORM_DB_URL", f"sqlite+aiosqlite:///{(tmp_path / 'refresh.db').as_posix()}")
         monkeypatch.setenv("AGENT_PLATFORM_JWT_SECRET", "test-secret-with-at-least-thirty-two-bytes")
+        monkeypatch.setenv("AGENT_PLATFORM_REFRESH_REUSE_GRACE_SEC", "5")
         reset_platform_settings_cache()
         await init_platform_database()
         async with platform_session() as session:
@@ -130,9 +134,101 @@ def test_refresh_rotation_rejects_replay(tmp_path, monkeypatch):
             old_cookie = login.cookies.get("petmind_refresh")
             refreshed = await client.post("/api/v1/auth/refresh")
             assert refreshed.status_code == 200
+            concurrent_replay = await client.post("/api/v1/auth/refresh", headers={"Cookie": f"petmind_refresh={old_cookie}"})
+            assert concurrent_replay.status_code == 409
+            async with platform_session() as session:
+                rotated = await session.scalar(select(RefreshToken).where(RefreshToken.replaced_by_id.is_not(None)))
+                assert rotated is not None
+                rotated.revoked_at = utcnow() - timedelta(seconds=10)
+                await session.commit()
             replay = await client.post("/api/v1/auth/refresh", headers={"Cookie": f"petmind_refresh={old_cookie}"})
             assert replay.status_code == 401
+            assert "Max-Age=0" in replay.headers.get("set-cookie", "")
+            async with platform_session() as session:
+                stored_user = await session.scalar(select(PlatformUser).where(PlatformUser.email == "rotate@example.com"))
+                assert stored_user is not None
+                assert stored_user.token_version == 2
+                tokens = list((await session.scalars(select(RefreshToken))).all())
+                assert tokens and all(token.revoked_at is not None for token in tokens)
         await close_platform_database(); reset_platform_settings_cache()
+    asyncio.run(scenario())
+
+
+def test_support_admin_cannot_escalate_invitation_role_or_plan(tmp_path, monkeypatch):
+    async def scenario() -> None:
+        await close_platform_database()
+        monkeypatch.setenv(
+            "AGENT_PLATFORM_DB_URL",
+            f"sqlite+aiosqlite:///{(tmp_path / 'invitation-rbac.db').as_posix()}",
+        )
+        monkeypatch.setenv(
+            "AGENT_PLATFORM_JWT_SECRET",
+            "test-secret-with-at-least-thirty-two-bytes",
+        )
+        reset_platform_settings_cache()
+        await init_platform_database()
+        async with platform_session() as session:
+            await seed_platform_plans(session)
+            support = PlatformUser(
+                email="support@example.com",
+                display_name="Support",
+                password_hash=hash_password("correct-horse-123"),
+                role="SUPPORT_ADMIN",
+                status="active",
+            )
+            session.add(support)
+            await session.commit()
+
+        app = FastAPI()
+        app.include_router(auth_router)
+        app.include_router(admin_router)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            login = await client.post(
+                "/api/v1/auth/login",
+                json={"email": "support@example.com", "password": "correct-horse-123"},
+            )
+            headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+            elevated = await client.post(
+                "/api/v1/admin/invitations",
+                headers=headers,
+                json={"email": "billing@example.com", "role": "BILLING_ADMIN", "initial_plan_code": "trial"},
+            )
+            assert elevated.status_code == 403
+            paid_plan = await client.post(
+                "/api/v1/admin/invitations",
+                headers=headers,
+                json={"email": "vet-pro@example.com", "role": "VET", "initial_plan_code": "pro_monthly"},
+            )
+            assert paid_plan.status_code == 403
+            ordinary = await client.post(
+                "/api/v1/admin/invitations",
+                headers=headers,
+                json={"email": "vet-trial@example.com", "role": "VET", "initial_plan_code": "trial"},
+            )
+            assert ordinary.status_code == 201
+
+            async with platform_session() as session:
+                protected = Invitation(
+                    email="protected@example.com",
+                    token_hash="test-token-hash",
+                    role="BILLING_ADMIN",
+                    initial_plan_code="trial",
+                    expires_at=utcnow() + timedelta(days=1),
+                    created_by=support.id,
+                )
+                session.add(protected)
+                await session.commit()
+                protected_id = protected.id
+            revoked = await client.delete(
+                f"/api/v1/admin/invitations/{protected_id}", headers=headers
+            )
+            assert revoked.status_code == 403
+
+        await close_platform_database()
+        reset_platform_settings_cache()
+
     asyncio.run(scenario())
 
 
@@ -243,6 +339,37 @@ def test_expert_consultations_are_persisted_and_attached_to_the_assistant_messag
                 item for item in legacy_messages.json()["items"] if item["role"] == "assistant"
             )
             assert legacy_assistant["expert_consultations"][0]["expert"] == "clinical"
+
+            deleted = await client.delete(
+                f"/api/v1/conversations/{conversation_id}", headers=headers
+            )
+            assert deleted.status_code == 204
+            assert (
+                await client.get(
+                    f"/api/v1/conversations/{conversation_id}", headers=headers
+                )
+            ).status_code == 404
+            async with platform_session() as session:
+                retained = await session.scalar(
+                    select(Conversation).where(Conversation.id == conversation_id)
+                )
+                assert retained is not None
+                assert retained.status == "deleted"
+                assert retained.deleted_at is not None
+                assert await session.scalar(
+                    select(Message).where(Message.conversation_id == conversation_id)
+                ) is not None
+                assert await session.scalar(
+                    select(AgentRun).where(AgentRun.id == run_id)
+                ) is not None
+                # This branch deliberately removed the durable expert row above
+                # to exercise legacy RunEvent fallback; hiding must preserve that event.
+                assert await session.scalar(
+                    select(ExpertConsultation).where(ExpertConsultation.run_id == run_id)
+                ) is None
+                assert await session.scalar(
+                    select(RunEvent).where(RunEvent.run_id == run_id)
+                ) is not None
 
         await close_platform_database(); reset_platform_settings_cache()
 

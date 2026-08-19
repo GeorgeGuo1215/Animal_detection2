@@ -26,6 +26,13 @@ def _keys_file_path() -> Path:
 def load_api_keys() -> None:
     """Load API keys from keys.txt into memory. Called on startup."""
     global _VALID_KEYS
+    legacy_enabled = os.getenv("AGENT_LEGACY_API_KEYS_ENABLED", "1").strip().lower() not in {
+        "0", "false", "no", "off",
+    }
+    if not legacy_enabled:
+        _VALID_KEYS = set()
+        print("[auth] Legacy file/environment API keys are disabled.")
+        return
     path = _keys_file_path()
     env_keys = {
         key.strip()
@@ -110,12 +117,8 @@ _PUBLIC_PATHS = {
 
 
 def _path_allows_anonymous(path: str) -> bool:
-    """Paths that skip API key (browser / BLE ingest to n8n, integration debug)."""
+    """Return whether a route bypasses the legacy API-key gate."""
     if path in _PUBLIC_PATHS:
-        return True
-    if path == "/integration/ingest":
-        return True
-    if path.startswith("/integration/debug/"):
         return True
     # Platform routes perform JWT/API-key authentication in route dependencies.
     # Keeping them out of the legacy keys.txt gate is required for browser JWTs

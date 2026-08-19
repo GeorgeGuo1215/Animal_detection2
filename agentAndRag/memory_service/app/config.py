@@ -129,6 +129,7 @@ class MemoryConfig:
     worker_concurrency: int
     worker_poll_interval: float
     task_max_attempts: int
+    management_token: str = ""
 
     def redacted_dsn(self) -> str:
         """给日志用的 DSN，去掉密码。"""
@@ -197,4 +198,5 @@ def load_config() -> MemoryConfig:
         worker_concurrency=_positive_int("MEMORY_WORKER_CONCURRENCY", 2),
         worker_poll_interval=_env_float("MEMORY_WORKER_POLL_INTERVAL", 1.0),
         task_max_attempts=_positive_int("MEMORY_TASK_MAX_ATTEMPTS", 3),
+        management_token=_env("MEMORY_MANAGEMENT_TOKEN", ""),
     )

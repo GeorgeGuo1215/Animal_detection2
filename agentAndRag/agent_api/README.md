@@ -120,6 +120,26 @@ bash start_agent.sh cuda
 
 平台 Run 先写 PostgreSQL并预占积分，再写 Redis 队列；8102 Worker 领取任务、运行 MoE、持久化事件和终答并结算积分。
 
+设置与数据管理还包括：
+
+- 常用语、主题和专家默认展开偏好；
+- 邀请码兑换、反馈、用户协议和隐私政策；
+- 近期记忆、长期知识与画像的分区展示、精确删除及分类清空；
+- SUPER_ADMIN 用户数据快照导出与 gzip 覆盖恢复。
+
+用户删除会话时只从历史列表隐藏，平台库继续保留会话、消息、Run、事件和专家意见，也不修改 Memory。Memory 中长期层不保存原始 `turn` 来源；短期提升后只保留 `segment -> knowledge/profile` 生成依赖。删除长期项时，已经不再支撑其他长期项的独占中期段会随之删除；仍支撑其他目标的共享中期段保留。
+
+快照命令示例：
+
+```bash
+python agent_api/scripts/backup_restore_user_data.py export \
+  --user-id USER_ID --file petmind-user-backup.json.gz
+python agent_api/scripts/backup_restore_user_data.py restore \
+  --user-id USER_ID --file petmind-user-backup.json.gz --confirm
+```
+
+Access Token 通过 `PETMIND_ADMIN_ACCESS_TOKEN` 提供。快照包含敏感会话和记忆数据，必须加密保存且不得提交仓库。
+
 ## 内部工具
 
 MoE 通过 Tool Registry 使用内部能力：
@@ -132,7 +152,7 @@ MoE 通过 Tool Registry 使用内部能力：
 - `mcp.web_search.ingredient_check`
 - 营养与运动 MCP 工具
 
-这些工具不提供独立 HTTP 直调端点。索引导入使用受控的 integration/ingest 流程或离线 ingest 脚本。
+这些工具不提供独立 HTTP 直调端点。索引导入使用离线 ingest 脚本完成。
 
 ## 健康检查
 
@@ -148,9 +168,11 @@ curl -fsS http://127.0.0.1:8300/health
 ## 安全边界
 
 - 8102 仅允许 8002 使用 `AGENT_WORKER_TOKEN` 调用。
-- 正式用户身份来自 JWT 或数据库 API Key，不信任 body 中的内部用户 ID。
+- `/api/v1/*` 仅接受 JWT 登录态；数据库 API Key 只用于 OpenAI 兼容接口。
+- 正式用户身份来自认证上下文，不信任 body、OpenAI `user` 或 `X-User-Id` 中的内部用户 ID。
 - 浏览器不直接访问 8102/8300。
-- 正式环境关闭公开 OpenAPI 文档并限制 CORS、Host 和代理头。
+- 正式环境关闭公开 OpenAPI 文档并限制 CORS、Host 和代理头；`/chat-moe` 仅允许超级管理员或内部 Worker。
+- Memory 管理请求使用独立 `MEMORY_MANAGEMENT_TOKEN`，未配置时拒绝服务。
 - LLM、Web Search、数据库和 Worker 密钥只放 `.env` 或服务环境，禁止提交。
 
 ## 回归

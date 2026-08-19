@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+import gzip
+import io
+import json
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..platform.config import get_platform_settings
 from ..platform.database import get_platform_session
 from ..platform.dependencies import Principal, require_roles
+from ..memory import get_memory_client
+from ..platform import user_backup
 from ..platform.models import (
     AgentRun,
     ApiKey,
@@ -28,12 +33,135 @@ from ..platform.schemas import (
     AdminSubscriptionUpdateRequest,
     AdminUserUpdateRequest,
     CreditAdjustRequest,
+    AdminUserDataRestoreRequest,
 )
 from ..platform.security import hash_secret, normalize_email, secure_token
 from ..platform.services import adjust_credits, audit, fulfill_order, user_payload
 
 router = APIRouter(prefix="/api/v1/admin", tags=["platform-admin"])
 ADMIN_ROLES = ("SUPPORT_ADMIN", "BILLING_ADMIN", "SUPER_ADMIN")
+
+
+def _memory_client_or_503():
+    client = get_memory_client()
+    if client is None:
+        raise HTTPException(status_code=503, detail="memory service unavailable")
+    return client
+
+
+@router.get("/users/{user_id}/data-snapshot")
+async def export_user_data_snapshot(
+    user_id: str,
+    principal: Principal = Depends(require_roles("SUPER_ADMIN")),
+    session: AsyncSession = Depends(get_platform_session),
+):
+    if await session.get(PlatformUser, user_id) is None:
+        raise HTTPException(status_code=404, detail="user not found")
+    platform_snapshot = await user_backup.export_records(session, user_id=user_id)
+    try:
+        memory_snapshot = await _memory_client_or_503().manage_export_snapshot(user_id=user_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="memory snapshot unavailable") from exc
+    payload = {
+        "schema_version": 1,
+        "user_id": user_id,
+        "platform": platform_snapshot,
+        "memory": memory_snapshot,
+    }
+    return {**payload, "checksum": user_backup.checksum(payload)}
+
+
+@router.post("/users/{user_id}/data-snapshot/restore")
+async def restore_user_data_snapshot(
+    user_id: str,
+    body: AdminUserDataRestoreRequest,
+    principal: Principal = Depends(require_roles("SUPER_ADMIN")),
+    session: AsyncSession = Depends(get_platform_session),
+):
+    return await _restore_user_data_snapshot(
+        user_id=user_id,
+        snapshot=body.snapshot,
+        principal=principal,
+        session=session,
+    )
+
+
+@router.post("/users/{user_id}/data-snapshot/restore-file")
+async def restore_user_data_snapshot_file(
+    user_id: str,
+    request: Request,
+    confirmation: str = Header(default="", alias="X-Restore-Confirmation"),
+    principal: Principal = Depends(require_roles("SUPER_ADMIN")),
+    session: AsyncSession = Depends(get_platform_session),
+):
+    if confirmation != "OVERWRITE_USER_DATA":
+        raise HTTPException(status_code=422, detail="explicit restore confirmation required")
+    if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/gzip":
+        raise HTTPException(status_code=415, detail="snapshot restore requires application/gzip")
+    compressed = await request.body()
+    try:
+        with gzip.GzipFile(fileobj=io.BytesIO(compressed), mode="rb") as archive:
+            raw = archive.read(64 * 1024 * 1024 + 1)
+        if len(raw) > 64 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="uncompressed snapshot exceeds 64 MiB")
+        snapshot = json.loads(raw.decode("utf-8"))
+    except HTTPException:
+        raise
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=422, detail="invalid gzip snapshot") from exc
+    if not isinstance(snapshot, dict):
+        raise HTTPException(status_code=422, detail="snapshot root must be an object")
+    return await _restore_user_data_snapshot(
+        user_id=user_id,
+        snapshot=snapshot,
+        principal=principal,
+        session=session,
+    )
+
+
+async def _restore_user_data_snapshot(
+    *,
+    user_id: str,
+    snapshot: dict,
+    principal: Principal,
+    session: AsyncSession,
+):
+    payload = {key: value for key, value in snapshot.items() if key != "checksum"}
+    if snapshot.get("schema_version") != 1 or snapshot.get("user_id") != user_id:
+        raise HTTPException(status_code=422, detail="snapshot schema or user does not match")
+    if snapshot.get("checksum") != user_backup.checksum(payload):
+        raise HTTPException(status_code=422, detail="snapshot checksum mismatch")
+    if await session.get(PlatformUser, user_id) is None:
+        raise HTTPException(status_code=404, detail="user not found")
+    memory = _memory_client_or_503()
+    try:
+        platform_counts = await user_backup.restore_records(
+            session, user_id=user_id, snapshot=dict(snapshot["platform"])
+        )
+        memory_result = await memory.manage_restore_snapshot(
+            user_id=user_id, snapshot=dict(snapshot["memory"])
+        )
+        await audit(
+            session,
+            action="user.data_snapshot.restored",
+            resource_type="user",
+            actor_user_id=principal.user_id,
+            resource_id=user_id,
+            detail={"platform": platform_counts, "memory": memory_result.get("restored", {})},
+        )
+        await session.commit()
+    except HTTPException:
+        await session.rollback()
+        raise
+    except ValueError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        await session.rollback()
+        raise HTTPException(status_code=503, detail="snapshot restore failed") from exc
+    return {"ok": True, "platform": platform_counts, "memory": memory_result}
 
 
 @router.get("/overview")
@@ -54,6 +182,12 @@ async def create_invitation(
     principal: Principal = Depends(require_roles("SUPPORT_ADMIN", "SUPER_ADMIN")),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    if principal.role != "SUPER_ADMIN":
+        if body.role != "VET" or body.initial_plan_code not in {None, "trial"}:
+            raise HTTPException(
+                status_code=403,
+                detail="support administrators may only invite trial veterinarians",
+            )
     idem = idempotency_key.strip()[:100] if idempotency_key else None
     if idem:
         existing = await session.scalar(select(Invitation).where(Invitation.created_by == principal.user_id, Invitation.idempotency_key == idem))
@@ -65,6 +199,10 @@ async def create_invitation(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if await session.scalar(select(PlatformUser.id).where(PlatformUser.email == email)):
         raise HTTPException(status_code=409, detail="email is already registered")
+    if body.initial_plan_code is not None:
+        plan = await session.get(Plan, body.initial_plan_code)
+        if plan is None or not plan.active:
+            raise HTTPException(status_code=422, detail="initial plan is unavailable")
     raw = secure_token(40)
     invitation = Invitation(
         email=email,
@@ -111,6 +249,8 @@ async def revoke_invitation(
     item = await session.get(Invitation, invitation_id)
     if item is None:
         raise HTTPException(status_code=404, detail="invitation not found")
+    if principal.role != "SUPER_ADMIN" and item.role != "VET":
+        raise HTTPException(status_code=403, detail="support administrators may only revoke veterinarian invitations")
     item.revoked_at = utcnow()
     await session.commit()
     return {"ok": True}

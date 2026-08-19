@@ -91,6 +91,31 @@ class PlatformRateLimitMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self._redis = None
         self._local: dict[str, tuple[float, float]] = {}
+        self._fixed_local: dict[str, tuple[int, float]] = {}
+
+    async def _fixed_window(self, key: str, limit: int, seconds: int) -> tuple[bool, int]:
+        settings = get_platform_settings()
+        if settings.redis_url:
+            try:
+                if self._redis is None:
+                    from redis.asyncio import Redis
+
+                    self._redis = Redis.from_url(settings.redis_url, decode_responses=True)
+                value = int(await self._redis.incr(key))
+                if value == 1:
+                    await self._redis.expire(key, seconds)
+                ttl = int(await self._redis.ttl(key))
+                return value <= limit, max(1, ttl)
+            except Exception:
+                if settings.production:
+                    raise RuntimeError("Redis rate limiter unavailable")
+        now = time.monotonic()
+        count, expires = self._fixed_local.get(key, (0, now + seconds))
+        if now >= expires:
+            count, expires = 0, now + seconds
+        count += 1
+        self._fixed_local[key] = (count, expires)
+        return count <= limit, max(1, int(expires - now))
 
     async def _check(self, key: str, per_minute: int, burst: int) -> tuple[bool, int, int]:
         settings = get_platform_settings()
@@ -121,6 +146,30 @@ class PlatformRateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         identity, per_minute, burst = await _rate_identity_and_plan(request)
         route = re.sub(r"/[0-9a-fA-F-]{16,}(?=/|$)", "/:id", request.url.path)
+        if route.startswith("/api/v1/me/memories/"):
+            route = "/api/v1/me/memories/:item"
+        sensitive: tuple[int, int, int] | None = None
+        if request.method == "POST" and route == "/api/v1/activation-codes/redeem":
+            sensitive = (5, 600, 20)
+        elif request.method == "DELETE" and route.startswith("/api/v1/me/memories/"):
+            sensitive = (5, 60, 30)
+        elif request.method == "DELETE" and route == "/api/v1/me/memories":
+            # A user may clear each of the three visible layers in one visit.
+            sensitive = (6, 3600, 20)
+        if sensitive:
+            limit, seconds, ip_limit = sensitive
+            host = request.client.host if request.client else "unknown"
+            window = int(time.time()) // seconds
+            user_key = hashlib.sha256(f"{identity}:{route}:{window}".encode()).hexdigest()[:32]
+            ip_key = hashlib.sha256(f"{host}:{route}:{window}".encode()).hexdigest()[:32]
+            try:
+                user_allowed, user_retry = await self._fixed_window(f"petmind:sensitive:user:{user_key}", limit, seconds)
+                ip_allowed, ip_retry = await self._fixed_window(f"petmind:sensitive:ip:{ip_key}", ip_limit, seconds)
+            except RuntimeError:
+                return JSONResponse(status_code=503, content={"code": "rate_limiter_unavailable", "message": "Request protection service is unavailable", "request_id": getattr(request.state, "request_id", ""), "details": None}, headers={"Retry-After": "5"})
+            if not user_allowed or not ip_allowed:
+                retry = max(user_retry if not user_allowed else 0, ip_retry if not ip_allowed else 0, 1)
+                return JSONResponse(status_code=429, content={"code": "rate_limited", "message": "Too many requests", "request_id": getattr(request.state, "request_id", ""), "details": {"retry_after": retry}}, headers={"Retry-After": str(retry)})
         digest = hashlib.sha256(f"{identity}:{request.method}:{route}".encode()).hexdigest()[:32]
         try:
             allowed, remaining, retry = await self._check(f"petmind:rate:{digest}", per_minute, burst)

@@ -8,5 +8,8 @@
 - API、Worker或Redis重启后，已持久化任务可恢复或进入明确失败状态。
 - 并发积分预占不会产生负余额。
 - 365天清理只影响对话数据，不删除账本和审计。
-- 生产配置缺少PostgreSQL、Redis或强JWT密钥时启动失败。
+- 生产配置缺少PostgreSQL、Redis、HTTPS/Secure Cookie或任一独立强密钥时启动失败。
+- 数据库 API Key 访问个人资料/记忆/后台返回403；伪造 `X-User-Id` 或 body 用户标识不能改变记忆归属。
+- SUPPORT_ADMIN不能创建管理员邀请或向邀请附加付费套餐。
+- Memory管理令牌缺失或错误时分别返回503/401，不能匿名删除或恢复数据。
 - 现有 MoE、RAG、MCP、Memory 和 `/v1/chat/completions` 回归测试通过。

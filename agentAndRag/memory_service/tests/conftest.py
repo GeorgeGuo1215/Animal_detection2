@@ -46,6 +46,29 @@ def _db_available(dsn: str) -> bool:
         return False
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _apply_incremental_schema(dsn: str, _db_available: bool) -> None:
+    """Keep an existing developer test database on the current schema.
+
+    The SQL files are deliberately idempotent.  Applying them here catches the
+    common case where a developer already has ``petmemory_dev`` but added a new
+    migration after the database was first created.
+    """
+    if not _db_available:
+        return
+    import psycopg
+
+    sql_dir = _REPO_ROOT / "memory_service" / "sql"
+    with psycopg.connect(dsn, autocommit=True) as connection:
+        for name in (
+            "001_schema.sql",
+            "002_memory_subjects_migration.sql",
+            "003_memory_derivations.sql",
+            "004_remove_turn_provenance.sql",
+        ):
+            connection.execute((sql_dir / name).read_text(encoding="utf-8"))
+
+
 @pytest.fixture
 def conn(dsn: str, _db_available: bool):
     """一条包在事务里的连接，用例结束回滚。"""

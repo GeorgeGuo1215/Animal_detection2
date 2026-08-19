@@ -40,10 +40,11 @@ def _clean_identity(value: Optional[str], max_length: int = 200) -> Optional[str
 
 
 def _memory_user_id(req: ChatCompletionRequest, request: Request) -> Optional[str]:
-    return _clean_identity(
-        getattr(request.state, "platform_user_id", None)
-        or req.user_id or req.user or request.headers.get("x-user-id")
-    )
+    # Memory ownership is a security boundary. Never trust caller-controlled
+    # OpenAI ``user`` extensions or X-User-Id; the gateway attaches the user
+    # resolved from a database API key/JWT to request.state instead.
+    del req
+    return _clean_identity(getattr(request.state, "platform_user_id", None))
 
 
 def _resolve_request_allowed_tools(req: ChatCompletionRequest, available_names: set[str]) -> List[str]:
@@ -177,6 +178,8 @@ def _collect_stream_audit(
     detail = obj.get("agent_detail") or {}
     if status == "streaming" and delta.get("content"):
         content.append(delta["content"])
+    elif status == "answer_reset":
+        content.clear()
     elif status == "tool_complete":
         tool_name = str(detail.get("tool_name") or "")
         if tool_name and tool_name not in tools:
