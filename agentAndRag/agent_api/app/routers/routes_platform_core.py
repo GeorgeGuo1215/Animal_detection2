@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..platform.config import get_platform_settings
 from ..platform.database import get_platform_session, platform_session
 from ..platform.dependencies import Principal, require_user_session, require_scope
-from ..platform.expert_consultations import consultations_by_run
+from ..platform.expert_consultations import consultations_by_run, trace_nodes_by_run
 from ..platform.models import (
     AgentRun,
     Conversation,
@@ -210,6 +210,7 @@ async def list_messages(
         Message.conversation_id == conversation_id
     ).order_by(Message.created_at.asc()).limit(limit))).all())
     consultations = await consultations_by_run(session, (item.run_id for item in rows))
+    trace_nodes = await trace_nodes_by_run(session, (item.run_id for item in rows))
     return {"items": [{
         "id": item.id,
         "run_id": item.run_id,
@@ -218,6 +219,7 @@ async def list_messages(
         "status": item.status,
         "created_at": item.created_at,
         "expert_consultations": consultations.get(item.run_id or "", []),
+        "trace_nodes": trace_nodes.get(item.run_id or "", []),
     } for item in rows]}
 
 

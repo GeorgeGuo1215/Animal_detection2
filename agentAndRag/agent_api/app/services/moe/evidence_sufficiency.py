@@ -24,6 +24,7 @@ class EvidenceSufficiencyItem:
     evidence_query: str
     evidence_goal: str
     hits: tuple[Mapping[str, Any], ...]
+    tool_name: str = "rag.search"
 
 
 @dataclass(frozen=True)
@@ -72,10 +73,15 @@ def _positive_float_env(name: str, default: float) -> float:
 
 def _prompt_items(items: Iterable[EvidenceSufficiencyItem]) -> List[Dict[str, Any]]:
     """将证据条目裁剪为提示词载荷。"""
-    max_hits = _positive_int_env("MOE_EVIDENCE_SUFFICIENCY_MAX_HITS", 3)
-    max_chars = _positive_int_env("MOE_EVIDENCE_SUFFICIENCY_HIT_MAX_CHARS", 1200)
+    rag_max_hits = _positive_int_env("MOE_EVIDENCE_SUFFICIENCY_MAX_HITS", 3)
+    rag_max_chars = _positive_int_env("MOE_EVIDENCE_SUFFICIENCY_HIT_MAX_CHARS", 1200)
+    web_max_hits = _positive_int_env("MOE_WEB_EVIDENCE_MAX_HITS", 2)
+    web_max_chars = _positive_int_env("MOE_WEB_EVIDENCE_HIT_MAX_CHARS", 800)
     payload: List[Dict[str, Any]] = []
     for item in items:
+        is_web = str(item.tool_name).startswith("mcp.web_search")
+        max_hits = web_max_hits if is_web else rag_max_hits
+        max_chars = web_max_chars if is_web else rag_max_chars
         hits = []
         for index, hit in enumerate(item.hits[:max_hits], start=1):
             text = str(hit.get("text") or "").strip()
@@ -87,6 +93,7 @@ def _prompt_items(items: Iterable[EvidenceSufficiencyItem]) -> List[Dict[str, An
         payload.append({
             "id": item.id,
             "expert": item.expert,
+            "tool_name": item.tool_name,
             "evidence_query": item.evidence_query,
             "evidence_goal": item.evidence_goal,
             "hits": hits,

@@ -25,6 +25,40 @@ export interface Message {
   status: string
   created_at: string
   expert_consultations?: ExpertTrace[]
+  trace_nodes?: TraceNode[]
+}
+
+export interface TraceNode {
+  version: number
+  node_id: string
+  parent_id: string
+  node_type: 'decision' | 'goal' | 'expert' | 'query' | 'review' | 'answer'
+  status: 'pending' | 'running' | 'completed' | 'degraded' | 'failed' | 'cancelled'
+  wave: number
+  goal_id: string
+  details: {
+    intent_id?: string
+    intent_name?: string
+    output_variant?: string
+    selected_experts?: string[]
+    emergency?: boolean
+    owner?: string
+    capability?: string
+    requirement?: string
+    goal?: string
+    queries?: string[]
+    query?: string
+    tool_name?: string
+    latency_ms?: number
+    scope?: string
+    result?: { hits?: number; sources?: string[]; results?: number; titles?: string[] }
+    sufficiency?: { status?: string; reason?: string } | null
+    error?: string
+    verdict?: string
+    issues?: string[]
+    message?: string
+    finish_reason?: string
+  }
 }
 
 export interface ExpertToolTrace {
@@ -34,6 +68,11 @@ export interface ExpertToolTrace {
   latency_ms: number
   result?: { hits?: number; sources?: string[]; results?: number; titles?: string[]; code?: string; status?: string; alert_level?: string }
   error?: string
+  query?: string
+  goal?: string
+  wave?: number
+  scope?: string
+  sufficiency?: { status: string; reason: string }
 }
 
 export interface ExpertTrace {

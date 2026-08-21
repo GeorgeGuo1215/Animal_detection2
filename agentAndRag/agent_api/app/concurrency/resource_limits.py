@@ -51,7 +51,11 @@ class AsyncResourceLimiter:
 
     @asynccontextmanager
     async def slot(self, *, timeout_s: float) -> AsyncIterator[None]:
-        """异步获取一个槽位；超时则抛出 ResourceBusyError。"""
+        """异步获取一个槽位；超时则抛出 ResourceBusyError。
+        使用非阻塞 acquire 配合 asyncio.sleep 轮询，避免阻塞事件循环；
+        该信号量同时供同步调用及不同事件循环共享，因此不使用
+        asyncio.Semaphore。超时则抛出 ResourceBusyError
+        """
         if not self.enabled:
             yield
             return

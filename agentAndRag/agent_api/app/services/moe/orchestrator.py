@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
@@ -23,6 +24,7 @@ from ...prompts.moe import (
     inject_prompt,
 )
 from ...prompts.moe_aggregator import build_aggregator_prompt
+from ...prompts.moe_answer_safety import build_answer_safety_messages
 from ...prompts.intent_contracts import (
     INTENT_SPECS,
     build_intent_aggregator_injection,
@@ -64,6 +66,30 @@ _BLOCK_FALLBACK_TEXT_VET = (
 )
 
 _DEFAULT_FINAL_ANSWER_MAX_TOKENS = 2500
+
+_HIGH_RISK_SPECIFIC_RE = re.compile(
+    r"(?ix)(?:"
+    r"\b\d+(?:\.\d+)?\s*(?:mg|mcg|µg|μg|g|ml|mL|IU|U)\s*(?:/\s*(?:kg|day|d|h))?"
+    r"|\bq\s*\d+(?:[-–]\d+)?\s*h\b"
+    r"|(?:洗脱|减量|剂量|阈值|复查|监测|给药).{0,48}?\d+(?:\.\d+)?(?:\s*[-–]\s*\d+(?:\.\d+)?)?\s*(?:天|日|周|月|小时|h)"
+    r")"
+)
+
+_EXPLICIT_NO_FIXED_RE = re.compile(
+    r"(?:请勿|不要|不得|避免|不应|无需).{0,12}(?:猜|给出|提供|编造|使用)?.{0,12}(?:固定|具体|精确).{0,8}(?:剂量|数值|天数|时长|时间|阈值|频率)",
+    flags=re.IGNORECASE,
+)
+_HIGH_RISK_VALUE_RE = re.compile(
+    r"(?ix)(?:"
+    r"\b\d+(?:\.\d+)?\s*(?:mg|mcg|µg|μg|g|ml|mL|IU|U)\s*(?:/\s*(?:kg|day|d|h))?"
+    r"|\bq\s*\d+(?:[-–]\d+)?\s*h\b"
+    r"|\d+(?:\.\d+)?(?:\s*[-–—]\s*\d+(?:\.\d+)?)?\s*(?:天|日|周|月|小时|h)"
+    r")"
+)
+_HIGH_RISK_CONTEXT_RE = re.compile(
+    r"洗脱|减量|剂量|阈值|复查|监测|给药|联用|合用|同用|切换|停药|停用|禁忌|间隔|频率",
+    flags=re.IGNORECASE,
+)
 
 
 def final_answer_max_tokens() -> int:
@@ -128,17 +154,56 @@ def _collect_retrieved_sources(opinions: List[Dict[str, Any]]) -> List[Dict[str,
                 items = result.get("hits") or []
                 source_type = "rag"
                 prefix = "R"
+                sufficiency = (
+                    tool_result.get("sufficiency")
+                    if isinstance(tool_result.get("sufficiency"), dict)
+                    else None
+                )
+                evidence_status = str(
+                    (sufficiency or {}).get("status") or "unassessed"
+                ).strip().lower()
+                # A successful tool call is not automatically usable evidence.
+                # Explicitly weak/unknown results are hidden from the citation
+                # catalogue so the aggregator cannot accidentally cite them.
+                if evidence_status in {"unsupported", "unknown"}:
+                    continue
+                matched_indexes: Optional[set[int]] = None
+                if evidence_status == "partial":
+                    matched_indexes = set()
+                    for hit_id in (sufficiency or {}).get("matched_hit_ids") or []:
+                        value = str(hit_id).strip().lower()
+                        if value.startswith("h") and value[1:].isdigit():
+                            matched_indexes.add(int(value[1:]) - 1)
             elif tool_name.startswith("mcp.web_search"):
                 items = result.get("results") or result.get("hits") or []
                 source_type = "web"
                 prefix = "W"
+                sufficiency = (
+                    tool_result.get("sufficiency")
+                    if isinstance(tool_result.get("sufficiency"), dict)
+                    else None
+                )
+                evidence_status = str(
+                    (sufficiency or {}).get("status") or "unknown"
+                ).strip().lower()
+                if evidence_status in {"unsupported", "unknown"}:
+                    continue
+                matched_indexes = None
+                if evidence_status == "partial":
+                    matched_indexes = set()
+                    for hit_id in (sufficiency or {}).get("matched_hit_ids") or []:
+                        value = str(hit_id).strip().lower()
+                        if value.startswith("h") and value[1:].isdigit():
+                            matched_indexes.add(int(value[1:]) - 1)
             else:
                 continue
             if not isinstance(items, list):
                 continue
 
-            for item in items:
+            for item_index, item in enumerate(items):
                 if not isinstance(item, dict):
+                    continue
+                if matched_indexes is not None and item_index not in matched_indexes:
                     continue
                 metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
                 source_path = str(item.get("source_path") or metadata.get("source_path") or "").strip()
@@ -158,6 +223,7 @@ def _collect_retrieved_sources(opinions: List[Dict[str, Any]]) -> List[Dict[str,
                     "source_path": source_path,
                     "url": url,
                     "excerpt": excerpt[:1800],
+                    "evidence_status": evidence_status,
                 }
                 if page not in (None, ""):
                     source["page"] = page
@@ -167,8 +233,53 @@ def _collect_retrieved_sources(opinions: List[Dict[str, Any]]) -> List[Dict[str,
 
 def _synthesis_opinions(opinions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """为融合阶段整理专家意见。"""
-    fields = ("expert", "name_zh", "weight", "conclusion", "evidence", "risks", "confidence")
+    fields = (
+        "expert", "name_zh", "weight", "conclusion", "evidence", "risks", "confidence",
+        "required_tools", "attempted_tools", "successful_tools", "pending_tools",
+        "unavailable_required_tools", "evidence_sufficiency",
+    )
     return [{field: opinion.get(field) for field in fields} for opinion in opinions or []]
+
+
+def _evidence_audit_summary(opinions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """按证据目标合并多波审计，供终答作唯一的最终充分性判断。"""
+    grouped: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    status_rank = {"unsupported": 0, "unknown": 1, "partial": 2, "supported": 3}
+    for opinion in opinions or []:
+        expert = str(opinion.get("expert") or "")
+        for result in opinion.get("tool_results") or []:
+            if not isinstance(result, dict):
+                continue
+            sufficiency = result.get("sufficiency")
+            if not isinstance(sufficiency, dict):
+                continue
+            query = str((result.get("arguments") or {}).get("query") or "")[:500]
+            goal = str(result.get("evidence_goal") or query)[:500]
+            status = str(sufficiency.get("status") or "unknown").strip().lower()
+            if status not in status_rank:
+                status = "unknown"
+            key = (expert, goal)
+            item = grouped.setdefault(key, {
+                "expert": expert,
+                "goal": goal,
+                "status": "unsupported",
+                "reason": "",
+                "matched_hit_ids": [],
+                "attempts": [],
+            })
+            attempt = {
+                "tool_name": str(result.get("tool_name") or ""),
+                "query": query,
+                "scope": str(result.get("scope") or "expert"),
+                "status": status,
+                "reason": str(sufficiency.get("reason") or "")[:500],
+            }
+            item["attempts"].append(attempt)
+            if status_rank[status] >= status_rank.get(str(item["status"]), 0):
+                item["status"] = status
+                item["reason"] = attempt["reason"]
+                item["matched_hit_ids"] = list(sufficiency.get("matched_hit_ids") or [])
+    return list(grouped.values())
 
 
 def _opinions_used_web(opinions: List[Dict[str, Any]]) -> bool:
@@ -180,6 +291,80 @@ def _opinions_used_web(opinions: List[Dict[str, Any]]) -> bool:
         for opinion in opinions or []
         for tool_name in opinion.get("tools_used") or []
     )
+
+
+def _answer_requires_evidence_repair(
+    answer: str,
+    evidence_audit: List[Dict[str, Any]],
+) -> bool:
+    """仅当存在弱证据目标且草案含高风险具体数值时触发一次安全编辑。"""
+    weak = any(
+        str(item.get("status") or "unknown").lower() in {"partial", "unsupported", "unknown"}
+        for item in evidence_audit
+        if isinstance(item, dict)
+    )
+    return weak and bool(_HIGH_RISK_SPECIFIC_RE.search(str(answer or "")))
+
+
+def _explicit_forbidden_claims(query: str, answer: str) -> List[str]:
+    """提取用户明确禁止、且不是病例原始数据的新增高风险数值片段。"""
+    if not _EXPLICIT_NO_FIXED_RE.search(str(query or "")):
+        return []
+    query_values = {
+        re.sub(r"\s+", "", match.group(0)).lower()
+        for match in _HIGH_RISK_VALUE_RE.finditer(str(query or ""))
+    }
+    claims: List[str] = []
+    for line in re.split(r"(?<=[。！？；;])|\n", str(answer or "")):
+        if not _HIGH_RISK_CONTEXT_RE.search(line):
+            continue
+        for match in _HIGH_RISK_VALUE_RE.finditer(line):
+            normalized = re.sub(r"\s+", "", match.group(0)).lower()
+            if normalized in query_values:
+                continue
+            snippet = line.strip()
+            if snippet and snippet not in claims:
+                claims.append(snippet[:500])
+    return claims
+
+
+def _remove_forbidden_claims(answer: str, forbidden_claims: List[str]) -> str:
+    """在安全编辑仍保留明确禁用值时，删除对应句并给出保守占位说明。"""
+    forbidden_values = {
+        re.sub(r"\s+", "", match.group(0)).lower()
+        for claim in forbidden_claims
+        for match in _HIGH_RISK_VALUE_RE.finditer(claim)
+    }
+    if not forbidden_values:
+        return answer
+    replacement = "相关具体剂量、固定时长或数值阈值缺乏充分证据，需结合患者资料和可靠依据个体化核定。"
+    # 仅在句末标点后切分；换行本身留在后续片段中，避免安全删句把
+    # Markdown 标题、列表与段落压成一行。
+    parts = re.split(r"(?<=[。！？；;])", str(answer or ""))
+    revised: List[str] = []
+    replaced = False
+    for part in parts:
+        values = {
+            re.sub(r"\s+", "", match.group(0)).lower()
+            for match in _HIGH_RISK_VALUE_RE.finditer(part)
+        }
+        if values & forbidden_values and _HIGH_RISK_CONTEXT_RE.search(part):
+            last_newline = part.rfind("\n")
+            if last_newline >= 0:
+                revised.append(part[:last_newline + 1])
+            if not replaced:
+                revised.append(replacement)
+                replaced = True
+            continue
+        revised.append(part)
+    return "".join(revised).strip()
+
+
+def _strip_markdown_envelope(text: str) -> str:
+    """仅移除包住整篇回答的 Markdown 围栏。"""
+    value = str(text or "").strip()
+    match = re.fullmatch(r"```(?:markdown|md)?\s*\n([\s\S]*?)\n```", value, flags=re.IGNORECASE)
+    return match.group(1).strip() if match else value
 
 
 # 向后兼容别名（宠主文案）
@@ -568,6 +753,7 @@ class MoEOrchestrator:
             "router": {"weights": decision.weights, "emergency": decision.emergency},
             "expert_opinions": _synthesis_opinions(opinions),
             "retrieved_sources": retrieved_sources,
+            "evidence_audit": _evidence_audit_summary(opinions),
             "critic_verdict": critic.verdict,
             # Critic output is a safety constraint, not clinical evidence.  D8
             # synthesis needs the flags in order to explain why the requested
@@ -607,6 +793,59 @@ class MoEOrchestrator:
         intent_id = getattr(self._active_intent_decision, "intent_id", "")
         return critic.blocked and intent_id not in INTENT_SPECS
 
+    async def _repair_answer_if_needed(
+        self,
+        *,
+        query: str,
+        answer: str,
+        opinions: List[Dict[str, Any]],
+        recorder: Optional[MoETrace],
+    ) -> Tuple[str, bool]:
+        """对弱证据下的高风险具体数值做一次有界安全编辑。"""
+        audit = _evidence_audit_summary(opinions)
+        if not _answer_requires_evidence_repair(answer, audit):
+            return answer, False
+        forbidden_claims = _explicit_forbidden_claims(query, answer)
+        messages = build_answer_safety_messages(
+            query=query,
+            answer=answer,
+            evidence_audit=audit,
+            intent_contract=self._intent_prompt_injection("aggregator"),
+            user_role=self.config.user_role,
+            forbidden_claims=forbidden_claims,
+        )
+        started = time.perf_counter()
+        response: Dict[str, Any] = {}
+        revised = ""
+        error = ""
+        try:
+            response = await self.llm.chat(
+                messages=messages,
+                temperature=0.0,
+                max_tokens=self._aggregator_max_tokens(query),
+                thinking=False,
+            )
+            revised = _strip_markdown_envelope(extract_text(response))
+            if revised and forbidden_claims:
+                revised = _remove_forbidden_claims(revised, forbidden_claims)
+            if _response_finish_reason(response) == "truncated":
+                error = "safety repair was truncated"
+                revised = ""
+        except Exception as exc:  # noqa: BLE001
+            error = str(exc)
+            logger.warning("answer evidence safety repair failed: %s", exc, exc_info=True)
+        if recorder is not None:
+            recorder.record_llm(
+                stage="aggregator:evidence_safety_repair",
+                model=getattr(self.llm, "model", ""),
+                messages=messages,
+                output=revised,
+                latency_ms=(time.perf_counter() - started) * 1000.0,
+                usage=extract_usage(response),
+                meta={"applied": bool(revised), "error": error, "audit_items": len(audit)},
+            )
+        return (revised, True) if revised else (answer, False)
+
     # ------------------------------------------------------------------ stream
     async def stream(
         self,
@@ -639,6 +878,11 @@ class MoEOrchestrator:
         decision = await self._prepare_request_policy(query, recorder)
         if self._active_intent_decision is not None:
             intent_payload = self._active_intent_decision.as_dict()
+            intent_payload["selected_experts"] = list(decision.selected_experts)
+            intent_payload["emergency"] = bool(decision.emergency)
+            intent_payload["evidence_tasks"] = [
+                task.as_dict() for task in self._active_evidence_tasks
+            ]
             self.last_run_context["intent"] = intent_payload
             yield _event(status="intent_classified", detail=intent_payload)
         if self._active_task_policy is not None:
@@ -702,10 +946,19 @@ class MoEOrchestrator:
 
         # 3) 并行专家会诊
         for key in decision.selected_experts:
+            assigned_tasks = [
+                task.as_dict() for task in self._active_evidence_tasks
+                if task.owner == key
+            ]
             yield _event(
                 content=f"\n**{EXPERTS[key].name_zh} 会诊中**（权重 {decision.weights.get(key, 0):.2f}）\n",
                 status="expert_calling",
-                detail={"expert": key, "name_zh": EXPERTS[key].name_zh, "weight": decision.weights.get(key, 0)},
+                detail={
+                    "expert": key,
+                    "name_zh": EXPERTS[key].name_zh,
+                    "weight": decision.weights.get(key, 0),
+                    "evidence_tasks": assigned_tasks,
+                },
             )
         opinions = await self._run_experts(query, decision, recorder)
         self.last_run_context["experts"] = opinions
@@ -836,14 +1089,14 @@ class MoEOrchestrator:
                 collected.append(piece)
                 yield _event(content=piece, status="streaming")
         latency = (time.perf_counter() - t0) * 1000.0
-        final_answer = "".join(collected)
+        draft_answer = "".join(collected)
         self.last_finish_reason = finish_reason
         if recorder is not None:
             recorder.record_llm(
                 stage="aggregator",
                 model=getattr(self.stream_llm, "model", ""),
                 messages=messages,
-                output=final_answer,
+                output=draft_answer,
                 latency_ms=latency,
                 usage=extract_usage(fallback_response),
                 meta={
@@ -854,6 +1107,33 @@ class MoEOrchestrator:
                     "finish_reason": finish_reason,
                 },
             )
+        final_answer, repaired = await self._repair_answer_if_needed(
+            query=query,
+            answer=draft_answer,
+            opinions=opinions,
+            recorder=recorder,
+        )
+        if repaired:
+            yield _event(
+                status="reviewing",
+                detail={
+                    "verdict": "revised",
+                    "issues": ["已移除未获充分证据支持的具体剂量、时长或阈值"],
+                    "message": "证据安全复核已修订终答",
+                },
+            )
+            yield _event(
+                status="answer_reset",
+                detail={"reason": "evidence_safety_repair", "replacement": True},
+            )
+            collected.clear()
+            for offset in range(0, len(final_answer), 96):
+                piece = final_answer[offset:offset + 96]
+                collected.append(piece)
+                yield _event(content=piece, status="streaming")
+            self.last_finish_reason = "stop"
+            finish_reason = "stop"
+        if recorder is not None:
             recorder.final_answer = final_answer
             recorder.finalize()
         yield _event(finish=finish_reason)
@@ -942,14 +1222,14 @@ class MoEOrchestrator:
             thinking=False,
         )
         latency = (time.perf_counter() - t0) * 1000.0
-        final_answer = extract_text(resp)
+        draft_answer = extract_text(resp)
         self.last_finish_reason = _response_finish_reason(resp)
         if recorder is not None:
             recorder.record_llm(
                 stage="aggregator",
                 model=getattr(self.llm, "model", ""),
                 messages=messages,
-                output=final_answer,
+                output=draft_answer,
                 latency_ms=latency,
                 usage=extract_usage(resp),
                 meta={
@@ -958,6 +1238,15 @@ class MoEOrchestrator:
                     "finish_reason": self.last_finish_reason,
                 },
             )
+        final_answer, repaired = await self._repair_answer_if_needed(
+            query=query,
+            answer=draft_answer,
+            opinions=opinions,
+            recorder=recorder,
+        )
+        if repaired:
+            self.last_finish_reason = "stop"
+        if recorder is not None:
             recorder.final_answer = final_answer
             recorder.finalize()
         return final_answer, recorder

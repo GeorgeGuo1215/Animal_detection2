@@ -124,3 +124,27 @@ async def consultations_by_run(
             seen.add(key)
             grouped[event.run_id].append(trace)
     return dict(grouped)
+
+
+async def trace_nodes_by_run(
+    session: AsyncSession,
+    run_ids: Iterable[str | None],
+) -> dict[str, list[dict[str, Any]]]:
+    """按 Run 返回公开 trace 的最新节点快照，供历史会话恢复任务树。"""
+    ids = list(dict.fromkeys(str(value) for value in run_ids if value))
+    if not ids:
+        return {}
+    rows = list((await session.scalars(select(RunEvent).where(
+        RunEvent.run_id.in_(ids),
+        RunEvent.event_type == "trace",
+    ).order_by(RunEvent.run_id.asc(), RunEvent.sequence.asc()))).all())
+    grouped: dict[str, dict[str, dict[str, Any]]] = defaultdict(dict)
+    for event in rows:
+        payload = event.payload
+        if not isinstance(payload, dict):
+            continue
+        node_id = str(payload.get("node_id") or "")
+        if not node_id:
+            continue
+        grouped[event.run_id][node_id] = dict(payload)
+    return {run_id: list(nodes.values()) for run_id, nodes in grouped.items()}

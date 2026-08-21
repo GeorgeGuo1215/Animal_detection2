@@ -34,6 +34,17 @@ class EvidenceTask:
     reason: str
     web_fallback_on_weak_local: bool = False
     query: str = ""
+    queries: Tuple[str, ...] = ()
+
+    @property
+    def all_queries(self) -> Tuple[str, ...]:
+        """返回去重后的全部查询；旧 ``query`` 字段始终保持兼容。"""
+        output = []
+        for value in (self.query, *self.queries):
+            text = str(value or "").strip()
+            if text and text not in output:
+                output.append(text)
+        return tuple(output)
 
     def as_dict(self) -> Dict[str, Any]:
         """转为可序列化字典。"""
@@ -44,6 +55,7 @@ class EvidenceTask:
             "reason": self.reason,
             "web_fallback_on_weak_local": self.web_fallback_on_weak_local,
             "query": self.query,
+            "queries": list(self.all_queries),
         }
 
 
@@ -84,6 +96,7 @@ def assign_evidence_tasks(
             reason=task.reason,
             web_fallback_on_weak_local=task.web_fallback_on_weak_local,
             query=task.query,
+            queries=task.queries,
         ))
     return tuple(assigned)
 
@@ -117,10 +130,11 @@ def resolve_retrieval_requirement(
             target.append(tool_name)
         if task.reason and task.reason not in reasons:
             reasons.append(task.reason)
-        query_pair = (tool_name, task.query)
-        if task.query and query_pair not in tool_queries:
-            tool_queries.append(query_pair)
-            tool_query_goals.append((tool_name, task.query, task.reason))
+        for query in task.all_queries:
+            query_pair = (tool_name, query)
+            if query_pair not in tool_queries:
+                tool_queries.append(query_pair)
+                tool_query_goals.append((tool_name, query, task.reason))
         if task.web_fallback_on_weak_local and tool_name == RAG_TOOL:
             web_fallback = True
 

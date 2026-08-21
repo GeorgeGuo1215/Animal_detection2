@@ -246,6 +246,11 @@ def test_aggregator_vet_non_case_drops_when_to_seek_care():
             "tool_results": [{
                 "tool_name": "mcp.web_search.web_search",
                 "ok": True,
+                "sufficiency": {
+                    "status": "supported",
+                    "reason": "来源直接支持运动限制",
+                    "matched_hit_ids": ["h1"],
+                },
                 "result": {"results": [{
                     "title": "Current guideline",
                     "url": "https://example.test/guideline",

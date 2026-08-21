@@ -9,8 +9,10 @@ import {
   Stethoscope, Trash2, UserRound, WalletCards, X,
 } from 'lucide-react'
 import { api, client, newId, resumeRun, setAccessToken, streamRun } from './api'
+import { agentProcessSummary, phaseLabels, traceNodeTitle } from './agentProcess'
 import { useAuth } from './auth'
-import type { Conversation, ExpertTrace, Message, Plan, RunEvent } from './types'
+import { STREAM_RENDER_INTERVAL_MS, takeStreamRenderChunk } from './streamingMarkdown'
+import type { Conversation, ExpertTrace, Message, Plan, RunEvent, TraceNode } from './types'
 import { ActivationPage, FeedbackPage, LegalPage, SettingsPage } from './SettingsPage'
 
 const logoUrl = '/brand/petmind-logo-cropped.png'
@@ -193,23 +195,78 @@ function WorkspaceFrame() {
   </WorkspaceContext.Provider>
 }
 
-const phaseLabels: Record<string, string> = { queued: '等待会诊资源', reconnecting: '正在恢复会诊流', understanding: '理解问题', routing: '组织会诊路径', consulting: '专家会诊', reviewing: '安全复核', generating: '整理答复' }
 type AudienceRole = 'veterinarian' | 'pet_owner'
 
-function ExpertConsultation({ experts }: { experts: ExpertTrace[] }) {
+const traceStatusText: Record<string, string> = { pending: '等待执行', running: '执行中', completed: '已完成', degraded: '证据不足', failed: '失败', cancelled: '已取消' }
+const sufficiencyText: Record<string, string> = { supported: '证据充分', partial: '部分支持', unsupported: '证据不足', unknown: '尚未核实' }
+
+function TraceTimeline({ nodes }: { nodes: TraceNode[] }) {
+  const visible = nodes.filter(node => node.node_type !== 'expert')
+  if (!visible.length) return null
+  return <div className="trace-timeline" aria-label="会诊任务轨迹">
+    {visible.map(node => {
+      const detail = node.details || {}
+      const title = traceNodeTitle(node)
+      const body = node.node_type === 'decision'
+        ? `输出结构 ${detail.output_variant || 'default'}${detail.emergency ? ' · 已标记急症风险' : ''}`
+        : node.node_type === 'goal' ? detail.goal
+        : node.node_type === 'query' ? detail.query
+        : node.node_type === 'review' ? (detail.verdict ? `复核结果：${detail.verdict}` : '检查事实边界、用药安全与证据引用')
+        : detail.message || (node.status === 'completed' ? '最终答复已完成' : '结合专家意见与证据生成答复')
+      const sufficiency = detail.sufficiency?.status
+      return <div className={`trace-node ${node.node_type} ${node.status}`} key={node.node_id}>
+        <span className="trace-node-dot" />
+        <div><div className="trace-node-head"><strong>{title}</strong><small>{traceStatusText[node.status] || node.status}</small></div>
+          {body && <p>{body}</p>}
+          {node.node_type === 'query' && <div className="trace-node-meta">
+            {detail.scope === 'expanded' && <span>扩大分类</span>}
+            {!!detail.latency_ms && <span>{(detail.latency_ms / 1000).toFixed(1)} 秒</span>}
+            {sufficiency && <span className={`sufficiency ${sufficiency}`}>{sufficiencyText[sufficiency] || sufficiency}</span>}
+            {detail.result?.hits !== undefined && <span>命中 {detail.result.hits} 条</span>}
+            {detail.result?.results !== undefined && <span>结果 {detail.result.results} 条</span>}
+          </div>}
+          {detail.sufficiency?.reason && <small className="trace-reason">{detail.sufficiency.reason}</small>}
+          {detail.error && <small className="trace-error">{detail.error}</small>}
+        </div>
+      </div>
+    })}
+  </div>
+}
+
+function AgentProcessFlow({ nodes, phase, active }: { nodes: TraceNode[]; phase: string; active: boolean }) {
+  const summary = agentProcessSummary(nodes, phase, active)
+  return <details className={`agent-process-flow ${active ? 'active' : 'complete'}`}>
+    <summary>
+      <span className="agent-process-mark" aria-hidden="true" />
+      <span><strong>Agent 处理流程</strong><small aria-live="polite">{summary}</small></span>
+      <span className="agent-process-state">{active ? '处理中' : '已完成'}</span>
+      <ChevronDown />
+    </summary>
+    <div className="agent-process-body">
+      <TraceTimeline nodes={nodes} />
+      {!nodes.some(node => node.node_type !== 'expert') && <p className="agent-process-waiting">{summary}，详细步骤将在执行后显示。</p>}
+      <p className="expert-privacy">仅展示公开任务阶段与检索结果，不展示系统提示词或模型内部推理。</p>
+    </div>
+  </details>
+}
+
+function ExpertConsultation({ experts, traceNodes = [], phase = '', active = false }: { experts: ExpertTrace[]; traceNodes?: TraceNode[]; phase?: string; active?: boolean }) {
   const defaultOpen = localStorage.getItem('petmind-default-expand-experts') !== 'false'
-  if (!experts.length) return null
-  return <section className="expert-consultation" aria-label="专家会诊过程">
-    <div className="expert-consultation-heading"><Stethoscope /><div><strong>专家会诊</strong><small>可展开查看脱敏后的任务、工具与专家意见</small></div></div>
-    {experts.map(expert => <details className="expert-thread" open={defaultOpen || undefined} key={expert.expert}>
+  if (!experts.length && !traceNodes.length && !active) return null
+  return <section className="expert-consultation" aria-label="Agent 与专家会诊过程">
+    <AgentProcessFlow nodes={traceNodes} phase={phase} active={active} />
+    {experts.length > 0 && <details className="expert-panel">
+      <summary className="expert-consultation-heading"><Stethoscope /><div><strong>专家会诊</strong><small>{active ? '专家正在执行会诊任务' : `${experts.length} 位专家已提交会诊意见`}</small></div><span>{active ? '会诊中' : '已完成'}</span><ChevronDown /></summary>
+      <div className="expert-panel-body">{experts.map(expert => <details className="expert-thread" open={defaultOpen || undefined} key={expert.expert}>
       <summary><span className={`expert-dot ${expert.status}`} /><span><strong>{expert.name}</strong><small>{expert.status === 'completed' ? '已提交结构化意见' : '正在执行任务'}</small></span><ChevronDown /></summary>
       <div className="expert-thread-body">
         <div className="expert-step"><span>任务</span><p>{expert.task || '根据统一任务策略分析当前病例'}</p></div>
-        {(expert.tools || []).map((tool, index) => <div className="expert-step" key={`${tool.tool_name}-${index}`}><span>工具</span><div><strong>{tool.tool_name}</strong><small>{tool.ok ? '调用完成' : '调用失败'} · {(tool.latency_ms / 1000).toFixed(1)} 秒</small>{tool.result?.hits !== undefined && <p>知识库命中 {tool.result.hits} 条{tool.result.sources?.length ? ` · ${tool.result.sources.join('、')}` : ''}</p>}{tool.result?.results !== undefined && <p>网络结果 {tool.result.results} 条{tool.result.titles?.length ? ` · ${tool.result.titles.join('、')}` : ''}</p>}{tool.error && <p className="expert-step-error">{tool.error}</p>}</div></div>)}
+        {(expert.tools || []).map((tool, index) => <div className="expert-step" key={`${tool.tool_name}-${index}`}><span>工具</span><div><strong>{tool.tool_name}</strong><small>{tool.ok ? '调用完成' : '调用失败'} · {(tool.latency_ms / 1000).toFixed(1)} 秒{tool.wave && tool.wave > 1 ? ` · 第 ${tool.wave} 波` : ''}{tool.scope === 'expanded' ? ' · 扩大分类' : ''}</small>{tool.query && <p className="expert-query">{tool.query}</p>}{tool.sufficiency && <small className={`sufficiency ${tool.sufficiency.status}`}>{sufficiencyText[tool.sufficiency.status] || tool.sufficiency.status} · {tool.sufficiency.reason}</small>}{tool.result?.hits !== undefined && <p>知识库命中 {tool.result.hits} 条{tool.result.sources?.length ? ` · ${tool.result.sources.join('、')}` : ''}</p>}{tool.result?.results !== undefined && <p>网络结果 {tool.result.results} 条{tool.result.titles?.length ? ` · ${tool.result.titles.join('、')}` : ''}</p>}{tool.error && <p className="expert-step-error">{tool.error}</p>}</div></div>)}
         {expert.opinion && <div className="expert-step"><span>意见</span><div><p>{expert.opinion.conclusion}</p>{expert.opinion.evidence.length > 0 && <ul>{expert.opinion.evidence.map(item => <li key={item}>{item}</li>)}</ul>}{expert.opinion.risks.length > 0 && <small>风险边界：{expert.opinion.risks.join('；')}</small>}</div></div>}
         <p className="expert-privacy">仅展示任务结果，不展示系统提示词或模型内部推理。</p>
       </div>
-    </details>)}
+      </details>)}</div>
+    </details>}
   </section>
 }
 
@@ -238,27 +295,78 @@ function ChatPage() {
   const navigate = useNavigate(); const { conversationId } = useParams(); const { openMobileSidebar } = useWorkspace(); const [messages, setMessages] = useState<Message[]>([]); const [messagesLoading, setMessagesLoading] = useState(false); const [input, setInput] = useState(''); const [phase, setPhase] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [detailsOpen, setDetailsOpen] = useState(false)
   const [audienceRole, setAudienceRole] = useState<AudienceRole>(() => localStorage.getItem('petmind-audience-role') === 'pet_owner' ? 'pet_owner' : 'veterinarian')
   const [commonPhrases, setCommonPhrases] = useState<Array<{id: string; title: string; content: string}>>([])
-  const controller = useRef<AbortController | null>(null); const activeRun = useRef(''); const activeConversation = useRef(conversationId || ''); const pendingConversationNavigation = useRef(''); const lastEvent = useRef(0); const draftAnswer = useRef(''); const activeExperts = useRef<ExpertTrace[]>([])
+  const controller = useRef<AbortController | null>(null); const activeRun = useRef(''); const activeConversation = useRef(conversationId || ''); const pendingConversationNavigation = useRef(''); const lastEvent = useRef(0); const draftAnswer = useRef(''); const pendingAnswer = useRef(''); const draftFlushTimer = useRef<number | null>(null); const activeExperts = useRef<ExpertTrace[]>([]); const activeTrace = useRef<TraceNode[]>([])
   function changeAudienceRole(role: AudienceRole) { setAudienceRole(role); localStorage.setItem('petmind-audience-role', role) }
   useEffect(() => { api<{items: Array<{id: string; title: string; content: string}>}>('/api/v1/me/common-phrases').then(result => setCommonPhrases(result.items)).catch(() => undefined) }, [])
   function updateActiveExpert(incoming: ExpertTrace) {
     activeExperts.current = [...activeExperts.current.filter(item => item.expert !== incoming.expert), incoming]
     setMessages(previous => {
       const next = previous.map(message => message.id === 'streaming'
-        ? { ...message, expert_consultations: activeExperts.current }
+        ? { ...message, expert_consultations: activeExperts.current, trace_nodes: activeTrace.current }
         : message)
       if (next.some(message => message.id === 'streaming')) return next
       return [...next, {
         id: 'streaming', run_id: activeRun.current || null, role: 'assistant', content: '', status: 'streaming',
-        created_at: new Date().toISOString(), expert_consultations: activeExperts.current,
+        created_at: new Date().toISOString(), expert_consultations: activeExperts.current, trace_nodes: activeTrace.current,
       }]
     })
   }
+  function updateActiveTrace(incoming: TraceNode) {
+    const index = activeTrace.current.findIndex(item => item.node_id === incoming.node_id)
+    activeTrace.current = index < 0
+      ? [...activeTrace.current, incoming]
+      : activeTrace.current.map(item => item.node_id === incoming.node_id ? incoming : item)
+    setMessages(previous => {
+      const next = previous.map(message => message.id === 'streaming'
+        ? { ...message, trace_nodes: activeTrace.current, expert_consultations: activeExperts.current }
+        : message)
+      if (next.some(message => message.id === 'streaming')) return next
+      return [...next, {
+        id: 'streaming', run_id: activeRun.current || null, role: 'assistant', content: '', status: 'streaming',
+        created_at: new Date().toISOString(), expert_consultations: activeExperts.current, trace_nodes: activeTrace.current,
+      }]
+    })
+  }
+  function cancelDraftFlush() {
+    if (draftFlushTimer.current !== null) window.clearTimeout(draftFlushTimer.current)
+    draftFlushTimer.current = null
+  }
+  function updateStreamingAnswer(content: string) {
+    setMessages(previous => {
+      const streaming = previous.find(message => message.id === 'streaming')
+      const next: Message = {
+        id: 'streaming', run_id: activeRun.current || null, role: 'assistant', content,
+        status: 'streaming', created_at: streaming?.created_at || new Date().toISOString(),
+        expert_consultations: activeExperts.current,
+        trace_nodes: activeTrace.current,
+      }
+      return [...previous.filter(message => message.id !== 'streaming'), next]
+    })
+  }
+  function scheduleDraftFlush() {
+    if (draftFlushTimer.current !== null || !pendingAnswer.current) return
+    draftFlushTimer.current = window.setTimeout(() => {
+      draftFlushTimer.current = null
+      flushPendingAnswer()
+    }, STREAM_RENDER_INTERVAL_MS)
+  }
+  function flushPendingAnswer(force = false) {
+    cancelDraftFlush()
+    if (!pendingAnswer.current) return
+    const next = force
+      ? { chunk: pendingAnswer.current, rest: '' }
+      : takeStreamRenderChunk(pendingAnswer.current)
+    pendingAnswer.current = next.rest
+    draftAnswer.current += next.chunk
+    updateStreamingAnswer(draftAnswer.current)
+    if (pendingAnswer.current) scheduleDraftFlush()
+  }
+  useEffect(() => () => cancelDraftFlush(), [])
   useEffect(() => {
     const previousConversation = activeConversation.current
     if (!conversationId) {
       if (previousConversation) controller.current?.abort()
-      activeConversation.current = ''; activeRun.current = ''; activeExperts.current = []; setMessages([]); setMessagesLoading(false); setBusy(false); setPhase(''); setError(''); return
+      cancelDraftFlush(); pendingAnswer.current = ''; draftAnswer.current = ''; activeConversation.current = ''; activeRun.current = ''; activeExperts.current = []; activeTrace.current = []; setMessages([]); setMessagesLoading(false); setBusy(false); setPhase(''); setError(''); return
     }
     if (previousConversation && previousConversation !== conversationId) {
       // Disconnect only this browser stream. The persisted server task keeps
@@ -275,7 +383,7 @@ function ChatPage() {
       setMessagesLoading(false)
       return
     }
-    activeExperts.current = []
+    cancelDraftFlush(); pendingAnswer.current = ''; draftAnswer.current = ''; activeExperts.current = []; activeTrace.current = []
     const saved = sessionStorage.getItem(`petmind-run:${conversationId}`)
     const recoveryController = new AbortController()
     setMessages([])
@@ -290,7 +398,7 @@ function ChatPage() {
         activeRun.current = state.runId
         // A full reload has no in-memory draft. Replay all durable events so
         // expert cards and answer deltas are reconstructed together.
-        lastEvent.current = 0; setBusy(true); setPhase('queued'); draftAnswer.current = ''
+        lastEvent.current = 0; setBusy(true); setPhase('queued'); draftAnswer.current = ''; pendingAnswer.current = ''
         await recoverRun(state.runId, recoveryController.signal)
       } catch (loadError) {
         if (!recoveryController.signal.aborted) { setMessagesLoading(false); setError(loadError instanceof Error ? loadError.message : '会话加载失败') }
@@ -310,7 +418,11 @@ function ChatPage() {
   function finishRun(event: RunEvent) {
     const id = activeConversation.current
     if (id) sessionStorage.removeItem(`petmind-run:${id}`)
-    activeRun.current = ''; draftAnswer.current = ''; activeExperts.current = []; setPhase(''); setBusy(false)
+    flushPendingAnswer(true)
+    setMessages(previous => previous.map(message => message.id === 'streaming'
+      ? { ...message, status: event.event === 'completed' ? 'complete' : event.event }
+      : message))
+    activeRun.current = ''; draftAnswer.current = ''; pendingAnswer.current = ''; activeExperts.current = []; activeTrace.current = []; setPhase(''); setBusy(false)
     if (event.event === 'failed') setError(String(event.data.message || '会诊任务执行失败，请稍后重试'))
     else if (event.event === 'completed' && event.data.finish_reason === 'truncated') setError('回答已达到长度上限，内容可能不完整，请继续追问。')
     else setError('')
@@ -327,24 +439,17 @@ function ChatPage() {
       const incoming = event.data.expert as ExpertTrace | undefined
       if (incoming?.expert) updateActiveExpert(incoming)
     }
+    if (event.event === 'trace' && event.data.node_id) updateActiveTrace(event.data as unknown as TraceNode)
     if (event.event === 'delta') {
       setError('')
-      draftAnswer.current += String(event.data.content || '')
-      setMessages(previous => {
-        const streaming = previous.find(message => message.id === 'streaming')
-        const next: Message = {
-          id: 'streaming', run_id: activeRun.current || null, role: 'assistant', content: draftAnswer.current,
-          status: 'streaming', created_at: streaming?.created_at || new Date().toISOString(),
-          expert_consultations: activeExperts.current,
-        }
-        return [...previous.filter(message => message.id !== 'streaming'), next]
-      })
+      pendingAnswer.current += String(event.data.content || '')
+      scheduleDraftFlush()
     }
     if (event.event === 'reset') {
       setError('')
-      draftAnswer.current = ''
+      cancelDraftFlush(); pendingAnswer.current = ''; draftAnswer.current = ''
       setMessages(previous => previous.map(message => message.id === 'streaming'
-        ? { ...message, content: '', expert_consultations: activeExperts.current }
+        ? { ...message, content: '', expert_consultations: activeExperts.current, trace_nodes: activeTrace.current }
         : message))
     }
     if (['completed', 'failed', 'cancelled'].includes(event.event)) finishRun(event)
@@ -389,8 +494,8 @@ function ChatPage() {
     activeExperts.current = []
     setMessages(previous => [...previous,
       { id: newId(), role: 'user', content: text, status: 'complete', created_at: new Date().toISOString() },
-      { id: 'streaming', run_id: null, role: 'assistant', content: '', status: 'streaming', created_at: new Date().toISOString(), expert_consultations: [] },
-    ]); setInput(''); setBusy(true); setError(''); setPhase('queued'); draftAnswer.current = ''; lastEvent.current = 0
+      { id: 'streaming', run_id: null, role: 'assistant', content: '', status: 'streaming', created_at: new Date().toISOString(), expert_consultations: [], trace_nodes: [] },
+    ]); setInput(''); setBusy(true); setError(''); setPhase('queued'); cancelDraftFlush(); draftAnswer.current = ''; pendingAnswer.current = ''; activeExperts.current = []; activeTrace.current = []; lastEvent.current = 0
     controller.current = new AbortController()
     try {
       await streamRun(id!, text, audienceRole, handleEvent, controller.current.signal, runId => { activeRun.current = runId; sessionStorage.setItem(`petmind-run:${id}`, JSON.stringify({ runId, lastEvent: lastEvent.current })) })
@@ -413,9 +518,8 @@ function ChatPage() {
       {messagesLoading ? <div className="conversation-loading" role="status" aria-label="正在加载对话"><span className="phase-spinner" /><div><strong>正在加载对话</strong><small>正在读取消息与专家会诊记录…</small></div></div> : messages.length === 0 ? <div className="empty-chat"><img src={logoUrl} alt="" width="148" height="135" loading="eager" /><p className="eyebrow">PETMIND CLINICAL DESK</p><h1>今天需要一起梳理<br />哪个病例？</h1><p>请提供物种、年龄、主诉、症状时间线和已有检查。系统会组织资料检索与专家复核。</p><div className="suggestions">{['猫频繁进出猫砂盆，如何排急症？', '犬持续咳嗽的鉴别诊断路径', '帮我解读这组肝功能指标'].map(q => <button key={q} onClick={() => setInput(q)}>{q}</button>)}</div></div> : <div className="messages">
         {messages.map(message => <article key={message.id} className={`message ${message.role}`}>
           <div className="message-label">{message.role === 'user' ? '我的问题' : <><Stethoscope />PetMind 会诊意见</>}</div>
-          {message.role === 'assistant' && <ExpertConsultation experts={message.expert_consultations || []} />}
-          {message.role === 'assistant' && message.status === 'streaming' && phase && <div className="phase-card in-answer"><span className="phase-spinner" /><div><strong>{phaseLabels[phase] || '处理中'}</strong><small>仅展示任务阶段，不暴露模型内部推理</small></div></div>}
-          {message.content && <div className="message-body">{message.role === 'assistant' ? <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{message.content}</ReactMarkdown> : message.content}</div>}
+          {message.role === 'assistant' && <ExpertConsultation experts={message.expert_consultations || []} traceNodes={message.trace_nodes || []} phase={message.status === 'streaming' ? phase : ''} active={message.status === 'streaming'} />}
+          {message.content && <div className={`message-body ${message.role === 'assistant' && message.status === 'streaming' ? 'streaming-markdown is-streaming' : ''}`}>{message.role === 'assistant' ? <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{message.content}</ReactMarkdown> : message.content}</div>}
           {message.role === 'assistant' && message.status !== 'streaming' && message.content && <CopyButton text={`AI 生成 · 仅供兽医临床决策支持\n\n${message.content}`} />}
         </article>)}
         {error && <div className="form-error">{error}</div>}

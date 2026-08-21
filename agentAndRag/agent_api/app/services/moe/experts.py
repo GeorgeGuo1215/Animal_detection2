@@ -316,6 +316,7 @@ class ExpertAgentSession:
         self._required_request_tools: Dict[str, str] = {}
         self._completed_request_keys: set[str] = set()
         self._successful_request_keys: set[str] = set()
+        self._expanded_rag_queries: set[str] = set()
         self.tool_timeout_occurred = False
         self.last_output = ""
         self.completed = False
@@ -474,7 +475,10 @@ class ExpertAgentSession:
             if self.device is not None:
                 normalized.setdefault("device", self.device)
             if self.expert.rag_categories:
-                normalized["category"] = list(self.expert.rag_categories)
+                if assigned_query not in self._expanded_rag_queries:
+                    normalized["category"] = list(self.expert.rag_categories)
+                else:
+                    normalized.pop("category", None)
             normalized.setdefault("rerank", True)
         elif tool_name == "mcp.web_search.web_search":
             normalized.setdefault("query", assigned_query or self.query)
@@ -487,7 +491,7 @@ class ExpertAgentSession:
         仅生成当前专家可见的工具；同一工具的不同查询均予保留，完全重复调用交由
         ToolBroker 按工具名和规范化参数去重。
         """
-        self.rounds = 1
+        self.rounds = max(1, self.rounds)
         planned = list(dict.fromkeys([*self.required_tools, *self.recommended_tools]))
         requests: List[ToolRequest] = []
         for tool_name in planned:
@@ -509,7 +513,7 @@ class ExpertAgentSession:
                     "tool_name": tool_name,
                     "arguments": dict(arguments),
                     "note": self.retrieval_reason,
-                    "round": 1,
+                    "round": self.rounds,
                     "required": tool_name in self.required_tools,
                 })
                 requests.append(ToolRequest(
@@ -524,26 +528,70 @@ class ExpertAgentSession:
         result: ToolResult,
     ) -> Optional[EvidenceSufficiencyItem]:
         """构造证据充分性审计条目。"""
-        if (
-            result.tool_name != RAG_TOOL
-            or not self.require_web_on_rag_failure
-            or rag_requires_web_fallback(result.result, ok=result.ok)
-            or not isinstance(result.result, dict)
-        ):
+        if not result.ok or not isinstance(result.result, dict):
             return None
-        hits = result.result.get("hits")
-        if not isinstance(hits, list):
+        if result.tool_name == RAG_TOOL:
+            if (
+                not self.require_web_on_rag_failure
+                or rag_requires_web_fallback(result.result, ok=result.ok)
+            ):
+                return None
+            raw_hits = result.result.get("hits")
+        elif result.tool_name == WEB_SEARCH_TOOL:
+            raw_hits = result.result.get("results") or result.result.get("hits")
+        else:
+            return None
+        if not isinstance(raw_hits, list):
+            return None
+        hits: List[Dict[str, Any]] = []
+        for raw_hit in raw_hits:
+            if not isinstance(raw_hit, dict):
+                continue
+            if result.tool_name == WEB_SEARCH_TOOL:
+                hits.append({
+                    "source_path": str(raw_hit.get("url") or raw_hit.get("title") or ""),
+                    "text": str(
+                        raw_hit.get("content")
+                        or raw_hit.get("snippet")
+                        or raw_hit.get("text")
+                        or ""
+                    ),
+                })
+            else:
+                hits.append(raw_hit)
+        if not hits:
             return None
         return EvidenceSufficiencyItem(
             id=result.request_id,
             expert=self.expert.key,
             evidence_query=str(result.arguments.get("query") or ""),
             evidence_goal=self.tool_query_goals.get(
-                (RAG_TOOL, str(result.arguments.get("query") or "")),
+                (result.tool_name, str(result.arguments.get("query") or "")),
                 self.retrieval_reason,
             ),
-            hits=tuple(hit for hit in hits if isinstance(hit, dict)),
+            hits=tuple(hits),
+            tool_name=result.tool_name,
         )
+
+    def _register_web_fallback_queries(self, result: ToolResult) -> None:
+        """为弱 RAG 补证登记同目标的中英 Web 查询，避免搜索整段病例。"""
+        rag_query = str(result.arguments.get("query") or "").strip()
+        evidence_goal = self.tool_query_goals.get(
+            (RAG_TOOL, rag_query), self.retrieval_reason,
+        ).strip()
+        queries = self.tool_queries.setdefault(WEB_SEARCH_TOOL, [])
+        for candidate in (rag_query, evidence_goal):
+            value = str(candidate or "").strip()[:500]
+            if value and value not in queries:
+                queries.append(value)
+                if evidence_goal:
+                    self.tool_query_goals[(WEB_SEARCH_TOOL, value)] = evidence_goal
+
+    def _register_expanded_rag_fallback(self, result: ToolResult) -> None:
+        """登记一次去分类限制的同目标 RAG 查询，缓解书籍级分类漏召回。"""
+        rag_query = str(result.arguments.get("query") or "").strip()
+        if rag_query:
+            self._expanded_rag_queries.add(rag_query)
 
     def _parse_opinion(self, obj: Dict[str, Any]) -> Dict[str, Any]:
         """校验并规范化 ``action=final`` 的专家 JSON 意见。
@@ -591,7 +639,8 @@ class ExpertAgentSession:
 
     async def generate_final_opinion(self) -> Dict[str, Any]:
         """生成 action=final 的结构化专家意见。"""
-        self.rounds = 1
+        # 保留已完成的证据波次数，供持久化与前端审计展示；专家意见本身仍只生成一次。
+        self.rounds = max(1, self.rounds)
         messages = [*self.messages, self._retrieval_state_message(), {
             "role": "user",
             "content": FORCE_FINAL_REMINDER,
@@ -698,16 +747,18 @@ class ExpertAgentSession:
             result.tool_name == RAG_TOOL
             and self.require_web_on_rag_failure
             and (numeric_weak or semantic_weak)
-            and WEB_SEARCH_TOOL not in self.required_tools
         ):
+            self._register_expanded_rag_fallback(result)
             if WEB_SEARCH_TOOL in self.available_tools:
-                self.required_tools.append(WEB_SEARCH_TOOL)
-                self.recommended_tools = [
-                    name for name in self.recommended_tools if name != WEB_SEARCH_TOOL
-                ]
-                self._register_required_request_keys()
+                self._register_web_fallback_queries(result)
+                if WEB_SEARCH_TOOL not in self.required_tools:
+                    self.required_tools.append(WEB_SEARCH_TOOL)
+                    self.recommended_tools = [
+                        name for name in self.recommended_tools if name != WEB_SEARCH_TOOL
+                    ]
             elif WEB_SEARCH_TOOL not in self.unavailable_required_tools:
                 self.unavailable_required_tools.append(WEB_SEARCH_TOOL)
+            self._register_required_request_keys()
         sufficiency_record: Optional[Dict[str, Any]] = None
         if result.tool_name == RAG_TOOL and self.require_web_on_rag_failure:
             if numeric_weak:
@@ -726,6 +777,16 @@ class ExpertAgentSession:
                 }
             elif sufficiency is not None:
                 sufficiency_record = {**sufficiency.as_dict(), "method": "semantic_llm"}
+        elif result.tool_name == WEB_SEARCH_TOOL and semantic_assessment_required:
+            if sufficiency is None:
+                sufficiency_record = {
+                    "status": "unknown",
+                    "reason": "网页证据充分性判断超时、失败或缺失，按未核实处理",
+                    "matched_hit_ids": [],
+                    "method": "semantic_llm",
+                }
+            else:
+                sufficiency_record = {**sufficiency.as_dict(), "method": "semantic_llm"}
         record = {
             "step": len(self.tool_results),
             "round": self.rounds,
@@ -737,6 +798,17 @@ class ExpertAgentSession:
             "error": result.error,
             "shared": result.shared,
             "sufficiency": sufficiency_record,
+            "evidence_goal": self.tool_query_goals.get(
+                (result.tool_name, str(result.arguments.get("query") or "")),
+                self.retrieval_reason,
+            ),
+            "scope": (
+                "expanded"
+                if result.tool_name == RAG_TOOL
+                and self.expert.rag_categories
+                and not result.arguments.get("category")
+                else "expert"
+            ),
         }
         self.tool_results.append(record)
 
@@ -851,7 +923,12 @@ async def run_expert_sessions(
             requests: List[ToolRequest] = []
             timeouts: Dict[str, float] = {}
             for session in sessions:
-                for request in session.prepare_tool_requests():
+                previous_rounds = session.rounds
+                session.rounds = _wave + 1
+                session_requests = session.prepare_tool_requests()
+                if not session_requests:
+                    session.rounds = previous_rounds
+                for request in session_requests:
                     ownership[request.request_id] = session
                     requests.append(request)
                     timeouts[request.request_id] = session.tool_wait_timeout_s

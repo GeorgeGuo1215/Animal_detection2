@@ -37,8 +37,9 @@ TASK_POLICY_SYSTEM_PROMPT = (
     "- 一条请求可有 secondary_intents。primary_intent 决定最终主要交付结构。\n"
     "- 每个 evidence_task 指定唯一 owner，避免多个专家重复检索。药物证据通常归 pharmacy，"
     "诊断/指南/生命体征通常归 clinical。\n"
-    "- evidence_task.query 给出供执行层直接调用工具的检索语句；local_knowledge 和 medication_reference "
-    "必须使用简洁英文查询，current_web 可使用中文或英文。不要在 query 中写工具名或 JSON。\n"
+    "- evidence_task.query/queries 给出供执行层直接调用工具的检索语句；local_knowledge 和 "
+    "medication_reference 必须使用简洁英文查询。current_web 必须在 queries 中同时给出一条简洁中文查询和"
+    "一条简洁英文查询，二者核验同一原子目标，执行层会并发搜索。不要在查询中写工具名或 JSON。\n"
     "- 每个 evidence_task 只核验一个原子问题；同一专家、同一 capability 可以创建多条不同 query，"
     "执行层会分别检索，禁止为了减少调用而把剂量、相互作用、监测等不同证据需求含糊合并。\n"
     "- 药学查询必须消除术语歧义：药物切换的‘洗脱期’写作 washout interval when switching from A to B；"
@@ -59,7 +60,7 @@ TASK_POLICY_SYSTEM_PROMPT = (
     '"pharmacy":3,"behavior":0},"emergency":{"value":false,"confidence":0.8,'
     '"evidence":[]},"evidence_tasks":[{"capability":"local_knowledge",'
     '"owner":"clinical","requirement":"recommended","reason":"一句理由",'
-    '"query":"feline lower urinary tract emergency triage",'
+    '"query":"feline lower urinary tract emergency triage","queries":[], '
     '"web_fallback_on_weak_local":false}],"missing_information":[],'
     '"reason":"一句总体理由"}'
 )

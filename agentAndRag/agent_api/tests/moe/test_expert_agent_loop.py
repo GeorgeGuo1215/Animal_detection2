@@ -176,7 +176,7 @@ def test_pharmacy_safety_contract_remains_scoped_to_pharmacy_expert():
 def test_assigned_rag_and_web_execute_before_one_expert_generation():
     """验证分配的 RAG 与网页检索会在专家生成前执行。"""
     calls = []
-    llm = SequenceLLM([_final("combined evidence")])
+    llm = SequenceLLM([{}, _final("combined evidence")])
     result = asyncio.run(run_expert(
         expert=EXPERTS["clinical"], query="feline urinary signs", weight=1.0,
         registry=_registry(calls), llm=llm,
@@ -188,8 +188,8 @@ def test_assigned_rag_and_web_execute_before_one_expert_generation():
     ))
 
     assert sorted(name for name, _ in calls) == ["mcp.web_search.web_search", "rag.search"]
-    assert len(llm.messages) == 1
-    assert sum(message["content"].startswith("TOOL_RESULT") for message in llm.messages[0]) == 2
+    assert len(llm.messages) == 2
+    assert sum(message["content"].startswith("TOOL_RESULT") for message in llm.messages[-1]) == 2
     assert result["conclusion"] == "combined evidence"
     assert result["rounds"] == 1
     assert result["attempted_tools"] == ["rag.search", "mcp.web_search.web_search"]
@@ -252,20 +252,30 @@ def test_non_english_assigned_rag_query_falls_back_to_expert_hint():
     assert rag_args["query"] == EXPERTS["clinical"].rag_query_hint
 
 
-def test_weak_required_rag_adds_one_web_fallback_before_final():
-    """验证弱必检 RAG 会在终稿前追加一次网页兜底。"""
+def test_weak_required_rag_adds_one_expanded_rag_and_bilingual_web_wave():
+    """验证弱 RAG 仅追加一次扩类检索，并以中英查询并发补证。"""
     calls = []
     result = asyncio.run(run_expert(
         expert=EXPERTS["pharmacy"], query="核对犬用药禁忌", weight=1.0,
-        registry=_registry(calls, sufficient=False), llm=SequenceLLM([_final("verified")]),
+        registry=_registry(calls, sufficient=False), llm=SequenceLLM([{}, _final("verified")]),
         retrieval_requirement=_retrieval(
             required=("rag.search",), web_fallback=True,
+            reason="核对犬用药禁忌",
             queries=(("rag.search", "canine drug contraindication"),),
         ),
     ))
-    assert sorted(name for name, _ in calls) == ["mcp.web_search.web_search", "rag.search"]
+    rag_calls = [arguments for name, arguments in calls if name == "rag.search"]
+    web_calls = [arguments for name, arguments in calls if name == "mcp.web_search.web_search"]
+    assert len(rag_calls) == 2
+    assert rag_calls[0]["category"] == EXPERTS["pharmacy"].rag_categories
+    assert "category" not in rag_calls[1]
+    assert {item["query"] for item in web_calls} == {
+        "canine drug contraindication",
+        "核对犬用药禁忌",
+    }
     assert result["required_tools"] == ["rag.search", "mcp.web_search.web_search"]
     assert result["pending_tools"] == []
+    assert result["rounds"] == 2
     assert result["conclusion"] == "verified"
 
 
@@ -279,16 +289,24 @@ def test_high_score_but_semantically_unsupported_rag_adds_web_fallback():
         registry=_registry(calls), llm=llm,
         retrieval_requirement=_retrieval(
             required=("rag.search",), web_fallback=True,
+            reason="核对糖皮质激素切换非甾体抗炎药的洗脱要求",
             queries=(("rag.search", query),),
         ),
     ))
 
-    assert [name for name, _ in calls] == [
-        "rag.search", "mcp.web_search.web_search",
+    rag_calls = [arguments for name, arguments in calls if name == "rag.search"]
+    web_calls = [arguments for name, arguments in calls if name == "mcp.web_search.web_search"]
+    assert len(rag_calls) == 2
+    assert "category" in rag_calls[0] and "category" not in rag_calls[1]
+    assert {item["query"] for item in web_calls} == {
+        query,
+        "核对糖皮质激素切换非甾体抗炎药的洗脱要求",
+    }
+    assert len(llm.sufficiency_batches) == 2
+    assert [item["status"] for item in result["evidence_sufficiency"]] == [
+        "unsupported", "unsupported", "unsupported", "unsupported",
     ]
-    assert len(llm.sufficiency_batches) == 1
-    assert result["evidence_sufficiency"][0]["status"] == "unsupported"
-    assert result["evidence_sufficiency"][0]["method"] == "semantic_llm"
+    assert all(item["method"] == "semantic_llm" for item in result["evidence_sufficiency"])
 
 
 def test_high_score_and_semantically_supported_rag_does_not_add_web():
@@ -311,8 +329,8 @@ def test_high_score_and_semantically_supported_rag_does_not_add_web():
     assert result["required_tools"] == ["rag.search"]
 
 
-def test_multiple_high_score_rag_tasks_use_one_batched_sufficiency_call():
-    """验证多条高分 RAG 任务共用一次批量充分性判断。"""
+def test_multiple_high_score_rag_tasks_are_batched_per_bounded_wave():
+    """验证多条 RAG 任务在每一有界波次只做一次批量充分性判断。"""
     calls = []
     first = "canine corticosteroid NSAID washout interval"
     second = "canine meloxicam gastrointestinal monitoring"
@@ -322,17 +340,26 @@ def test_multiple_high_score_rag_tasks_use_one_batched_sufficiency_call():
         registry=_registry(calls), llm=llm,
         retrieval_requirement=_retrieval(
             required=("rag.search",), web_fallback=True,
+            reason="核对犬药物切换和胃肠道监测",
             queries=(("rag.search", first), ("rag.search", second)),
         ),
     ))
 
-    assert len(llm.sufficiency_batches) == 1
+    assert len(llm.sufficiency_batches) == 2
     assert len(llm.sufficiency_batches[0]) == 2
-    assert [name for name, _ in calls] == [
-        "rag.search", "rag.search", "mcp.web_search.web_search",
-    ]
+    assert len(llm.sufficiency_batches[1]) == 3
+    rag_calls = [arguments for name, arguments in calls if name == "rag.search"]
+    assert len(rag_calls) == 3
+    assert all("category" in item for item in rag_calls[:2])
+    assert "category" not in rag_calls[2]
+    web_queries = {
+        arguments["query"]
+        for name, arguments in calls
+        if name == "mcp.web_search.web_search"
+    }
+    assert {second, "核对犬药物切换和胃肠道监测"}.issubset(web_queries)
     assert [item["status"] for item in result["evidence_sufficiency"]] == [
-        "supported", "partial",
+        "supported", "partial", "partial", "partial", "unsupported",
     ]
 
 
@@ -341,17 +368,25 @@ def test_invalid_sufficiency_response_conservatively_adds_web():
     calls = []
     result = asyncio.run(run_expert(
         expert=EXPERTS["clinical"], query="猫排尿困难", weight=1.0,
-        registry=_registry(calls), llm=SequenceLLM([{}, _final("safe fallback")]),
+        registry=_registry(calls), llm=SequenceLLM([{}, {}, _final("safe fallback")]),
         retrieval_requirement=_retrieval(
             required=("rag.search",), web_fallback=True,
+            reason="核对猫尿道梗阻分诊证据",
             queries=(("rag.search", "feline urinary obstruction triage"),),
         ),
     ))
 
-    assert [name for name, _ in calls] == [
-        "rag.search", "mcp.web_search.web_search",
+    rag_calls = [arguments for name, arguments in calls if name == "rag.search"]
+    web_calls = [arguments for name, arguments in calls if name == "mcp.web_search.web_search"]
+    assert len(rag_calls) == 2
+    assert "category" in rag_calls[0] and "category" not in rag_calls[1]
+    assert {item["query"] for item in web_calls} == {
+        "feline urinary obstruction triage",
+        "核对猫尿道梗阻分诊证据",
+    }
+    assert [item["status"] for item in result["evidence_sufficiency"]] == [
+        "unknown", "unknown", "unknown", "unknown",
     ]
-    assert result["evidence_sufficiency"][0]["status"] == "unknown"
     assert result["conclusion"] == "safe fallback"
 
 

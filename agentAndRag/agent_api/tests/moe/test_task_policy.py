@@ -138,6 +138,33 @@ def test_distinct_same_tool_evidence_tasks_keep_both_queries():
     )
 
 
+def test_current_web_task_keeps_chinese_and_english_queries():
+    """验证 current_web 任务能保留同一目标的中英互补查询。"""
+    policy = _payload(evidence_tasks=[{
+        "capability": "current_web",
+        "owner": "clinical",
+        "requirement": "required",
+        "reason": "核对当前猫尿道梗阻急症指南",
+        "query_zh": "猫尿道梗阻 急症 分诊 指南",
+        "query_en": "feline urethral obstruction emergency triage guideline",
+        "web_fallback_on_weak_local": False,
+    }])
+    decision = parse_task_policy(json.dumps(policy, ensure_ascii=False))
+    requirement = resolve_retrieval_requirement(
+        expert_key="clinical",
+        evidence_tasks=decision.evidence_tasks,
+    )
+
+    assert decision.evidence_tasks[0].all_queries == (
+        "猫尿道梗阻 急症 分诊 指南",
+        "feline urethral obstruction emergency triage guideline",
+    )
+    assert requirement.tool_queries == (
+        ("mcp.web_search.web_search", "猫尿道梗阻 急症 分诊 指南"),
+        ("mcp.web_search.web_search", "feline urethral obstruction emergency triage guideline"),
+    )
+
+
 def test_web_fallback_dense_score_floor_defaults_to_point_nine(monkeypatch):
     """验证网页兜底的稠密分下限默认为 0.9。"""
     monkeypatch.delenv("RAG_RELEVANCE_THRESHOLD", raising=False)
