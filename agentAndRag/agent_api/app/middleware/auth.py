@@ -1,8 +1,8 @@
 """
-API Key authentication middleware.
+API Key 鉴权中间件。
 
-Keys are loaded from keys.txt (one key per line) on startup.
-Clients must send header: Authorization: Bearer <api-key>
+启动时从 keys.txt（每行一个 key）加载密钥。
+客户端需发送：Authorization: Bearer <api-key>
 """
 from __future__ import annotations
 
@@ -19,12 +19,12 @@ _VALID_KEYS: Set[str] = set()
 
 
 def _keys_file_path() -> Path:
-    """Return path to keys.txt under agent_api/."""
+    """返回 agent_api/ 下 keys.txt 的路径。"""
     return Path(__file__).resolve().parents[2] / "keys.txt"
 
 
 def load_api_keys() -> None:
-    """Load API keys from keys.txt into memory. Called on startup."""
+    """从 keys.txt 加载 API key 到内存。启动时调用。"""
     global _VALID_KEYS
     legacy_enabled = os.getenv("AGENT_LEGACY_API_KEYS_ENABLED", "1").strip().lower() not in {
         "0", "false", "no", "off",
@@ -66,12 +66,13 @@ def load_api_keys() -> None:
 
 
 def is_valid_key(key: str) -> bool:
-    """Check if the given key is valid."""
+    """检查给定 key 是否有效。"""
     legacy_enabled = os.getenv("AGENT_LEGACY_API_KEYS_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
     return legacy_enabled and key in _VALID_KEYS
 
 
 async def _record_legacy_key_use(request: Request, key: str) -> None:
+    """记录旧版 API key 使用审计；存储失败不影响鉴权。"""
     try:
         from ..platform.database import platform_session
         from ..platform.services import audit
@@ -87,20 +88,19 @@ async def _record_legacy_key_use(request: Request, key: str) -> None:
             )
             await session.commit()
     except Exception:  # noqa: BLE001
-        # Compatibility authentication must not fail only because audit storage
-        # is unavailable; production monitoring still observes this condition.
+        # 兼容鉴权不得因审计存储不可用而失败；生产监控仍可观察到该情况。
         pass
 
 
 def get_api_key_from_request(request: Request) -> str | None:
-    """Extract API key from Authorization header (Bearer token) or X-API-Key header."""
+    """从 Authorization Bearer 或 X-API-Key 头提取 API key。"""
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Bearer "):
         return auth[7:].strip()
     return request.headers.get("X-API-Key", "").strip() or None
 
 
-# Paths that don't require authentication
+# 不需要鉴权的路径
 _PUBLIC_PATHS = {
     "/health",
     "/ready",
@@ -117,26 +117,26 @@ _PUBLIC_PATHS = {
 
 
 def _path_allows_anonymous(path: str) -> bool:
-    """Return whether a route bypasses the legacy API-key gate."""
+    """判断路由是否绕过旧版 API-key 门禁。"""
     if path in _PUBLIC_PATHS:
         return True
-    # Platform routes perform JWT/API-key authentication in route dependencies.
-    # Keeping them out of the legacy keys.txt gate is required for browser JWTs
-    # and for the intentionally public plan/login endpoints.
+    # 平台路由在依赖中自行做 JWT/API-key 鉴权。
+    # 必须排除在旧版 keys.txt 门禁之外，以便浏览器 JWT 以及公开的套餐/登录端点可用。
     if path.startswith("/api/v1/"):
         return True
     return False
 
 
 class APIKeyAuthMiddleware(BaseHTTPMiddleware):
-    """Middleware to enforce API key authentication."""
+    """强制校验 API key 的中间件。"""
 
     async def dispatch(self, request: Request, call_next):
-        # Skip auth for public paths and OPTIONS (CORS preflight)
+        """公开路径、OPTIONS 与关闭鉴权时放行，否则校验 Bearer/平台 API key。"""
+        # 公开路径与 OPTIONS（CORS 预检）跳过鉴权
         if _path_allows_anonymous(request.url.path) or request.method == "OPTIONS":
             return await call_next(request)
         
-        # Skip auth if disabled via env
+        # 环境变量关闭鉴权时跳过
         if os.getenv("AGENT_DISABLE_AUTH", "0") == "1":
             return await call_next(request)
         
@@ -147,8 +147,7 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
                 content={"error": {"message": "Missing API key. Use Authorization: Bearer <key> header.", "type": "auth_error"}},
             )
         if not is_valid_key(key):
-            # New database-backed API keys share the OpenAI-compatible routes
-            # during the legacy-key migration window.
+            # 迁移期内，数据库 API key 可共用 OpenAI 兼容路由。
             if key.startswith("pm_live_"):
                 from ..platform.dependencies import authenticate_platform_api_key
 

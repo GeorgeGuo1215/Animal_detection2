@@ -17,6 +17,7 @@ from app.tools.tool_registry import ToolRegistry
 
 
 def _policy_response() -> dict:
+    """构造任务策略模型的假响应。"""
     return {
         "primary_intent": "D7",
         "secondary_intents": [],
@@ -34,10 +35,12 @@ class _CaptureLLM:
     model = "capture"
 
     def __init__(self, payload=None):
+        """初始化该测试替身。"""
         self.messages = []
         self.payload = payload
 
     async def chat(self, messages=None, **kwargs):
+        """测试用假 LLM 聊天实现。"""
         self.messages.append(messages or [])
         content = self.payload or {
             "verdict": "pass", "issues": [], "constraints": [], "reason": "ok",
@@ -46,6 +49,7 @@ class _CaptureLLM:
 
 
 def _history():
+    """构造会话历史消息。"""
     return [
         {"role": "user", "content": "用户确认事实 SENTINEL_USER"},
         {"role": "assistant", "content": "模型推断 SENTINEL_ASSISTANT"},
@@ -53,6 +57,7 @@ def _history():
 
 
 def _expert_history():
+    """构造注入给专家的历史。"""
     return [{
         "turn_index": 1,
         "router": {"selected_experts": ["clinical"]},
@@ -70,6 +75,7 @@ def _expert_history():
 
 
 def _assert_history(content):
+    """断言历史消息符合预期。"""
     assert "SENTINEL_USER" in content
     assert "SENTINEL_ASSISTANT" in content
     assert "SENTINEL_EXPERT" in content
@@ -82,6 +88,7 @@ def _assert_history(content):
 
 
 def test_fact_state_history_reaches_policy_expert_critic_and_aggregator():
+    """验证事实状态历史能到达策略、专家、审核器和综合器。"""
     history = _history()
     expert_history = _expert_history()
 
@@ -126,6 +133,7 @@ def test_fact_state_history_reaches_policy_expert_critic_and_aggregator():
 
 
 def test_cross_session_memory_reaches_policy_expert_and_critic():
+    """验证跨会话记忆能到达策略、专家和审核器。"""
     memory = "【近期对话】\n- 用户: 我的狗叫球鼠，昨晚呕吐\n  助手: SOAP摘要"
     policy_llm = _CaptureLLM(_policy_response())
     asyncio.run(decide_task_policy(
@@ -155,6 +163,7 @@ def test_cross_session_memory_reaches_policy_expert_and_critic():
 
 
 def test_unified_policy_prompt_defines_history_scope_without_upgrading_facts():
+    """验证统一策略提示词界定历史范围，且不会把假设升级成事实。"""
     assert "必须结合历史事实与当前问题判断连续语义" in TASK_POLICY_SYSTEM_PROMPT
     assert "复诊追问和对上一轮证据/指南的追问仍属于宠物健康上下文" in TASK_POLICY_SYSTEM_PROMPT
     assert "不代表诊断或其他事实已经被用户确认" in TASK_POLICY_SYSTEM_PROMPT

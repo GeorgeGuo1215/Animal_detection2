@@ -13,6 +13,7 @@ from app.lifecycle_tasks.session_cleanup import SessionCleanupTask
 
 
 def test_complete_turn_context_never_returns_orphan_messages():
+    """验证完整轮次上下文不会返回孤儿消息。"""
     messages = [
         {"role": "user", "content": "u1"},
         {"role": "assistant", "content": "a1"},
@@ -30,13 +31,16 @@ def test_complete_turn_context_never_returns_orphan_messages():
 
 
 def test_default_session_db_is_inside_agent_and_rag_workspace():
+    """验证默认会话库落在 agentAndRag 工作区内。"""
     assert _default_db_path() == (
         Path(__file__).resolve().parents[3] / "agent_api_logs" / "petmind_sessions.db"
     )
 
 
 def test_session_persists_across_manager_instances(tmp_path):
+    """验证会话能在不同管理器实例之间持久化。"""
     async def scenario():
+        """本用例的异步执行体。"""
         db_path = tmp_path / "sessions.db"
         first = SessionManager(db_path=db_path, context_max_turns=2, context_max_chars=1000)
         session = await first.create({"channel": "test"})
@@ -61,7 +65,9 @@ def test_session_persists_across_manager_instances(tmp_path):
 
 
 def test_session_ttl_expires_persisted_row(tmp_path):
+    """验证会话 TTL 到期后会让持久化行失效。"""
     async def scenario():
+        """本用例的异步执行体。"""
         manager = SessionManager(db_path=tmp_path / "ttl.db", ttl_seconds=0.01)
         session = await manager.create()
         session.last_active = time.time() - 1
@@ -75,13 +81,16 @@ def test_session_ttl_expires_persisted_row(tmp_path):
 
 
 def test_same_session_lock_serializes_requests(tmp_path):
+    """验证同一会话锁会把请求串行化。"""
     async def scenario():
+        """本用例的异步执行体。"""
         manager = SessionManager(db_path=tmp_path / "locks.db")
         session = await manager.create()
         active = 0
         max_active = 0
 
         async def worker():
+            """线程或协程里的工作函数。"""
             nonlocal active, max_active
             async with manager.session_lock(session.session_id):
                 active += 1
@@ -96,7 +105,9 @@ def test_same_session_lock_serializes_requests(tmp_path):
 
 
 def test_manual_cleanup_removes_expired_persisted_row(tmp_path):
+    """验证手动清理会删掉已过期的持久化行。"""
     async def scenario():
+        """本用例的异步执行体。"""
         manager = SessionManager(db_path=tmp_path / "cleanup.db", ttl_seconds=0.01)
         session = await manager.create()
         session.last_active = time.time() - 1
@@ -111,7 +122,9 @@ def test_manual_cleanup_removes_expired_persisted_row(tmp_path):
 
 
 def test_cleanup_skips_active_and_waiting_session_locks(tmp_path):
+    """验证清理会跳过仍在活跃或等待锁的会话。"""
     async def scenario():
+        """本用例的异步执行体。"""
         manager = SessionManager(db_path=tmp_path / "active.db", ttl_seconds=0.01)
         session = await manager.create()
         session.last_active = time.time() - 1
@@ -120,11 +133,13 @@ def test_cleanup_skips_active_and_waiting_session_locks(tmp_path):
         release_first = asyncio.Event()
 
         async def holder():
+            """占住资源直到释放。"""
             async with manager.session_lock(session.session_id):
                 first_entered.set()
                 await release_first.wait()
 
         async def waiter():
+            """等待限流名额的协程。"""
             async with manager.session_lock(session.session_id):
                 return
 
@@ -144,7 +159,9 @@ def test_cleanup_skips_active_and_waiting_session_locks(tmp_path):
 
 
 def test_active_session_can_outlive_ttl_and_commit(tmp_path):
+    """验证活跃会话可以活过 TTL 并仍能成功提交。"""
     async def scenario():
+        """本用例的异步执行体。"""
         manager = SessionManager(db_path=tmp_path / "long_request.db", ttl_seconds=0.01)
         session = await manager.create()
 
@@ -169,7 +186,9 @@ def test_active_session_can_outlive_ttl_and_commit(tmp_path):
 
 
 def test_capacity_cleanup_defers_active_session_eviction(tmp_path):
+    """验证容量清理会推迟驱逐仍在活跃的会话。"""
     async def scenario():
+        """本用例的异步执行体。"""
         manager = SessionManager(db_path=tmp_path / "capacity.db", max_sessions=1)
         active = await manager.create()
 
@@ -186,7 +205,9 @@ def test_capacity_cleanup_defers_active_session_eviction(tmp_path):
 
 
 def test_periodic_cleanup_task_starts_runs_and_stops(tmp_path):
+    """验证周期清理任务能启动、运行并停止。"""
     async def scenario():
+        """本用例的异步执行体。"""
         manager = SessionManager(db_path=tmp_path / "periodic.db", ttl_seconds=0.01)
         session = await manager.create()
         session.last_active = time.time() - 1

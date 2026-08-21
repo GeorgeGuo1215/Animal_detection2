@@ -49,6 +49,7 @@ class ApiKeyCreateRequest(StrictModel):
     @field_validator("scopes")
     @classmethod
     def validate_scopes(cls, value: list[str]) -> list[str]:
+        """去重并排序 scopes，拒绝空列表或不在白名单中的权限。"""
         allowed = {"chat:write", "models:read", "runs:read"}
         normalized = sorted(set(value))
         if not normalized or any(scope not in allowed for scope in normalized):

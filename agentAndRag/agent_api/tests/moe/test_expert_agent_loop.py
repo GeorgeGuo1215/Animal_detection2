@@ -24,10 +24,12 @@ from app.tools.tool_registry import ToolRegistry, ToolSpec  # noqa: E402
 
 
 def _response(payload):
+    """构造测试用的模型响应。"""
     return {"choices": [{"message": {"content": json.dumps(payload, ensure_ascii=False)}}]}
 
 
 def _final(conclusion="ok"):
+    """取出最终回答文本。"""
     return {
         "action": "final",
         "opinion": {
@@ -40,6 +42,7 @@ def _final(conclusion="ok"):
 
 
 def _retrieval(*, required=(), recommended=(), web_fallback=False, reason="semantic policy", queries=()):
+    """构造或拦截一次检索调用。"""
     return RetrievalRequirement(
         required_tools=tuple(required),
         recommended_tools=tuple(recommended),
@@ -50,9 +53,11 @@ def _retrieval(*, required=(), recommended=(), web_fallback=False, reason="seman
 
 
 def _registry(call_log, *, sufficient=True):
+    """返回测试用的工具注册表。"""
     registry = ToolRegistry()
 
     async def rag(**kwargs):
+        """本用例中拦截 RAG 调用的假实现。"""
         call_log.append(("rag.search", dict(kwargs)))
         hits = [
             {"score": 0.91, "source_path": "book-a", "text": "evidence a"},
@@ -61,6 +66,7 @@ def _registry(call_log, *, sufficient=True):
         return {"hits": hits}
 
     async def web(**kwargs):
+        """网页检索替身。"""
         call_log.append(("mcp.web_search.web_search", dict(kwargs)))
         return {"results": [{"title": "guideline"}]}
 
@@ -73,11 +79,13 @@ class SequenceLLM:
     model = "fake"
 
     def __init__(self, payloads, *, delay=0.0):
+        """初始化该测试替身。"""
         self.payloads = list(payloads)
         self.messages = []
         self.delay = delay
 
     async def chat(self, messages=None, **kwargs):
+        """测试用假 LLM 聊天实现。"""
         self.messages.append(deepcopy(messages or []))
         if self.delay:
             await asyncio.sleep(self.delay)
@@ -88,11 +96,13 @@ class SufficiencyAwareLLM:
     model = "fake"
 
     def __init__(self, status_by_query):
+        """初始化该测试替身。"""
         self.status_by_query = dict(status_by_query)
         self.messages = []
         self.sufficiency_batches = []
 
     async def chat(self, messages=None, **kwargs):
+        """测试用假 LLM 聊天实现。"""
         copied = deepcopy(messages or [])
         self.messages.append(copied)
         if copied and "证据覆盖审计器" in copied[0].get("content", ""):
@@ -116,6 +126,7 @@ class SufficiencyAwareLLM:
 
 
 def test_expert_persona_and_query_are_present_in_single_pass_without_tools():
+    """验证无工具单次生成时仍包含专家人设与查询。"""
     llm = SequenceLLM([_final("independent")])
     result = asyncio.run(run_expert(
         expert=EXPERTS["clinical"], query="cat vomiting", weight=1.0,
@@ -132,6 +143,7 @@ def test_expert_persona_and_query_are_present_in_single_pass_without_tools():
 
 
 def test_expert_prompt_is_single_pass_and_never_exposes_tool_schemas():
+    """验证专家提示词是单次生成，且从不暴露工具 schema。"""
     session = ExpertAgentSession(
         expert=EXPERTS["clinical"], query="犬呼吸困难", weight=1.0,
         registry=_registry([]), llm=SequenceLLM([_final()]),
@@ -146,6 +158,7 @@ def test_expert_prompt_is_single_pass_and_never_exposes_tool_schemas():
 
 
 def test_pharmacy_safety_contract_remains_scoped_to_pharmacy_expert():
+    """验证药房安全契约只作用于药房专家。"""
     for key, expert in EXPERTS.items():
         session = ExpertAgentSession(
             expert=expert, query="Can these contraindicated drugs be used together?",
@@ -161,6 +174,7 @@ def test_pharmacy_safety_contract_remains_scoped_to_pharmacy_expert():
 
 
 def test_assigned_rag_and_web_execute_before_one_expert_generation():
+    """验证分配的 RAG 与网页检索会在专家生成前执行。"""
     calls = []
     llm = SequenceLLM([_final("combined evidence")])
     result = asyncio.run(run_expert(
@@ -183,6 +197,7 @@ def test_assigned_rag_and_web_execute_before_one_expert_generation():
 
 
 def test_task_policy_english_query_is_used_for_rag():
+    """验证任务策略给 RAG 用的是英文查询。"""
     calls = []
     asyncio.run(run_expert(
         expert=EXPERTS["clinical"], query="猫排尿困难", weight=1.0,
@@ -199,6 +214,7 @@ def test_task_policy_english_query_is_used_for_rag():
 
 
 def test_distinct_queries_for_the_same_tool_are_all_executed():
+    """验证同一工具的不同查询都会执行。"""
     calls = []
     result = asyncio.run(run_expert(
         expert=EXPERTS["pharmacy"], query="犬药物切换", weight=1.0,
@@ -223,6 +239,7 @@ def test_distinct_queries_for_the_same_tool_are_all_executed():
 
 
 def test_non_english_assigned_rag_query_falls_back_to_expert_hint():
+    """验证非英文的已分配 RAG 查询会回退到专家提示。"""
     calls = []
     asyncio.run(run_expert(
         expert=EXPERTS["clinical"], query="猫排尿困难", weight=1.0,
@@ -236,6 +253,7 @@ def test_non_english_assigned_rag_query_falls_back_to_expert_hint():
 
 
 def test_weak_required_rag_adds_one_web_fallback_before_final():
+    """验证弱必检 RAG 会在终稿前追加一次网页兜底。"""
     calls = []
     result = asyncio.run(run_expert(
         expert=EXPERTS["pharmacy"], query="核对犬用药禁忌", weight=1.0,
@@ -252,6 +270,7 @@ def test_weak_required_rag_adds_one_web_fallback_before_final():
 
 
 def test_high_score_but_semantically_unsupported_rag_adds_web_fallback():
+    """验证高分但语义撑不住的 RAG 会追加网页兜底。"""
     calls = []
     query = "canine corticosteroid NSAID washout interval"
     llm = SufficiencyAwareLLM({query: "unsupported"})
@@ -273,6 +292,7 @@ def test_high_score_but_semantically_unsupported_rag_adds_web_fallback():
 
 
 def test_high_score_and_semantically_supported_rag_does_not_add_web():
+    """验证高分且语义站得住的 RAG 不会再加网页检索。"""
     calls = []
     query = "feline urethral obstruction emergency triage"
     llm = SufficiencyAwareLLM({query: "supported"})
@@ -292,6 +312,7 @@ def test_high_score_and_semantically_supported_rag_does_not_add_web():
 
 
 def test_multiple_high_score_rag_tasks_use_one_batched_sufficiency_call():
+    """验证多条高分 RAG 任务共用一次批量充分性判断。"""
     calls = []
     first = "canine corticosteroid NSAID washout interval"
     second = "canine meloxicam gastrointestinal monitoring"
@@ -316,6 +337,7 @@ def test_multiple_high_score_rag_tasks_use_one_batched_sufficiency_call():
 
 
 def test_invalid_sufficiency_response_conservatively_adds_web():
+    """验证充分性判断非法时会保守地追加网页检索。"""
     calls = []
     result = asyncio.run(run_expert(
         expert=EXPERTS["clinical"], query="猫排尿困难", weight=1.0,
@@ -334,6 +356,7 @@ def test_invalid_sufficiency_response_conservatively_adds_web():
 
 
 def test_sufficiency_audit_can_be_disabled_without_changing_numeric_gate(monkeypatch):
+    """验证充分性审计可关闭且不影响数值门控。"""
     monkeypatch.setenv("MOE_EVIDENCE_SUFFICIENCY_ENABLED", "0")
     calls = []
     llm = SequenceLLM([_final("numeric only")])
@@ -352,6 +375,7 @@ def test_sufficiency_audit_can_be_disabled_without_changing_numeric_gate(monkeyp
 
 
 def test_explicitly_disabled_tools_preserve_disable_semantics():
+    """验证显式禁用工具会保持「已禁用」语义。"""
     calls = []
     result = asyncio.run(run_expert(
         expert=EXPERTS["clinical"], query="请检索", weight=1.0,
@@ -365,6 +389,7 @@ def test_explicitly_disabled_tools_preserve_disable_semantics():
 
 
 def test_invalid_final_envelope_gets_one_format_repair_only():
+    """验证非法的最终信封只会做一次格式修复。"""
     llm = SequenceLLM([
         {"conclusion": "legacy", "evidence": [], "risks": [], "confidence": 0.8},
         _final("canonical"),
@@ -380,6 +405,7 @@ def test_invalid_final_envelope_gets_one_format_repair_only():
 
 
 def test_two_invalid_outputs_return_safe_single_pass_fallback():
+    """验证两次非法输出后返回安全的单次兜底。"""
     llm = SequenceLLM([{}, {}])
     result = asyncio.run(run_expert(
         expert=EXPERTS["clinical"], query="case", weight=1.0,
@@ -391,6 +417,7 @@ def test_two_invalid_outputs_return_safe_single_pass_fallback():
 
 
 def _matching_expert(key, persona):
+    """找出与当前任务匹配的专家。"""
     return ExpertConfig(
         key=key, name_zh=key, persona=persona, allowed_tools=["rag.search"],
         rag_query_hint="shared case", rag_categories=["clinical.shared"],
@@ -401,9 +428,11 @@ class PerExpertFinalLLM:
     model = "fake"
 
     def __init__(self):
+        """初始化该测试替身。"""
         self.messages = defaultdict(list)
 
     async def chat(self, messages=None, **kwargs):
+        """测试用假 LLM 聊天实现。"""
         system = (messages or [{}])[0].get("content", "")
         key = "alpha" if "persona-alpha" in system else "beta"
         self.messages[key].append(deepcopy(messages or []))
@@ -411,6 +440,7 @@ class PerExpertFinalLLM:
 
 
 def test_identical_assigned_rag_calls_are_deduplicated_across_experts():
+    """验证专家之间相同的 RAG 调用会被去重。"""
     calls = []
     registry = _registry(calls)
     llm = PerExpertFinalLLM()
@@ -439,6 +469,7 @@ def test_identical_assigned_rag_calls_are_deduplicated_across_experts():
 
 
 def test_each_expert_only_receives_its_own_assigned_tool_results():
+    """验证每位专家只收到自己被分配的工具结果。"""
     calls = []
     registry = _registry(calls)
     llm = PerExpertFinalLLM()
@@ -461,6 +492,7 @@ def test_each_expert_only_receives_its_own_assigned_tool_results():
 
 
 def test_expert_timeout_returns_fallback_without_additional_rounds():
+    """验证专家超时返回兜底，不会再开额外轮次。"""
     llm = SequenceLLM([_final()], delay=0.05)
     result = asyncio.run(run_expert(
         expert=EXPERTS["clinical"], query="case", weight=1.0,
@@ -473,6 +505,7 @@ def test_expert_timeout_returns_fallback_without_additional_rounds():
 
 
 def test_default_execution_config_is_single_pass_with_one_format_repair():
+    """验证默认执行配置是单次生成外加一次格式修复。"""
     config = ExpertLoopConfig()
     assert config.final_max_tokens == 1400
     assert config.repair_attempts == 1
@@ -480,6 +513,7 @@ def test_default_execution_config_is_single_pass_with_one_format_repair():
 
 
 def test_trace_names_final_and_format_repair_without_round_loop():
+    """验证追踪阶段名为 final / format_repair，而不是轮次循环。"""
     trace = MoETrace(question="case", user_role="veterinarian")
     asyncio.run(run_expert(
         expert=EXPERTS["clinical"], query="case", weight=1.0,

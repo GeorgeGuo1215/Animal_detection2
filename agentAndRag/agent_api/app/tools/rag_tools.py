@@ -39,10 +39,12 @@ _QUERY_EMB_CACHE: OrderedDict[str, Any] = OrderedDict()
 
 
 def _query_emb_key(query: str, model: str) -> str:
+    """查询向量缓存键。"""
     return hashlib.md5(f"{model}||{query}".encode()).hexdigest()
 
 
 def _get_store(index_dir: Path) -> NumpyVectorStore:
+    """加载或缓存向量库。"""
     key = str(index_dir.resolve())
     with _LOCK:
         st = _STORE_CACHE.get(key)
@@ -55,6 +57,7 @@ def _get_store(index_dir: Path) -> NumpyVectorStore:
 
 
 def _get_embedder(embedding_model: str, device: Optional[str]) -> Embedder:
+    """加载或缓存 Embedder。"""
     resolved = resolve_embedding_model_id(embedding_model, _repo_root())
     key = (resolved, device)
     with _LOCK:
@@ -67,6 +70,7 @@ def _get_embedder(embedding_model: str, device: Optional[str]) -> Embedder:
 
 
 def _get_bm25(index_dir: Path) -> BM25Retriever:
+    """加载或缓存 BM25 检索器。"""
     key = str(index_dir.resolve())
     with _LOCK:
         bm = _BM25_CACHE.get(key)
@@ -79,6 +83,7 @@ def _get_bm25(index_dir: Path) -> BM25Retriever:
 
 
 def _get_reranker(rerank_model: str, device: Optional[str]) -> CrossEncoderReranker:
+    """加载或缓存 reranker。"""
     resolved = resolve_rerank_model_id(rerank_model, _repo_root())
     key = (resolved, device)
     with _LOCK:
@@ -91,6 +96,7 @@ def _get_reranker(rerank_model: str, device: Optional[str]) -> CrossEncoderReran
 
 
 def _get_source_index(index_dir: Path) -> Dict[str, Dict[int, str]]:
+    """加载或缓存来源索引。"""
     key = str(index_dir.resolve())
     with _LOCK:
         si = _SOURCE_INDEX_CACHE.get(key)
@@ -103,7 +109,7 @@ def _get_source_index(index_dir: Path) -> Dict[str, Dict[int, str]]:
 
 
 def _embed_query_cached(embedder: Embedder, query: str, model_name: str):
-    """LRU cache for query embeddings to avoid recomputing identical queries."""
+    """带 LRU 的查询向量缓存，避免重复计算相同查询。"""
     ck = _query_emb_key(query, model_name)
     with _LOCK:
         if ck in _QUERY_EMB_CACHE:
@@ -118,6 +124,7 @@ def _embed_query_cached(embedder: Embedder, query: str, model_name: str):
 
 
 def _invalidate_index_cache(index_dir: Path) -> None:
+    """使指定索引目录的缓存失效。"""
     key = str(index_dir.resolve())
     with _LOCK:
         _STORE_CACHE.pop(key, None)
@@ -135,6 +142,7 @@ def warmup_rag_cache(
     enable_reranker: bool = False,
     rerank_model: str = "BAAI/bge-reranker-large",
 ) -> Dict[str, Any]:
+    """预热指定索引的向量库、embedding 与可选 reranker。"""
     st = _get_store(index_dir)
     _get_embedder(embedding_model, device)
     _get_source_index(index_dir)
@@ -154,12 +162,16 @@ def warmup_rag_cache(
 
 
 def _repo_root() -> Path:
+    """定位 agentAndRag 仓库根目录。"""
     return Path(__file__).resolve().parents[3]
 
 
 def _with_rag_limit(handler):
+    """包装 handler，使其占用 RAG 并发槽位。"""
+
     @wraps(handler)
     def _wrapped(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+        """在 RAG 槽位内调用原 handler。"""
         limits = get_resource_limits()
         with limits.rag.slot(timeout_s=limits.acquire_timeout_s):
             return handler(*args, **kwargs)
@@ -168,21 +180,27 @@ def _with_rag_limit(handler):
 
 
 class _LimitedSyncRewriter:
+    """在 LLM 槽位内执行查询改写的同步包装器。"""
     def __init__(self, delegate: Any) -> None:
+        """绑定被包装的 rewriter。"""
         self.delegate = delegate
 
     def rewrite(self, query: str) -> List[str]:
+        """占用 LLM 槽位后改写查询。"""
         limits = get_resource_limits()
         with limits.llm.sync_slot(timeout_s=limits.acquire_timeout_s):
             return self.delegate.rewrite(query)
 
 
 class _CachedDenseRetriever:
+    """使用缓存查询向量的稠密检索器。"""
     def __init__(self, *, store: NumpyVectorStore, embedder: Embedder) -> None:
+        """绑定向量库与 Embedder。"""
         self.store = store
         self.embedder = embedder
 
     def retrieve(self, query: str, *, top_k: int) -> List[RetrievedChunk]:
+        """对查询做稠密检索。"""
         q = (query or "").strip()
         if not q:
             return []
@@ -203,6 +221,7 @@ def _build_cached_multiroute(
     rewrite_max_out: int,
     rewrite_timeout_s: float,
 ) -> MultiRouteRetriever:
+    """构建带缓存的多路检索器。"""
     st = _get_store(index_dir)
     em = _get_embedder(embedding_model, device)
     dense = _CachedDenseRetriever(store=st, embedder=em)
@@ -225,6 +244,7 @@ def _build_cached_multiroute(
 
 
 def _hit_from_meta(meta: dict, score: float, *, category: Optional[str], index_dir: Path) -> Dict[str, Any]:
+    """从 meta 构造命中字典。"""
     return {
         "score": float(score),
         "source_path": meta.get("source_path"),
@@ -258,6 +278,11 @@ def _retrieve_from_index(
     rewrite_timeout_s: float,
     category: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
+    """在单个分类索引上执行稠密或多路检索，并规范化命中元数据。
+
+    缺失、空或不可加载的索引按无命中处理；稠密路径复用缓存向量，多路路径可使用
+    查询改写与混合召回。返回项附带 category 与实际 index_dir，供跨索引合并审计。
+    """
     if not index_dir.exists():
         return []
     # Empty placeholder stores: still loadable, size==0 → no hits
@@ -292,7 +317,7 @@ def _retrieve_from_index(
 
 
 def _merge_hits_by_score(hits: List[Dict[str, Any]], *, top_k: int) -> List[Dict[str, Any]]:
-    """Deduplicate by chunk_id (keep best score) then take top_k."""
+    """按分数合并多索引命中。"""
     best: Dict[str, Dict[str, Any]] = {}
     orphans: List[Dict[str, Any]] = []
     for h in hits:
@@ -309,6 +334,7 @@ def _merge_hits_by_score(hits: List[Dict[str, Any]], *, top_k: int) -> List[Dict
 
 
 def _expand_neighbors_multi(hits: List[Dict[str, Any]], *, neighbor_n: int) -> List[dict]:
+    """多索引邻接块扩展。"""
     by_dir: Dict[str, List[Dict[str, Any]]] = {}
     for h in hits:
         d = str(h.get("_index_dir") or "")
@@ -357,6 +383,7 @@ def rag_search_tool(
     include_hits_text: bool = True,
     include_contexts_text: bool = True,
 ) -> Dict[str, Any]:
+    """执行 RAG 检索并返回 hits/contexts。"""
     query = require_english_rag_query(query)
     repo_root = _repo_root()
     cfg0 = default_config(repo_root)
@@ -391,7 +418,7 @@ def rag_search_tool(
     retrieve_k = int(top_k)
     if rerank:
         retrieve_k = max(retrieve_k, int(rerank_candidates))
-    # When merging multiple category stores, over-fetch per store then merge
+    # 合并多个分类索引时，先对每个库多取再合并
     per_store_k = retrieve_k if len(search_targets) == 1 else max(retrieve_k, int(top_k))
 
     hits: List[Dict[str, Any]] = []
@@ -464,6 +491,7 @@ def rag_search_tool(
         contexts = _expand_neighbors_multi(hits, neighbor_n=int(expand_neighbors))
 
     def _clip(s: str) -> str:
+        """按字符上限截断文本。"""
         s = (s or "").strip()
         if per_text_max_chars > 0 and len(s) > per_text_max_chars:
             return s[:per_text_max_chars] + "\n...(truncated)..."
@@ -518,6 +546,7 @@ def rag_reindex_tool(
     limit_books: Optional[int] = None,
     device: Optional[str] = _RAG_DEVICE,
 ) -> Dict[str, Any]:
+    """从原文重建向量索引。"""
     repo_root = _repo_root()
     cfg0 = default_config(repo_root)
     resolved_emb = resolve_embedding_model_id(embedding_model, repo_root)

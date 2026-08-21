@@ -22,6 +22,7 @@ from app.prompts.moe_task_policy import TASK_POLICY_SYSTEM_PROMPT  # noqa: E402
 
 
 def _payload(**overrides):
+    """构造请求载荷。"""
     value = {
         "primary_intent": "D5",
         "secondary_intents": ["D2"],
@@ -53,6 +54,7 @@ def _payload(**overrides):
 
 
 def test_semantic_policy_parses_intent_route_and_evidence_tasks():
+    """验证语义策略能解析意图、路由和取证任务。"""
     decision = parse_task_policy(json.dumps(_payload(), ensure_ascii=False))
 
     assert decision.primary_intent == "D5"
@@ -64,6 +66,7 @@ def test_semantic_policy_parses_intent_route_and_evidence_tasks():
 
 
 def test_invalid_policy_falls_back_without_mandatory_retrieval():
+    """验证非法策略会安全回退，且不强制检索。"""
     decision = parse_task_policy("not-json")
     requirement = resolve_retrieval_requirement(
         expert_key="clinical",
@@ -77,6 +80,7 @@ def test_invalid_policy_falls_back_without_mandatory_retrieval():
 
 
 def test_evidence_task_has_one_active_owner_and_is_not_duplicated():
+    """验证取证任务只有一个活跃负责人且不会重复。"""
     tasks = assign_evidence_tasks(
         [EvidenceTask("medication_reference", "pharmacy", "required", "drug safety")],
         ["clinical", "pharmacy"],
@@ -89,6 +93,7 @@ def test_evidence_task_has_one_active_owner_and_is_not_duplicated():
 
 
 def test_distinct_same_tool_evidence_tasks_keep_both_queries():
+    """验证同一工具的不同取证任务会保留两条查询。"""
     policy = _payload(evidence_tasks=[
         {
             "capability": "medication_reference",
@@ -134,6 +139,7 @@ def test_distinct_same_tool_evidence_tasks_keep_both_queries():
 
 
 def test_web_fallback_dense_score_floor_defaults_to_point_nine(monkeypatch):
+    """验证网页兜底的稠密分下限默认为 0.9。"""
     monkeypatch.delenv("RAG_RELEVANCE_THRESHOLD", raising=False)
     assert rag_requires_web_fallback(
         {"hits": [{"score": 0.899}, {"score": 0.8}]}, ok=True
@@ -144,6 +150,7 @@ def test_web_fallback_dense_score_floor_defaults_to_point_nine(monkeypatch):
 
 
 def test_missing_owner_is_reassigned_to_an_active_expert():
+    """验证缺失负责人时会改派给仍活跃的专家。"""
     tasks = assign_evidence_tasks(
         [EvidenceTask("medication_reference", "pharmacy", "required", "drug safety")],
         ["clinical"],
@@ -155,6 +162,7 @@ def test_missing_owner_is_reassigned_to_an_active_expert():
 
 
 def test_d1_can_still_require_evidence_when_semantic_policy_requests_it():
+    """验证语义策略要求时 D1 仍会强制取证。"""
     policy = _payload(
         primary_intent="D1",
         secondary_intents=["D6"],
@@ -180,6 +188,7 @@ class _PolicyLLM:
     model = "policy-test"
 
     async def chat(self, **kwargs):
+        """测试用假 LLM 聊天实现。"""
         return {
             "choices": [{"message": {"content": json.dumps(_payload(), ensure_ascii=False)}}],
             "usage": {"prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30},
@@ -187,6 +196,7 @@ class _PolicyLLM:
 
 
 def test_policy_call_records_one_structured_trace_stage():
+    """验证策略调用只记录一个结构化追踪阶段。"""
     trace = MoETrace(question="case", user_role="veterinarian")
     decision = asyncio.run(decide_task_policy(
         query="请制定治疗并核验药物安全",
@@ -201,6 +211,7 @@ def test_policy_call_records_one_structured_trace_stage():
 
 
 def test_unified_prompt_contains_all_intent_boundaries_and_routing_guidance():
+    """验证统一提示词包含全部意图边界和路由指引。"""
     for intent_id in (f"D{i}" for i in range(1, 9)):
         assert intent_id in TASK_POLICY_SYSTEM_PROMPT
     for boundary in (

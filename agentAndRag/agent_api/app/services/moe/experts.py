@@ -56,12 +56,13 @@ _ADMIN_TOOLS = frozenset({"rag.reindex", "debug.echo"})
 
 @dataclass(frozen=True)
 class ExpertConfig:
+    """单个专家的 persona、工具偏好与 RAG 类目。"""
     key: str
     name_zh: str
     persona: str
     allowed_tools: List[str] = field(default_factory=list)
     rag_query_hint: str = ""
-    # Secondary knowledge categories for rag.search (exact ids or prefix.* wildcards).
+    # rag.search 的次级知识类目（精确 id 或 prefix.* 通配）。
     rag_categories: List[str] = field(default_factory=list)
 
 
@@ -156,6 +157,7 @@ EXPERTS: Dict[str, ExpertConfig] = {
 
 
 def _rag_metrics(result: Dict[str, Any]) -> tuple[int, float]:
+    """从 RAG 结果提取命中数与最高分。"""
     hits = result.get("hits") if isinstance(result, dict) else None
     if not isinstance(hits, list) or not hits:
         return 0, 0.0
@@ -182,6 +184,7 @@ def _build_evidence_block(result: Dict[str, Any], max_chars: int = 2400) -> str:
 
 
 def _env_int(name: str, default: int) -> int:
+    """读取正整数环境变量。"""
     try:
         value = int(os.getenv(name, "") or default)
     except (TypeError, ValueError):
@@ -190,6 +193,7 @@ def _env_int(name: str, default: int) -> int:
 
 
 def _env_nonnegative_int(name: str, default: int) -> int:
+    """读取非负整数环境变量。"""
     try:
         value = int(os.getenv(name, "") or default)
     except (TypeError, ValueError):
@@ -198,6 +202,7 @@ def _env_nonnegative_int(name: str, default: int) -> int:
 
 
 def _env_float(name: str, default: float) -> float:
+    """读取浮点环境变量。"""
     try:
         value = float(os.getenv(name, "") or default)
     except (TypeError, ValueError):
@@ -207,6 +212,7 @@ def _env_float(name: str, default: float) -> float:
 
 @dataclass(frozen=True)
 class ExpertLoopConfig:
+    """专家循环的超时与轮次配置。"""
     timeout_s: float = field(default_factory=lambda: _env_float("MOE_EXPERT_TIMEOUT_SEC", 120.0))
     final_max_tokens: int = field(
         default_factory=lambda: _env_int("MOE_EXPERT_FINAL_MAX_TOKENS", 1400)
@@ -220,6 +226,7 @@ class ExpertLoopConfig:
 
 
 def _tool_result_context(result: ToolResult, max_chars: int = 4000) -> str:
+    """将工具结果格式化为上下文文本。"""
     if result.tool_name == "rag.search" and isinstance(result.result, dict):
         content = _build_evidence_block(result.result, max_chars=max_chars)
     else:
@@ -239,6 +246,7 @@ def _tool_result_context(result: ToolResult, max_chars: int = 4000) -> str:
 
 
 def _tool_feedback_message(content: str) -> Dict[str, str]:
+    """构造工具执行反馈消息。"""
     return {
         "role": "user",
         "content": f"TOOL_RESULT\n{content}\n请基于该结果决定下一步动作。",
@@ -246,7 +254,7 @@ def _tool_feedback_message(content: str) -> Dict[str, str]:
 
 
 class ExpertAgentSession:
-    """Independent expert context that can iteratively call tools until final."""
+    """单个专家 Subagent 会话：检索状态、工具请求与最终意见。"""
 
     def __init__(
         self,
@@ -272,6 +280,12 @@ class ExpertAgentSession:
         recorder: Optional[MoETrace] = None,
         loop_config: Optional[ExpertLoopConfig] = None,
     ) -> None:
+        """初始化专家身份、上下文、检索任务、可见工具和整轮超时预算。
+
+        工具集合先排除管理类，再依次应用专家偏好开关、请求白名单和 animal_id 条件；
+        必需但不可见的工具会单独记录。构造出的首条用户载荷包含事实状态历史与当前
+        retrieval_state，后续工具结果和最终意见都在该独立会话内累积。
+        """
         self.expert = expert
         self.query = query
         self.weight = float(weight)
@@ -373,19 +387,23 @@ class ExpertAgentSession:
 
     @property
     def remaining_timeout_s(self) -> float:
+        """剩余超时秒数。"""
         elapsed = time.monotonic() - self.started_at
         return max(0.0, self.loop_config.timeout_s - elapsed)
 
     @property
     def finalize_reserve_s(self) -> float:
+        """终答预留秒数。"""
         return min(self.loop_config.finalize_reserve_s, self.loop_config.timeout_s * 0.25)
 
     @property
     def tool_wait_timeout_s(self) -> float:
+        """单次工具等待超时。"""
         return max(0.001, self.remaining_timeout_s - self.finalize_reserve_s)
 
     @property
     def pending_required_tools(self) -> List[str]:
+        """尚未完成的必做工具。"""
         pending = [
             tool_name
             for request_key, tool_name in self._required_request_tools.items()
@@ -394,9 +412,11 @@ class ExpertAgentSession:
         return list(dict.fromkeys(pending))
 
     def _queries_for_tool(self, tool_name: str) -> List[str]:
+        """某工具对应的查询列表。"""
         return list(self.tool_queries.get(tool_name) or [""])
 
     def _register_required_request_keys(self) -> None:
+        """登记必做请求键。"""
         for tool_name in self.required_tools:
             for assigned_query in self._queries_for_tool(tool_name):
                 arguments = self._normalize_tool_arguments(
@@ -407,6 +427,7 @@ class ExpertAgentSession:
                 ] = tool_name
 
     def retrieval_state(self) -> Dict[str, Any]:
+        """当前检索状态快照。"""
         return {
             "retrieval_required": self.retrieval_required,
             "reason": self.retrieval_reason,
@@ -420,6 +441,7 @@ class ExpertAgentSession:
         }
 
     def _retrieval_state_message(self) -> Dict[str, str]:
+        """将检索状态格式化为提示消息。"""
         return {
             "role": "user",
             "content": (
@@ -437,6 +459,7 @@ class ExpertAgentSession:
         *,
         assigned_query: str = "",
     ) -> Dict[str, Any]:
+        """规范化工具参数。"""
         normalized = dict(arguments or {})
         if tool_name == "rag.search":
             species_term = f" {self.species_en}" if self.species_en else ""
@@ -459,7 +482,11 @@ class ExpertAgentSession:
         return normalized
 
     def prepare_tool_requests(self) -> List[ToolRequest]:
-        """Build deterministic calls assigned by Task Policy, without an LLM planning round."""
+        """把必需/建议工具及每个证据任务展开为独立的首轮 ToolRequest。
+
+        仅生成当前专家可见的工具；同一工具的不同查询均予保留，完全重复调用交由
+        ToolBroker 按工具名和规范化参数去重。
+        """
         self.rounds = 1
         planned = list(dict.fromkeys([*self.required_tools, *self.recommended_tools]))
         requests: List[ToolRequest] = []
@@ -496,7 +523,7 @@ class ExpertAgentSession:
         self,
         result: ToolResult,
     ) -> Optional[EvidenceSufficiencyItem]:
-        """Build a semantic audit item only after the numeric gate has passed."""
+        """构造证据充分性审计条目。"""
         if (
             result.tool_name != RAG_TOOL
             or not self.require_web_on_rag_failure
@@ -519,6 +546,11 @@ class ExpertAgentSession:
         )
 
     def _parse_opinion(self, obj: Dict[str, Any]) -> Dict[str, Any]:
+        """校验并规范化 ``action=final`` 的专家 JSON 意见。
+
+        统一结论、证据、风险、置信度和检索状态，并依据实际成功工具修正模型自报的
+        ``tools_used``；缺少结论或仍有必需工具未完成时拒绝作为有效终答。
+        """
         opinion = obj.get("opinion") if isinstance(obj.get("opinion"), dict) else obj
         conclusion = str(opinion.get("conclusion") or opinion.get("answer") or "").strip()
         evidence = opinion.get("evidence")
@@ -558,7 +590,7 @@ class ExpertAgentSession:
         }
 
     async def generate_final_opinion(self) -> Dict[str, Any]:
-        """Generate one expert opinion; a retry is format repair, not another reasoning loop."""
+        """生成 action=final 的结构化专家意见。"""
         self.rounds = 1
         messages = [*self.messages, self._retrieval_state_message(), {
             "role": "user",
@@ -632,6 +664,11 @@ class ExpertAgentSession:
         sufficiency: Optional[EvidenceSufficiencyAssessment] = None,
         semantic_assessment_required: bool = False,
     ) -> None:
+        """记录工具反馈，并更新成功工具、请求键、RAG 指标与补证状态。
+
+        对本地 RAG 结果可结合语义充分性评估决定是否追加 Web 补证；失败、超时和
+        低相关结果均保留在结构化工具记录中，供最终意见如实说明证据限制。
+        """
         self.messages.append(_tool_feedback_message(_tool_result_context(result)))
         self.tools_used.append(result.tool_name)
         result_code = result.result.get("code") if isinstance(result.result, dict) else ""
@@ -724,6 +761,7 @@ class ExpertAgentSession:
         )
 
     def fallback_opinion(self) -> Dict[str, Any]:
+        """超时或失败时的兜底意见。"""
         pending = self.pending_required_tools
         retrieval_risk = (
             f"必需检索尚未完成：{', '.join(pending)}；不得把该意见作为已核验结论"
@@ -738,6 +776,11 @@ class ExpertAgentSession:
         }
 
     def build_result(self, opinion: Dict[str, Any]) -> Dict[str, Any]:
+        """合并专家意见、工具审计、检索指标和执行状态，生成运行结果。
+
+        RAG 命中数与最高分由真实工具结果计算，工具使用记录不采信模型自报值；结果
+        同时携带 required/recommended/pending 状态供 Critic、Aggregator 与持久化层使用。
+        """
         hits_count = 0
         best_score = 0.0
         for result in self.tool_results:
@@ -795,8 +838,14 @@ async def run_expert_sessions(
     sessions: Sequence[ExpertAgentSession],
     broker: ToolBroker,
 ) -> List[Dict[str, Any]]:
+    """并行完成多名专家的工具阶段与单轮结构化终答。
+
+    工具最多执行“已分配任务”和“弱本地证据触发 Web 补证”两波；随后各专家只做
+    一次最终意见生成。超时或异常按专家隔离并转为安全兜底，不启动旧式多轮循环。
+    """
     async def _execute_assigned_tools() -> None:
         # At most two deterministic waves: assigned tasks, then weak-local web fallback.
+        """批量执行首波证据任务，并在需要时执行一次 Web 补证波次。"""
         for _wave in range(2):
             ownership: Dict[str, ExpertAgentSession] = {}
             requests: List[ToolRequest] = []
@@ -846,6 +895,7 @@ async def run_expert_sessions(
     await _execute_assigned_tools()
 
     async def _finalize(session: ExpertAgentSession) -> Dict[str, Any]:
+        """收尾并产出最终意见。"""
         try:
             opinion = await asyncio.wait_for(
                 session.generate_final_opinion(),
@@ -884,6 +934,11 @@ async def run_expert(
     request_allowed_tools: Optional[Sequence[str]] = None,
     loop_config: Optional[ExpertLoopConfig] = None,
 ) -> Dict[str, Any]:
+    """兼容入口：构造单个 ExpertAgentSession 与请求级 ToolBroker 后执行会诊。
+
+    新编排器通常使用 ``run_expert_sessions`` 批量并发；本函数保留旧调用方所需的
+    单专家返回结构，但仍遵循同一单轮终答、工具去重和安全兜底规则。
+    """
     session = ExpertAgentSession(
         expert=expert,
         query=query,

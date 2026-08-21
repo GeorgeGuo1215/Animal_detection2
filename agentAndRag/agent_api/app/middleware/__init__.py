@@ -1,1 +1,1 @@
-"""Auth and rate limiting."""
+"""鉴权与限流中间件。"""

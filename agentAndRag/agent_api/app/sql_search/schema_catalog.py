@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import Dict, FrozenSet, Optional
 
-# Whitelist for sql.search. Every table here MUST own an `animal_id` column so the
-# mandatory request-scoped filter (see tool._merge_animal_scope) can isolate one pet.
+# sql.search 白名单。此处每张表必须有 `animal_id` 列，以便请求级强制过滤
+# （见 tool._merge_animal_scope）隔离到一只宠物。
 #
-# Raw per-second time-series (vitals_samples / temp_samples / accel_samples) are NOT
-# here on purpose: they have no animal_id column and would flood the LLM with rows.
-# Query them through the dedicated, fixed-SQL `vitals.summary` tool instead.
+# 逐秒原始时序（vitals_samples / temp_samples / accel_samples）故意不在此：
+# 它们没有 animal_id 列，且会用大量行淹没 LLM。
+# 请改用固定 SQL 的 `vitals.summary` 工具查询。
 TABLE_COLUMNS: Dict[str, FrozenSet[str]] = {
     "daily_reports": frozenset(
         {
@@ -38,8 +38,7 @@ TABLE_COLUMNS: Dict[str, FrozenSet[str]] = {
             "updated_at",
         }
     ),
-    # sensor_events: upload-window metadata. `raw_payload` (large JSON) is intentionally
-    # excluded to keep responses LLM-friendly.
+    # sensor_events：上传窗口元数据。故意排除 `raw_payload`（大 JSON）以保持对 LLM 友好。
     "sensor_events": frozenset(
         {
             "id",
@@ -62,20 +61,21 @@ TABLE_COLUMNS: Dict[str, FrozenSet[str]] = {
 
 ALLOWED_TABLES: FrozenSet[str] = frozenset(TABLE_COLUMNS.keys())
 
-# Tables that require a mandatory animal_id scope filter. All currently whitelisted
-# tables carry an animal_id column, so the set mirrors ALLOWED_TABLES.
+# 必须强制 animal_id 范围过滤的表。当前白名单表都有 animal_id 列，因此与 ALLOWED_TABLES 一致。
 ANIMAL_SCOPED_TABLES: FrozenSet[str] = frozenset(TABLE_COLUMNS.keys())
 
-# Legacy constants (kept for stable imports)
+# 遗留常量（保留以稳定导入）
 HEAVY_SAMPLE_TABLES: FrozenSet[str] = frozenset()
 HEAVY_MAX_LIMIT: int = 100
 
 
 def normalize_column(name: str) -> str:
+    """规范化列名为小写并去除空白。"""
     return name.strip().lower()
 
 
 def validate_table(table: str) -> str:
+    """校验表名是否在白名单内。"""
     t = table.strip().lower()
     if t not in ALLOWED_TABLES:
         raise ValueError(f"Unknown or disallowed table: {table!r}. Allowed: {sorted(ALLOWED_TABLES)}")
@@ -83,6 +83,7 @@ def validate_table(table: str) -> str:
 
 
 def validate_columns(table: str, columns: Optional[list]) -> list[str]:
+    """校验并规范化列名；未指定则返回该表白名单全部列。"""
     t = validate_table(table)
     allowed = TABLE_COLUMNS[t]
     if not columns:
@@ -97,6 +98,7 @@ def validate_columns(table: str, columns: Optional[list]) -> list[str]:
 
 
 def column_allowed(table: str, column: str) -> str:
+    """确认单列属于该表白名单并返回规范化名。"""
     t = validate_table(table)
     cn = normalize_column(column)
     if cn not in TABLE_COLUMNS[t]:

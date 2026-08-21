@@ -30,12 +30,14 @@ TAXONOMY = _REPO_ROOT / "RAG" / "data" / "category_taxonomy.json"
 
 @pytest.fixture(scope="module")
 def taxonomy() -> dict:
+    """提供 RAG 类目树夹具。"""
     if not TAXONOMY.exists():
         pytest.skip("category_taxonomy.json missing; run split_index_by_category first")
     return json.loads(TAXONOMY.read_text(encoding="utf-8"))
 
 
 def _source_paths_for_categories(taxonomy: dict, patterns: list[str]) -> set[str]:
+    """按类目解析语料来源路径。"""
     dirs = resolve_category_index_dirs(repo_root=_REPO_ROOT, category=patterns)
     ids = {d.name for d in dirs}
     paths: set[str] = set()
@@ -46,6 +48,7 @@ def _source_paths_for_categories(taxonomy: dict, patterns: list[str]) -> set[str
 
 
 def _in_category_rate(hits: list, allowed_paths: set[str]) -> float:
+    """计算 TopN 命中落在指定类目的比例。"""
     if not hits:
         return 0.0
     n = 0
@@ -57,7 +60,7 @@ def _in_category_rate(hits: list, allowed_paths: set[str]) -> float:
 
 
 def test_pharmacy_category_improves_top5_precision(taxonomy: dict):
-    """Drug-handbook query: pharmacy.* top5 precision should beat full index."""
+    """验证药房类目能提升药学查询的 Top5 精确率。"""
     query = "Papich veterinary drug dosage contraindication toxicity dog cat"
     pharmacy_paths = _source_paths_for_categories(taxonomy, ["pharmacy.*"])
     assert pharmacy_paths, "pharmacy categories must have books"
@@ -109,6 +112,7 @@ def test_pharmacy_category_improves_top5_precision(taxonomy: dict):
 
 
 def test_empty_category_returns_no_hits(taxonomy: dict):
+    """验证空类目检索不会返回命中。"""
     device = os.getenv("AGENT_WARMUP_DEVICE") or None
     out = rag_search_tool(
         query="dog calorie requirement AAFCO",
@@ -124,6 +128,7 @@ def test_empty_category_returns_no_hits(taxonomy: dict):
 
 
 def test_behavior_hits_restricted(taxonomy: dict):
+    """验证行为类检索命中被限制在行为类目内。"""
     device = os.getenv("AGENT_WARMUP_DEVICE") or None
     allowed = _source_paths_for_categories(taxonomy, ["behavior.*"])
     out = rag_search_tool(
@@ -142,6 +147,7 @@ def test_behavior_hits_restricted(taxonomy: dict):
 
 
 def test_resolve_wildcard_clinical(taxonomy: dict):
+    """验证临床通配符类目能正确展开。"""
     dirs = resolve_category_index_dirs(repo_root=_REPO_ROOT, category="clinical.*")
     names = {d.name for d in dirs}
     assert "clinical.internal_medicine" in names

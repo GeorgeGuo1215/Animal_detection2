@@ -16,15 +16,18 @@ from app.schemas.chat_moe import ChatMoeCompletionRequest, ChatMoeSessionRequest
 
 class _Registry:
     def list_tools(self):
+        """列出测试替身所暴露的工具。"""
         return []
 
 
 class _FakeOrchestrator:
     def __init__(self, calls):
+        """初始化该测试替身。"""
         self.calls = calls
         self.last_run_context = {}
 
     async def stream(self, **kwargs):
+        """测试用流式输出实现。"""
         self.calls.append(kwargs)
         turn = len(self.calls)
         self.last_run_context = {
@@ -42,10 +45,12 @@ class _FakeOrchestrator:
 
 
 def _request(payload):
+    """构造测试用的 HTTP 请求对象。"""
     return ChatMoeCompletionRequest(**payload)
 
 
 async def _consume(response):
+    """消费并收集流式事件。"""
     parts = []
     async for chunk in response.body_iterator:
         parts.append(chunk.decode() if isinstance(chunk, bytes) else chunk)
@@ -53,7 +58,9 @@ async def _consume(response):
 
 
 def test_chat_moe_uses_backend_history_and_persists_expert_context(tmp_path, monkeypatch):
+    """验证 MoE 聊天使用后端历史并持久化专家上下文。"""
     async def scenario():
+        """本用例的异步执行体。"""
         manager = SessionManager(db_path=tmp_path / "chat.db")
         session = await manager.create()
         calls = []
@@ -86,6 +93,7 @@ def test_chat_moe_uses_backend_history_and_persists_expert_context(tmp_path, mon
 
 
 def test_chat_moe_username_identity_is_stable_and_not_plaintext():
+    """验证 MoE 聊天用户名身份稳定且不以明文落库。"""
     assert normalize_test_username("  Test   User  ") == "Test User"
     first = chat_moe_memory_user_id("Ｔｅｓｔ User")
     second = chat_moe_memory_user_id("test   user")
@@ -95,21 +103,26 @@ def test_chat_moe_username_identity_is_stable_and_not_plaintext():
 
 
 def test_unified_policy_treats_pet_identity_memory_as_health_followup_context():
+    """验证统一策略把宠物身份记忆当成健康追问上下文。"""
     assert "宠物身份" in TASK_POLICY_SYSTEM_PROMPT
     assert "复诊追问" in TASK_POLICY_SYSTEM_PROMPT
     assert "宠物健康上下文" in TASK_POLICY_SYSTEM_PROMPT
 
 
 def test_chat_moe_shares_memory_across_sessions_but_not_users(tmp_path, monkeypatch):
+    """验证 MoE 聊天跨会话共享记忆，但不会跨用户。"""
     async def scenario():
+        """本用例的异步执行体。"""
         manager = SessionManager(db_path=tmp_path / "cross_session.db")
         calls = []
         stored = {}
 
         async def ensure_subject(**kwargs):
+            """测试替身：确保记忆主体存在。"""
             return {"enabled": True, "ensured": True, "user_id": kwargs["user_id"]}
 
         async def load_memory(*, user_id, query, pet_id):
+            """测试替身：按用户加载记忆。"""
             del query, pet_id
             prior = stored.get(user_id)
             return (
@@ -118,6 +131,7 @@ def test_chat_moe_shares_memory_across_sessions_but_not_users(tmp_path, monkeypa
             )
 
         async def write_memory(*, user_id, query, answer, **kwargs):
+            """测试替身：写入一条记忆。"""
             del query, kwargs
             stored[user_id] = answer
             return {"stored": True, "user_id": user_id, "message_id": "memory-1"}
@@ -165,6 +179,7 @@ def test_chat_moe_shares_memory_across_sessions_but_not_users(tmp_path, monkeypa
 
 
 def test_browser_pages_do_not_store_or_slice_message_history():
+    """验证浏览器页面接口不会存储或切片消息历史。"""
     assert "const messages" not in routes_chat_ui._MOE_TEST_HTML
     assert "messages.push" not in routes_chat_ui._MOE_TEST_HTML
     assert "messages.slice" not in routes_chat_ui._MOE_TEST_HTML
@@ -182,7 +197,9 @@ def test_browser_pages_do_not_store_or_slice_message_history():
 
 
 def test_chat_moe_reports_loaded_context_metadata(tmp_path, monkeypatch):
+    """验证 MoE 聊天会上报已加载上下文的元数据。"""
     async def scenario():
+        """本用例的异步执行体。"""
         manager = SessionManager(db_path=tmp_path / "context_event.db")
         session = await manager.create()
         calls = []
@@ -222,6 +239,7 @@ def test_chat_moe_reports_loaded_context_metadata(tmp_path, monkeypatch):
 
 
 def test_openapi_documents_stateful_test_and_stateless_production_boundaries():
+    """验证 OpenAPI 文档区分有状态测试与无状态生产边界。"""
     from app.main import app
 
     schema = app.openapi()

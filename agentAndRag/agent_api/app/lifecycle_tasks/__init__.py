@@ -1,1 +1,1 @@
-"""Periodic application lifecycle tasks."""
+"""周期性应用生命周期任务。"""

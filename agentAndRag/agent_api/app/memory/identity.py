@@ -1,4 +1,4 @@
-"""Stable identity mapping for browser-only Chat-MoE memory subjects."""
+"""仅浏览器 Chat-MoE 记忆主体的稳定身份映射。"""
 from __future__ import annotations
 
 import hashlib
@@ -6,12 +6,12 @@ import unicodedata
 
 
 def normalize_test_username(username: str) -> str:
-    """Normalize a tester-supplied name without changing its display spelling."""
+    """规范化测试者输入的用户名，不改变其展示用拼写。"""
     return " ".join(unicodedata.normalize("NFKC", str(username or "")).strip().split())
 
 
 def chat_moe_memory_user_id(username: str) -> str:
-    """Map a test username to a stable, namespaced, non-plaintext subject id."""
+    """将测试用户名映射为稳定、带命名空间、非明文的 subject id。"""
     normalized = normalize_test_username(username)
     if not normalized:
         raise ValueError("username is required")

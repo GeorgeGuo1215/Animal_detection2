@@ -28,6 +28,7 @@ def build_evidence_sufficiency_messages(
     case_question: str,
     items: List[Dict[str, Any]],
 ) -> List[Dict[str, str]]:
+    """组装证据充分性审计的 system/user 消息。"""
     payload = {
         "case_question": str(case_question or ""),
         "evidence_items": items,

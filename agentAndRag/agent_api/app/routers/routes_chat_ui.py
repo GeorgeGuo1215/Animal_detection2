@@ -1,4 +1,4 @@
-"""Stateful MoE diagnostic console; legacy /chat and /admin pages were removed."""
+"""有状态 MoE 诊断控制台；旧版 /chat 与 /admin 页面已移除。"""
 from __future__ import annotations
 
 import hmac
@@ -31,7 +31,7 @@ async def _require_diagnostic_access(
     request: Request,
     session: AsyncSession = Depends(get_platform_session),
 ) -> None:
-    """Keep the diagnostic console open in development and admin-only in production."""
+    """开发环境开放诊断台；生产环境仅 SUPER_ADMIN 或内部 Worker Token 可访问。"""
     if not get_platform_settings().production:
         return
     supplied_worker_token = request.headers.get("x-petmind-worker-token", "")
@@ -50,11 +50,13 @@ _MOE_TEST_HTML = _MOE_TEST_HTML_PATH.read_text(encoding="utf-8")
 
 @chat_moe_router.get("/chat-moe", response_class=HTMLResponse)
 async def chat_moe_test_ui():
+    """返回 Chat-MoE 测试页 HTML。"""
     return _MOE_TEST_HTML
 
 
 @chat_moe_router.post("/chat-moe/sessions", response_model=ChatMoeSessionResponse)
 async def create_chat_moe_session(body: ChatMoeSessionRequest) -> ChatMoeSessionResponse:
+    """创建 Chat-MoE 测试会话并绑定记忆主体。"""
     username = normalize_test_username(body.username)
     if not username:
         raise HTTPException(status_code=400, detail="username is required")
@@ -77,10 +79,12 @@ async def create_chat_moe_session(body: ChatMoeSessionRequest) -> ChatMoeSession
 
 
 def _moe_request_id() -> str:
+    """生成 OpenAI 风格的补全请求 id。"""
     return f"chatcmpl-{uuid.uuid4().hex[:24]}"
 
 
 def _moe_system_context(response_lang: str, memory_injection: Optional[str] = None) -> str:
+    """构造测试会话的系统上下文。"""
     parts: List[str] = []
     if response_lang in {"zh", "en"}:
         parts.append("请使用中文回答。" if response_lang == "zh" else "Please answer in English.")
@@ -94,7 +98,7 @@ def _moe_system_context(response_lang: str, memory_injection: Optional[str] = No
     responses={200: {"content": {"text/event-stream": {}}}},
 )
 async def chat_moe_public_completions(body: ChatMoeCompletionRequest, request: Request = None):
-    """Use server history only for `/chat-moe`; production requests remain stateless."""
+    """公开测试补全接口：server history only for `/chat-moe`; 生产请求保持无状态。"""
     # FastAPI always injects Request in production. Direct unit/in-process
     # callers deliberately omit it and must exercise the local orchestration
     # branch instead of accidentally inheriting a machine-level worker flag.
@@ -120,6 +124,11 @@ async def chat_moe_public_completions(body: ChatMoeCompletionRequest, request: R
     request_id = _moe_request_id()
 
     async def event_generator():
+        """在会话锁内恢复历史与记忆，运行 MoE，并产出 OpenAI 兼容 SSE。
+
+        仅在完整终答形成后原子提交 user/assistant 半轮、专家上下文和工具结果；随后以
+        同一稳定 turn_id 写记忆，避免并发请求或刷新造成重复/孤儿消息。
+        """
         async with manager.session_lock(session_id):
             conversation_history, expert_context_history = await manager.context(session_id)
             memory_injection, memory_load_detail = await load_user_memory(

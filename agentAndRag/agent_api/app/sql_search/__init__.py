@@ -1,4 +1,4 @@
-"""Safe read-only SQL search tool (sql.search) — intent JSON to parameterized SELECT."""
+"""只读安全 SQL 检索工具（sql.search）：将意图 JSON 编译为参数化 SELECT。"""
 
 from .animal_profile import fetch_animal_profile, species_label
 from .tool import sql_search_tool

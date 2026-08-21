@@ -29,7 +29,9 @@ from agent_api.app.routers import routes_platform_settings
 
 
 def test_settings_feedback_legal_and_activation(tmp_path, monkeypatch):
+    """验证设置、反馈、法律文档与激活流程。"""
     async def scenario():
+        """本用例的异步执行体。"""
         await close_platform_database()
         monkeypatch.setenv(
             "AGENT_PLATFORM_DB_URL",
@@ -93,6 +95,7 @@ def test_settings_feedback_legal_and_activation(tmp_path, monkeypatch):
 
             class FakeMemoryClient:
                 async def manage_clear(self, *, user_id, scope):
+                    """测试替身：清空管理状态。"""
                     cleared_scopes.append((user_id, scope))
                     return {"scope": scope, "deleted": {"items": 2}}
 

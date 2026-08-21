@@ -7,7 +7,7 @@ PETHEALTH_VITALS_TOOL = "mcp.vitals_alert.check_vitals"
 
 
 def inject_prompt(base_prompt: str, injected_prompt: Optional[str]) -> str:
-    """Append a request-scoped prompt block when it has useful content."""
+    """在有有效内容时，把请求级提示块追加到基础提示词后。"""
     base = (base_prompt or "").strip()
     injected = (injected_prompt or "").strip()
     if not injected:
@@ -24,7 +24,7 @@ def build_pethealth_vitals_injection(
     vitals_window_hours: int = 24,
     stage: str,
 ) -> str:
-    """Build the PetHealth_Server vitals prompt injection for MoE stages."""
+    """为 MoE 各阶段构建 PetHealth_Server 体征提示注入。"""
     aid = str(animal_id or "").strip()
     if not heart_rate_abnormal or not aid:
         return ""

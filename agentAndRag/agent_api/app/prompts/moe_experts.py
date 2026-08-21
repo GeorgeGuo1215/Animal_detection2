@@ -1,4 +1,4 @@
-"""Prompt fragments and assembly for task-driven MoE expert subagents."""
+"""任务驱动 MoE 专家 Subagent 的提示词片段与组装。"""
 from __future__ import annotations
 
 from typing import Dict
@@ -124,6 +124,7 @@ def build_expert_system_prompt(
     expert_key: str,
     user_role: str,
 ) -> str:
+    """按专家 persona、角色与安全契约组装专家 system prompt。"""
     audience = AUDIENCE_VET if user_role == "veterinarian" else AUDIENCE_OWNER
     retrieval_policy = IMPORTANT_RETRIEVAL_POLICY.get(expert_key, "")
     specialist_safety = PHARMACY_SAFETY_CONTRACT if expert_key == "pharmacy" else ""

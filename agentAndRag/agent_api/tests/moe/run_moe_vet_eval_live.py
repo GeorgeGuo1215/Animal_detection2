@@ -32,6 +32,7 @@ for _p in (str(_AGENT_API), str(_AGENTANDRAG)):
 
 
 def _load_dotenv() -> None:
+    """从项目 .env 读取环境变量（不覆盖已有值）。"""
     env_path = _AGENTANDRAG / ".env"
     if not env_path.exists():
         return
@@ -177,6 +178,7 @@ CASES: List[Dict[str, Any]] = [
 
 
 def _default_api_key() -> str:
+    """解析默认 API 密钥。"""
     keys_path = _AGENT_API / "keys.txt"
     if keys_path.exists():
         for line in keys_path.read_text(encoding="utf-8").splitlines():
@@ -187,11 +189,12 @@ def _default_api_key() -> str:
 
 
 def _has_any(text: str, words: List[str]) -> bool:
+    """判断文本是否命中任一关键词。"""
     return any(w in text for w in words)
 
 
 def _eval_checklist(case: Dict[str, Any], answer: str) -> Dict[str, str]:
-    """Return checklist item -> 有/无/部分."""
+    """对照清单逐项判断回答是有、无还是部分覆盖。"""
     a = answer or ""
     out: Dict[str, str] = {}
     for key in case.get("checklist_keys") or []:
@@ -262,6 +265,7 @@ def _eval_checklist(case: Dict[str, Any], answer: str) -> Dict[str, str]:
 
 
 def _style_checks(case: Dict[str, Any], answer: str) -> List[str]:
+    """检查回答文风是否符合约定。"""
     issues: List[str] = []
     role = case.get("user_role") or "veterinarian"
     for sec in case.get("expect_sections") or []:
@@ -286,6 +290,7 @@ def _style_checks(case: Dict[str, Any], answer: str) -> List[str]:
 
 
 def _parse_sse_block(block: str) -> Optional[Dict[str, Any]]:
+    """解析一块 SSE 数据。"""
     data_lines = []
     for line in block.splitlines():
         if line.startswith("data:"):
@@ -310,6 +315,7 @@ def _chat_stream(
     timeout_s: float,
     user_role: str = "veterinarian",
 ) -> Tuple[str, List[Dict[str, Any]]]:
+    """发起聊天流式请求并收集事件。"""
     url = base_url.rstrip("/") + "/v1/chat/completions"
     body = {
         "model": "agent-moe",
@@ -366,6 +372,7 @@ def _render_report(
     checklist: Dict[str, str],
     base_url: str,
 ) -> str:
+    """把本次运行结果写成报告。"""
     lines: List[str] = []
     lines.append("# Vet Eval Live Report")
     lines.append("")
@@ -404,6 +411,7 @@ def _render_report(
 
 
 def parse_args() -> argparse.Namespace:
+    """解析命令行参数并返回配置。"""
     p = argparse.ArgumentParser(description="兽医评测对照 live")
     p.add_argument("--base-url", default=os.getenv("AGENT_BASE_URL") or "http://127.0.0.1:8146")
     p.add_argument("--api-key", default=None)
@@ -420,6 +428,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def _fill_eval_doc(checklist_all: Dict[str, Dict[str, str]], summary_rows: List[str], report_dir: Path) -> None:
+    """把评测字段填进文档结构。"""
     doc = _DOCS / "eval_report_vet_student_comparison.md"
     if not doc.exists():
         print(f"[warn] eval doc missing: {doc}")
@@ -430,6 +439,7 @@ def _fill_eval_doc(checklist_all: Dict[str, Dict[str, str]], summary_rows: List[
     b = checklist_all.get("bulldog") or {}
 
     def cell(d: Dict[str, str], k: str) -> str:
+        """渲染表格单元格。"""
         return d.get(k, "无")
 
     live_section = f"""### 3.1 指令一 — 金毛 + 鸡骨头（整理和诊断）
@@ -518,6 +528,7 @@ def _fill_eval_doc(checklist_all: Dict[str, Dict[str, str]], summary_rows: List[
 
 
 def main() -> None:
+    """脚本入口，解析参数并执行主流程。"""
     args = parse_args()
     api_key = args.api_key or _default_api_key()
     base = args.base_url.rstrip("/")

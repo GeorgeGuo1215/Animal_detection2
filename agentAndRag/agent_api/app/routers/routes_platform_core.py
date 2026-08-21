@@ -33,6 +33,7 @@ router = APIRouter(prefix="/api/v1", tags=["platform"])
 
 
 def _conversation_payload(item: Conversation) -> dict:
+    """将会话对象转为 API 载荷。"""
     return {
         "id": item.id,
         "title": item.title,
@@ -44,6 +45,7 @@ def _conversation_payload(item: Conversation) -> dict:
 
 
 def _run_payload(item: AgentRun) -> dict:
+    """将运行记录转为 API 载荷。"""
     return {
         "id": item.id,
         "conversation_id": item.conversation_id,
@@ -60,6 +62,7 @@ def _run_payload(item: AgentRun) -> dict:
 
 
 async def _owned_conversation(session: AsyncSession, user_id: str, conversation_id: str) -> Conversation:
+    """校验会话归属当前用户。"""
     conversation = await session.scalar(select(Conversation).where(
         Conversation.id == conversation_id,
         Conversation.user_id == user_id,
@@ -71,6 +74,7 @@ async def _owned_conversation(session: AsyncSession, user_id: str, conversation_
 
 
 async def _owned_run(session: AsyncSession, user_id: str, run_id: str) -> AgentRun:
+    """校验运行记录归属当前用户。"""
     run = await session.scalar(select(AgentRun).where(AgentRun.id == run_id, AgentRun.user_id == user_id))
     if run is None:
         raise HTTPException(status_code=404, detail="run not found")
@@ -84,6 +88,7 @@ async def create_conversation(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """创建对话。"""
     idem = idempotency_key.strip()[:100] if idempotency_key else None
     if idem:
         existing = await session.scalar(select(Conversation).where(Conversation.user_id == principal.user_id, Conversation.idempotency_key == idem))
@@ -102,6 +107,7 @@ async def list_conversations(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """列出对话。"""
     statement = select(Conversation).where(
         Conversation.user_id == principal.user_id,
         Conversation.deleted_at.is_(None),
@@ -119,6 +125,11 @@ async def search_conversations(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """在当前用户未删除的对话标题与消息正文中模糊搜索。
+
+    结果按最近活跃时间排序、按 conversation_id 去重，并返回最多一段命中摘要；
+    查询始终带用户归属条件，不能检索其他账号的内容。
+    """
     pattern = f"%{q}%"
     statement = select(Conversation, Message).join(
         Message, Message.conversation_id == Conversation.id, isouter=True
@@ -147,6 +158,7 @@ async def get_conversation(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """获取对话详情。"""
     return _conversation_payload(await _owned_conversation(session, principal.user_id, conversation_id))
 
 
@@ -157,6 +169,7 @@ async def update_conversation(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """更新对话。"""
     item = await _owned_conversation(session, principal.user_id, conversation_id)
     if body.title is not None:
         item.title = body.title
@@ -173,6 +186,7 @@ async def delete_conversation(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """删除对话。"""
     item = await _owned_conversation(session, principal.user_id, conversation_id)
     # User-facing deletion hides the conversation while retaining the complete
     # platform record for later recovery, audit, and analysis. Consolidated
@@ -190,6 +204,7 @@ async def list_messages(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """列出消息。"""
     await _owned_conversation(session, principal.user_id, conversation_id)
     rows = list((await session.scalars(select(Message).where(
         Message.conversation_id == conversation_id
@@ -216,6 +231,12 @@ async def create_run(
     principal: Principal = Depends(require_scope("chat:write")),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """为当前用户的指定对话创建或幂等复用一个持久化 Agent Run。
+
+    接口校验会话归属、chat:write scope、有效订阅与可用积分，先落库用户消息并预占
+    积分，再投递 Redis/本地队列。``delivery`` 支持 SSE、限时同步和 202 异步；队列
+    投递失败会把 Run 置为失败并释放预占积分。
+    """
     await _owned_conversation(session, principal.user_id, conversation_id)
     active_subscription = await session.scalar(select(Subscription).where(
         Subscription.user_id == principal.user_id,
@@ -306,6 +327,7 @@ async def get_run(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """获取运行详情。"""
     return _run_payload(await _owned_run(session, principal.user_id, run_id))
 
 
@@ -315,6 +337,7 @@ async def get_run_experts(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """获取运行中的专家意见。"""
     await _owned_run(session, principal.user_id, run_id)
     consultations = await consultations_by_run(session, [run_id])
     return {"items": consultations.get(run_id, [])}
@@ -326,6 +349,7 @@ async def cancel_run(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """取消运行。"""
     run = await _owned_run(session, principal.user_id, run_id)
     if run.status in {"queued", "retry"}:
         run.cancel_requested = True
@@ -347,6 +371,7 @@ async def get_run_events(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """获取运行 SSE 事件。"""
     await _owned_run(session, principal.user_id, run_id)
     return StreamingResponse(
         run_event_stream(run_id, after_sequence=last_event_id),
@@ -357,6 +382,7 @@ async def get_run_events(
 
 @router.get("/plans")
 async def list_plans(session: AsyncSession = Depends(get_platform_session)):
+    """列出公开套餐。"""
     rows = list((await session.scalars(select(Plan).where(Plan.active.is_(True)).order_by(Plan.price_cents.asc()))).all())
     return {"items": [{
         "code": item.code,
@@ -378,6 +404,7 @@ async def create_order(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """创建订单。"""
     idem = idempotency_key.strip()[:100] if idempotency_key else None
     if idem:
         existing = await session.scalar(select(Order).where(Order.user_id == principal.user_id, Order.idempotency_key == idem))
@@ -403,6 +430,7 @@ async def list_orders(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """列出订单。"""
     rows = list((await session.scalars(select(Order).where(Order.user_id == principal.user_id).order_by(Order.created_at.desc()))).all())
     return {"items": [{"id": item.id, "plan_code": item.plan_code, "status": item.status, "amount_cents": item.amount_cents, "currency": item.currency, "created_at": item.created_at} for item in rows]}
 
@@ -412,6 +440,7 @@ async def get_subscription(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """获取当前订阅。"""
     item = await session.scalar(select(Subscription).where(
         Subscription.user_id == principal.user_id,
         Subscription.status == "active",
@@ -424,6 +453,7 @@ async def get_credits(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """获取积分余额。"""
     account = await session.get(CreditAccount, principal.user_id)
     ledger = list((await session.scalars(select(CreditLedger).where(
         CreditLedger.user_id == principal.user_id
@@ -440,6 +470,7 @@ async def test_payment_webhook(
     request: Request,
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """测试支付 webhook。"""
     raw = await request.body()
     timestamp = request.headers.get("x-petmind-timestamp", "")
     signature = request.headers.get("x-petmind-signature", "")

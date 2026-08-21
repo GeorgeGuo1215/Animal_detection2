@@ -20,6 +20,7 @@ def build_moe_orchestrator(
     allowed_tools: Optional[List[str]] = None,
     pethealth_server: Optional[Dict[str, Any]] = None,
 ) -> MoEOrchestrator:
+    """按请求参数构建 MoEOrchestrator，并钳制 max_tokens 到终答预算。"""
     budget = final_answer_max_tokens()
     requested = budget if max_tokens is None else int(max_tokens)
     return MoEOrchestrator(
@@ -36,6 +37,7 @@ def build_moe_orchestrator(
 
 
 def public_moe_allowed_tools(available_names: Iterable[str]) -> List[str]:
+    """公开 MoE 允许的工具名，与当前 registry 求交。"""
     configured = os.getenv("AGENT_PUBLIC_MOE_ALLOWED_TOOLS", "")
     requested = (
         [name.strip() for name in configured.split(",") if name.strip()]

@@ -43,6 +43,7 @@ ADMIN_ROLES = ("SUPPORT_ADMIN", "BILLING_ADMIN", "SUPER_ADMIN")
 
 
 def _memory_client_or_503():
+    """获取记忆客户端；未启用则 503。"""
     client = get_memory_client()
     if client is None:
         raise HTTPException(status_code=503, detail="memory service unavailable")
@@ -55,6 +56,7 @@ async def export_user_data_snapshot(
     principal: Principal = Depends(require_roles("SUPER_ADMIN")),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """导出用户数据快照。"""
     if await session.get(PlatformUser, user_id) is None:
         raise HTTPException(status_code=404, detail="user not found")
     platform_snapshot = await user_backup.export_records(session, user_id=user_id)
@@ -80,6 +82,7 @@ async def restore_user_data_snapshot(
     principal: Principal = Depends(require_roles("SUPER_ADMIN")),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """仅 SUPER_ADMIN 可用：校验并覆盖恢复指定用户的平台与记忆 JSON 快照。"""
     return await _restore_user_data_snapshot(
         user_id=user_id,
         snapshot=body.snapshot,
@@ -96,6 +99,11 @@ async def restore_user_data_snapshot_file(
     principal: Principal = Depends(require_roles("SUPER_ADMIN")),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """仅 SUPER_ADMIN 可用：从受限大小的 gzip JSON 文件覆盖恢复用户快照。
+
+    请求必须携带显式覆盖确认头和 ``application/gzip``，解压上限为 64 MiB；后续仍会
+    校验 schema_version、user_id 与 SHA-256 checksum。
+    """
     if confirmation != "OVERWRITE_USER_DATA":
         raise HTTPException(status_code=422, detail="explicit restore confirmation required")
     if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/gzip":
@@ -128,6 +136,11 @@ async def _restore_user_data_snapshot(
     principal: Principal,
     session: AsyncSession,
 ):
+    """校验快照归属与完整性后，覆盖平台记录和 Memory 快照并写审计日志。
+
+    平台事务在任一校验或下游恢复失败时回滚；Memory 不可用或恢复异常统一映射为
+    503，格式/校验问题映射为 422。
+    """
     payload = {key: value for key, value in snapshot.items() if key != "checksum"}
     if snapshot.get("schema_version") != 1 or snapshot.get("user_id") != user_id:
         raise HTTPException(status_code=422, detail="snapshot schema or user does not match")
@@ -169,6 +182,7 @@ async def overview(
     principal: Principal = Depends(require_roles(*ADMIN_ROLES)),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """管理后台总览。"""
     users = len(list((await session.scalars(select(PlatformUser.id))).all()))
     pending_orders = len(list((await session.scalars(select(Order.id).where(Order.status == "pending_payment"))).all()))
     active_runs = len(list((await session.scalars(select(AgentRun.id).where(AgentRun.status.in_(["queued", "running", "cancel_requested"])))).all()))
@@ -182,6 +196,11 @@ async def create_invitation(
     principal: Principal = Depends(require_roles("SUPPORT_ADMIN", "SUPER_ADMIN")),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """创建绑定邮箱、角色、初始套餐与有效期的一次性邀请。
+
+    SUPPORT_ADMIN 只能邀请试用兽医；SUPER_ADMIN 可指定允许的角色与套餐。接口支持
+    管理员范围内的 Idempotency-Key 复用，明文令牌只写 Outbox，开发模式才回显。
+    """
     if principal.role != "SUPER_ADMIN":
         if body.role != "VET" or body.initial_plan_code not in {None, "trial"}:
             raise HTTPException(
@@ -228,6 +247,7 @@ async def list_invitations(
     principal: Principal = Depends(require_roles("SUPPORT_ADMIN", "SUPER_ADMIN")),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """列出邀请码。"""
     rows = list((await session.scalars(select(Invitation).order_by(Invitation.created_at.desc()).limit(200))).all())
     return {"items": [{
         "id": item.id,
@@ -246,6 +266,7 @@ async def revoke_invitation(
     principal: Principal = Depends(require_roles("SUPPORT_ADMIN", "SUPER_ADMIN")),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """作废邀请码。"""
     item = await session.get(Invitation, invitation_id)
     if item is None:
         raise HTTPException(status_code=404, detail="invitation not found")
@@ -262,6 +283,7 @@ async def list_users(
     principal: Principal = Depends(require_roles("SUPPORT_ADMIN", "SUPER_ADMIN")),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """列出用户。"""
     statement = select(PlatformUser)
     if q:
         statement = statement.where(PlatformUser.email.ilike(f"%{q}%"))
@@ -276,6 +298,7 @@ async def update_user(
     principal: Principal = Depends(require_roles("SUPER_ADMIN")),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """更新用户。"""
     user = await session.get(PlatformUser, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="user not found")
@@ -297,6 +320,7 @@ async def admin_list_plans(
     principal: Principal = Depends(require_roles("BILLING_ADMIN", "SUPER_ADMIN")),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """列出套餐。"""
     rows = list((await session.scalars(select(Plan).order_by(Plan.price_cents.asc()))).all())
     return {"items": [{
         "code": item.code,
@@ -318,6 +342,7 @@ async def update_plan(
     principal: Principal = Depends(require_roles("BILLING_ADMIN", "SUPER_ADMIN")),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """更新套餐。"""
     plan = await session.get(Plan, plan_code)
     if plan is None:
         raise HTTPException(status_code=404, detail="plan not found")
@@ -333,6 +358,7 @@ async def admin_list_orders(
     principal: Principal = Depends(require_roles("BILLING_ADMIN", "SUPER_ADMIN")),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """列出订单。"""
     rows = list((await session.scalars(select(Order).order_by(Order.created_at.desc()).limit(300))).all())
     return {"items": [{"id": item.id, "user_id": item.user_id, "plan_code": item.plan_code, "status": item.status, "amount_cents": item.amount_cents, "created_at": item.created_at} for item in rows]}
 
@@ -343,6 +369,7 @@ async def confirm_order(
     principal: Principal = Depends(require_roles("BILLING_ADMIN", "SUPER_ADMIN")),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """确认订单。"""
     order = await session.get(Order, order_id)
     if order is None:
         raise HTTPException(status_code=404, detail="order not found")
@@ -362,6 +389,7 @@ async def update_order_status(
     principal: Principal = Depends(require_roles("BILLING_ADMIN", "SUPER_ADMIN")),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """更新订单状态。"""
     order = await session.get(Order, order_id)
     if order is None:
         raise HTTPException(status_code=404, detail="order not found")
@@ -378,6 +406,7 @@ async def list_subscriptions(
     principal: Principal = Depends(require_roles("BILLING_ADMIN", "SUPPORT_ADMIN", "SUPER_ADMIN")),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """列出订阅。"""
     rows = list((await session.scalars(select(Subscription).order_by(Subscription.created_at.desc()).limit(300))).all())
     return {"items": [{"id": item.id, "user_id": item.user_id, "plan_code": item.plan_code, "status": item.status, "starts_at": item.starts_at, "expires_at": item.expires_at} for item in rows]}
 
@@ -389,6 +418,7 @@ async def update_subscription(
     principal: Principal = Depends(require_roles("BILLING_ADMIN", "SUPER_ADMIN")),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """更新订阅。"""
     item = await session.get(Subscription, subscription_id)
     if item is None:
         raise HTTPException(status_code=404, detail="subscription not found")
@@ -406,6 +436,7 @@ async def admin_list_api_keys(
     principal: Principal = Depends(require_roles("SUPPORT_ADMIN", "SUPER_ADMIN")),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """列出 API key。"""
     rows = list((await session.scalars(select(ApiKey).order_by(ApiKey.created_at.desc()).limit(300))).all())
     return {"items": [{"id": item.id, "user_id": item.user_id, "name": item.name, "prefix": item.key_prefix, "scopes": item.scopes, "expires_at": item.expires_at, "revoked_at": item.revoked_at, "last_used_at": item.last_used_at} for item in rows]}
 
@@ -416,6 +447,7 @@ async def admin_revoke_api_key(
     principal: Principal = Depends(require_roles("SUPPORT_ADMIN", "SUPER_ADMIN")),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """吊销 API key。"""
     item = await session.get(ApiKey, key_id)
     if item is None:
         raise HTTPException(status_code=404, detail="API key not found")
@@ -429,6 +461,7 @@ async def admin_revoke_api_key(
 async def rate_limit_status(
     principal: Principal = Depends(require_roles("SUPPORT_ADMIN", "SUPER_ADMIN")),
 ):
+    """查看限流状态。"""
     settings = get_platform_settings()
     redis_ok = False
     if settings.redis_url:
@@ -450,6 +483,7 @@ async def admin_adjust_credits(
     principal: Principal = Depends(require_roles("BILLING_ADMIN", "SUPER_ADMIN")),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """调整用户积分。"""
     if await session.get(PlatformUser, user_id) is None:
         raise HTTPException(status_code=404, detail="user not found")
     try:
@@ -474,6 +508,7 @@ async def admin_list_runs(
     principal: Principal = Depends(require_roles("SUPPORT_ADMIN", "SUPER_ADMIN")),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """列出 Agent 运行记录。"""
     rows = list((await session.scalars(select(AgentRun).order_by(AgentRun.created_at.desc()).limit(200))).all())
     return {"items": [{"id": item.id, "user_id": item.user_id, "status": item.status, "credits": item.actual_credits, "created_at": item.created_at, "error_code": item.error_code} for item in rows]}
 
@@ -483,5 +518,6 @@ async def admin_audit(
     principal: Principal = Depends(require_roles("SUPER_ADMIN")),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """查询审计日志。"""
     rows = list((await session.scalars(select(AuditLog).order_by(AuditLog.created_at.desc()).limit(300))).all())
     return {"items": [{"id": item.id, "actor_user_id": item.actor_user_id, "action": item.action, "resource_type": item.resource_type, "resource_id": item.resource_id, "detail": item.detail, "created_at": item.created_at} for item in rows]}

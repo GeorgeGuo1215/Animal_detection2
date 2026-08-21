@@ -19,6 +19,7 @@ async def _chat_moe_turn(
     session_id: str,
     message: str,
 ) -> Dict[str, Any]:
+    """发送一轮 MoE 聊天并收集流式事件。"""
     events: List[Dict[str, Any]] = []
     answer: List[str] = []
     async with client.stream(
@@ -41,11 +42,13 @@ async def _chat_moe_turn(
 
 
 def _event_detail(turn: Dict[str, Any], status: str) -> Dict[str, Any]:
+    """取出事件里的 detail 字段。"""
     event = next(item for item in turn["events"] if item.get("agent_status") == status)
     return dict(event.get("agent_detail") or {})
 
 
 async def run(args: argparse.Namespace) -> Dict[str, Any]:
+    """执行本脚本的主流程。"""
     suffix = uuid.uuid4().hex[:8]
     v1_user = f"live-v1-{suffix}"
     v1_other = f"live-v1-other-{suffix}"
@@ -193,6 +196,7 @@ async def run(args: argparse.Namespace) -> Dict[str, Any]:
 
 
 def write_report(result: Dict[str, Any], out_dir: Path) -> tuple[Path, Path]:
+    """把报告写到磁盘。"""
     out_dir.mkdir(parents=True, exist_ok=True)
     stem = f"memory_live_{result['run_id']}"
     json_path = out_dir / f"{stem}.json"
@@ -231,6 +235,7 @@ def write_report(result: Dict[str, Any], out_dir: Path) -> tuple[Path, Path]:
 
 
 def main() -> int:
+    """脚本入口，解析参数并执行主流程。"""
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
     parser.add_argument("--memory-url", default="http://127.0.0.1:8300")

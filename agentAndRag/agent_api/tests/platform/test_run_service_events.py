@@ -2,6 +2,7 @@ from agent_api.app.platform.run_service import _public_expert_trace
 
 
 def test_public_expert_trace_is_useful_but_does_not_expose_prompts_or_raw_payloads():
+    """验证公开专家追踪有用，但不会暴露提示词或原始载荷。"""
     raw = {
         "expert": "clinical",
         "name_zh": "兽医临床专家",

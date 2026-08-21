@@ -5,7 +5,7 @@ from typing import Any, Dict
 
 
 def canonical_tool_call(tool_name: str, arguments: Dict[str, Any]) -> str:
-    """Return a stable identity for exact tool-call deduplication."""
+    """返回用于精确去重的稳定工具调用身份串。"""
     try:
         payload = json.dumps(
             arguments or {}, ensure_ascii=False, sort_keys=True, separators=(",", ":")

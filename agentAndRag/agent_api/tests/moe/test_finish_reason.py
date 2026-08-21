@@ -23,6 +23,7 @@ from app.tools.tool_registry import ToolRegistry
 
 class _StageOrchestrator(MoEOrchestrator):
     async def _run_experts(self, query, decision, recorder):
+        """驱动专家执行路径的测试替身。"""
         return [{
             "expert": "clinical", "name_zh": "clinical", "weight": 1.0,
             "conclusion": "opinion", "evidence": [], "risks": [], "confidence": 0.8,
@@ -30,6 +31,7 @@ class _StageOrchestrator(MoEOrchestrator):
         }]
 
     async def _critique(self, query, opinions, emergency, recorder):
+        """测试用审核器替身。"""
         return CriticResult(verdict="pass", issues=[], constraints=[], reason="ok")
 
 
@@ -37,6 +39,7 @@ class _LengthLLM:
     model = "fake"
 
     async def chat(self, messages=None, **kwargs):
+        """测试用假 LLM 聊天实现。"""
         return {
             "choices": [{"message": {"content": "partial"}, "finish_reason": "length"}],
             "usage": {},
@@ -47,6 +50,7 @@ class _LengthStreamLLM:
     model = "fake"
 
     async def chat_stream_events(self, messages=None, **kwargs):
+        """产出测试用的聊天流事件。"""
         yield {"content": "partial", "finish_reason": None}
         yield {"content": None, "finish_reason": "length"}
 
@@ -55,6 +59,7 @@ class _EmptyStreamLLM:
     model = "fake"
 
     async def chat_stream_events(self, messages=None, **kwargs):
+        """产出测试用的聊天流事件。"""
         self.last_kwargs = kwargs
         yield {"content": None, "finish_reason": "stop"}
 
@@ -63,6 +68,7 @@ class _InterruptedStreamLLM:
     model = "fake"
 
     async def chat_stream_events(self, messages=None, **kwargs):
+        """产出测试用的聊天流事件。"""
         yield {"content": "partial", "finish_reason": None}
         raise RuntimeError("upstream disconnected")
 
@@ -71,6 +77,7 @@ class _FallbackAnswerLLM:
     model = "fake"
 
     async def chat(self, messages=None, **kwargs):
+        """测试用假 LLM 聊天实现。"""
         self.last_kwargs = kwargs
         return {
             "choices": [{"message": {"content": "fallback answer"}, "finish_reason": "stop"}],
@@ -82,6 +89,7 @@ class _EmptyAnswerLLM:
     model = "fake"
 
     async def chat(self, messages=None, **kwargs):
+        """测试用假 LLM 聊天实现。"""
         return {
             "choices": [{"message": {"content": ""}, "finish_reason": "stop"}],
             "usage": {},
@@ -89,12 +97,14 @@ class _EmptyAnswerLLM:
 
 
 def test_length_is_normalized_to_truncated():
+    """验证 length 结束原因会被归一成 truncated。"""
     assert normalize_finish_reason("length") == "truncated"
     assert normalize_finish_reason("max_tokens") == "truncated"
     assert normalize_finish_reason("stop") == "stop"
 
 
 def test_schema_accepts_truncated_finish_reason():
+    """验证 schema 接受 truncated 结束原因。"""
     choice = ChatCompletionChoice(
         message=ChatMessage(role="assistant", content="partial"),
         finish_reason="truncated",
@@ -103,6 +113,7 @@ def test_schema_accepts_truncated_finish_reason():
 
 
 def test_chat_payload_can_disable_deepseek_thinking_for_low_latency_stages():
+    """验证低延迟阶段可以关闭 DeepSeek thinking。"""
     payload = build_chat_payload(
         model="deepseek-v4-flash",
         messages=[{"role": "user", "content": "case"}],
@@ -115,6 +126,7 @@ def test_chat_payload_can_disable_deepseek_thinking_for_low_latency_stages():
 
 
 def test_non_stream_orchestrator_preserves_truncation():
+    """验证非流式编排器会保留截断结束原因。"""
     orchestrator = _StageOrchestrator(
         registry=ToolRegistry(), llm=_LengthLLM(),
         config=OrchestratorConfig(max_tokens=10, allowed_tools=[]),
@@ -127,12 +139,14 @@ def test_non_stream_orchestrator_preserves_truncation():
 
 
 def test_stream_orchestrator_emits_truncated_final_event():
+    """验证流式编排器会发出 truncated 最终事件。"""
     orchestrator = _StageOrchestrator(
         registry=ToolRegistry(), llm=_LengthLLM(), stream_llm=_LengthStreamLLM(),
         config=OrchestratorConfig(max_tokens=10, allowed_tools=[]),
     )
 
     async def collect():
+        """收集流式事件或调用记录。"""
         return [event async for event in orchestrator.stream(query="case")]
 
     events = asyncio.run(collect())
@@ -143,12 +157,14 @@ def test_stream_orchestrator_emits_truncated_final_event():
 
 
 def test_empty_aggregator_stream_uses_non_stream_fallback_and_emits_content():
+    """验证综合器空流会走非流式兜底并仍能发出内容。"""
     orchestrator = _StageOrchestrator(
         registry=ToolRegistry(), llm=_FallbackAnswerLLM(), stream_llm=_EmptyStreamLLM(),
         config=OrchestratorConfig(max_tokens=100, allowed_tools=[]),
     )
 
     async def collect():
+        """收集流式事件或调用记录。"""
         return [event async for event in orchestrator.stream(query="case")]
 
     events = asyncio.run(collect())
@@ -163,12 +179,14 @@ def test_empty_aggregator_stream_uses_non_stream_fallback_and_emits_content():
 
 
 def test_empty_stream_and_empty_fallback_raise_explicit_generation_error():
+    """验证空流且兜底也为空时会抛出明确的生成错误。"""
     orchestrator = _StageOrchestrator(
         registry=ToolRegistry(), llm=_EmptyAnswerLLM(), stream_llm=_EmptyStreamLLM(),
         config=OrchestratorConfig(max_tokens=100, allowed_tools=[]),
     )
 
     async def collect():
+        """收集流式事件或调用记录。"""
         return [event async for event in orchestrator.stream(query="case")]
 
     with pytest.raises(RuntimeError, match="no visible content after fallback"):
@@ -176,12 +194,14 @@ def test_empty_stream_and_empty_fallback_raise_explicit_generation_error():
 
 
 def test_interrupted_partial_stream_resets_and_uses_complete_fallback():
+    """验证流被打断后会重置，并改用完整兜底回答。"""
     orchestrator = _StageOrchestrator(
         registry=ToolRegistry(), llm=_FallbackAnswerLLM(), stream_llm=_InterruptedStreamLLM(),
         config=OrchestratorConfig(max_tokens=100, allowed_tools=[]),
     )
 
     async def collect():
+        """收集流式事件或调用记录。"""
         return [event async for event in orchestrator.stream(query="case")]
 
     events = asyncio.run(collect())
@@ -195,26 +215,32 @@ def test_interrupted_partial_stream_resets_and_uses_complete_fallback():
 
 
 def test_stream_client_preserves_upstream_length_reason(monkeypatch: pytest.MonkeyPatch):
+    """验证流式客户端保留上游的 length 结束原因。"""
     import app.llm.llm_client_stream as stream_module
 
     class FakeResponse:
         def raise_for_status(self):
+            """在测试替身里按状态码决定是否抛错。"""
             return None
 
         async def aiter_lines(self):
+            """异步逐行产出测试预置的 SSE 文本。"""
             yield 'data: {"choices":[{"delta":{"content":"partial"},"finish_reason":null}]}'
             yield 'data: {"choices":[{"delta":{},"finish_reason":"length"}]}'
             yield "data: [DONE]"
 
     class FakeContext:
         async def __aenter__(self):
+            """异步进入上下文并返回自身。"""
             return FakeResponse()
 
         async def __aexit__(self, exc_type, exc, tb):
+            """异步退出上下文。"""
             return False
 
     class FakeClient:
         def stream(self, *args, **kwargs):
+            """测试用流式输出实现。"""
             return FakeContext()
 
     class Limits:
@@ -229,6 +255,7 @@ def test_stream_client_preserves_upstream_length_reason(monkeypatch: pytest.Monk
     client._client = FakeClient()
 
     async def collect():
+        """收集流式事件或调用记录。"""
         return [event async for event in client.chat_stream_events(
             messages=[{"role": "user", "content": "case"}], max_tokens=10
         )]

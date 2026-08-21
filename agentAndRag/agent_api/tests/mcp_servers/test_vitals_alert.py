@@ -1,9 +1,8 @@
-"""Unit tests for the vitals_alert MCP server (no live database required).
+"""vitals_alert MCP 服务的离线单元测试（不连真实数据库）。
 
-数据库访问通过替换 db._connect 注入假连接，所以这些用例完全离线，
-也不会加载任何模型 / 占用显卡。
+通过替换 db._connect 注入假连接，因此完全离线，也不会加载模型或占用显卡。
 
-Run: pytest agent_api/tests/mcp_servers/test_vitals_alert.py -q
+运行：pytest agent_api/tests/mcp_servers/test_vitals_alert.py -q
 """
 import json
 import os
@@ -47,7 +46,7 @@ _VITALS_ENV = (
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch):
-    """Every test starts from an unconfigured environment."""
+    """每个测试都从清空后的体征相关环境变量起步。"""
     for name in _VITALS_ENV:
         monkeypatch.delenv(name, raising=False)
 
@@ -56,58 +55,71 @@ def _clean_env(monkeypatch):
 
 
 class FakeCursor:
-    """Replays a scripted result per execute() call and records the SQL."""
+    """按预设脚本回放每次 execute 的结果，并记录实际 SQL。"""
 
     def __init__(self, script):
+        """初始化该测试替身。"""
         self.script = list(script)
         self.calls = []  # list of (rendered_sql, params)
         self._current = None
 
     def execute(self, query, params=None):
+        """记录 SQL 与参数，按脚本返回下一组结果。"""
         rendered = query.as_string() if hasattr(query, "as_string") else str(query)
         self.calls.append((rendered, params))
         self._current = self.script.pop(0) if self.script else None
 
     def fetchone(self):
+        """返回当前脚本中的一行，或空。"""
         if isinstance(self._current, list):
             return self._current[0] if self._current else None
         return self._current
 
     def fetchall(self):
+        """返回当前脚本中的全部行。"""
         if isinstance(self._current, list):
             return self._current
         return [] if self._current is None else [self._current]
 
     def __enter__(self):
+        """进入上下文并返回自身。"""
         return self
 
     def __exit__(self, *exc):
+        """退出上下文；返回 False 表示不吞掉异常。"""
         return False
 
 
 class FakeConn:
+    """配合 FakeCursor 的假数据库连接，供离线测试注入。"""
     def __init__(self, script):
+        """初始化该测试替身。"""
         self.cursor_obj = FakeCursor(script)
         self.row_factory = None
 
     def cursor(self, row_factory=None):
+        """返回配套的假游标。"""
         self.row_factory = row_factory
         return self.cursor_obj
 
     def __enter__(self):
+        """进入上下文并返回自身。"""
         return self
 
     def __exit__(self, *exc):
+        """退出上下文；返回 False 表示不吞掉异常。"""
         return False
 
 
 def _install_fake_db(monkeypatch, script):
+    """把 db._connect 换成返回假连接的实现。"""
     conn = FakeConn(script)
     monkeypatch.setattr(db_mod, "_connect", lambda cfg: conn)
     return conn
 
 
 def _stats_row(**overrides):
+    """构造一条体征统计行，可用关键字覆盖字段。"""
     row = {
         "n": 120,
         "hr_n": 120, "hr_avg": 88.5, "hr_min": 62, "hr_max": 145,
@@ -122,6 +134,7 @@ def _stats_row(**overrides):
 
 
 def _empty_stats_row():
+    """构造一条样本数为 0 的统计行。"""
     return _stats_row(
         n=0, hr_n=0, hr_avg=None, hr_min=None, hr_max=None, hr_above=0, hr_below=0,
         rr_n=0, rr_avg=None, rr_min=None, rr_max=None, rr_above=0, rr_below=0,
@@ -134,6 +147,7 @@ def _empty_stats_row():
 
 def test_builtin_thresholds_match_upstream_reference():
     # 与 PetHealth_Server 的 pet-health-ranges.ts 对齐
+    """验证内置体征阈值与上游参考表一致。"""
     assert DEFAULT_THRESHOLDS["DOG"][HEART_RATE] == {"min": 60.0, "max": 140.0}
     assert DEFAULT_THRESHOLDS["DOG"][RESPIRATORY_RATE] == {"min": 10.0, "max": 35.0}
     assert DEFAULT_THRESHOLDS["CAT"][HEART_RATE] == {"min": 120.0, "max": 220.0}
@@ -142,6 +156,7 @@ def test_builtin_thresholds_match_upstream_reference():
 
 
 def test_override_touches_only_the_named_species_and_metric(monkeypatch):
+    """验证覆盖项只改指定物种和指标。"""
     monkeypatch.setenv(
         "VITALS_THRESHOLDS_JSON",
         json.dumps({"DOG": {"heartRate": {"min": 55, "max": 150}}}),
@@ -154,6 +169,7 @@ def test_override_touches_only_the_named_species_and_metric(monkeypatch):
 
 
 def test_override_accepts_upstream_metric_aliases():
+    """验证覆盖项接受上游指标别名。"""
     merged = merge_thresholds(
         DEFAULT_THRESHOLDS, {"cat": {"breathRate": {"min": 18, "max": 34}}}
     )
@@ -161,11 +177,13 @@ def test_override_accepts_upstream_metric_aliases():
 
 
 def test_builtin_table_is_not_mutated_by_a_merge():
+    """验证合并覆盖项时不会改写内置阈值表。"""
     merge_thresholds(DEFAULT_THRESHOLDS, {"DOG": {"heart_rate": {"min": 1, "max": 2}}})
     assert DEFAULT_THRESHOLDS["DOG"][HEART_RATE] == {"min": 60.0, "max": 140.0}
 
 
 def test_invalid_threshold_json_falls_back_to_defaults(monkeypatch):
+    """验证非法阈值 JSON 会回退到默认值。"""
     monkeypatch.setenv("VITALS_THRESHOLDS_JSON", "{not json")
     cfg = load_config()
     assert cfg.thresholds["DOG"][HEART_RATE] == {"min": 60.0, "max": 140.0}
@@ -183,12 +201,14 @@ def test_invalid_threshold_json_falls_back_to_defaults(monkeypatch):
     ],
 )
 def test_bad_override_entries_are_dropped_without_losing_defaults(override):
+    """验证错误的覆盖项会被丢弃，同时保留默认阈值。"""
     merged = merge_thresholds(DEFAULT_THRESHOLDS, override)
     assert merged["DOG"][HEART_RATE] == {"min": 60.0, "max": 140.0}
     assert merged["CAT"][HEART_RATE] == {"min": 120.0, "max": 220.0}
 
 
 def test_partially_valid_override_keeps_the_good_half():
+    """验证部分合法的覆盖项会留下有效的那一半。"""
     merged = merge_thresholds(
         DEFAULT_THRESHOLDS,
         {"DOG": {"heart_rate": {"min": 50, "max": 160}, "respiratory_rate": {"min": 9, "max": 9}}},
@@ -202,6 +222,7 @@ def test_partially_valid_override_keeps_the_good_half():
 
 def test_blank_env_is_treated_as_unset(monkeypatch):
     # mcp_servers.json 的 ${VAR} 模板在变量未定义时会展开成空串
+    """验证空白环境变量会被当成未设置。"""
     for name in _VITALS_ENV:
         monkeypatch.setenv(name, "")
     cfg = load_config()
@@ -214,11 +235,13 @@ def test_blank_env_is_treated_as_unset(monkeypatch):
 
 @pytest.mark.parametrize("raw", ["0", "1.5", "-0.2", "abc"])
 def test_out_of_range_abnormal_ratio_falls_back(monkeypatch, raw):
+    """验证超出范围的异常比例会回退到默认。"""
     monkeypatch.setenv("VITALS_ABNORMAL_RATIO", raw)
     assert load_config().abnormal_ratio == DEFAULT_ABNORMAL_RATIO
 
 
 def test_custom_env_values_are_honoured(monkeypatch):
+    """验证自定义环境变量取值会被遵守。"""
     monkeypatch.setenv("VITALS_DB_DSN", "postgresql://u:p@db:15432/PetHealth")
     monkeypatch.setenv("VITALS_METRIC_TABLE", "MetricsArchive")
     monkeypatch.setenv("VITALS_PET_TABLE", "Animals")
@@ -237,6 +260,7 @@ def test_custom_env_values_are_honoured(monkeypatch):
     [("dog", "DOG"), ("Cat", "CAT"), (" bird ", "BIRD"), ("dragon", "OTHER"), (None, "OTHER"), ("", "OTHER")],
 )
 def test_normalize_species(raw, expected):
+    """验证物种名称归一化。"""
     assert normalize_species(raw) == expected
 
 
@@ -244,30 +268,36 @@ def test_normalize_species(raw, expected):
 
 
 def test_metric_is_normal_without_any_breach():
+    """验证没有任何越界时指标为正常。"""
     assert classify_metric(100, 88.0, 0, {"min": 60, "max": 140}, 0.2) == "normal"
 
 
 def test_metric_is_normal_when_there_are_no_samples():
+    """验证没有样本时指标视为正常。"""
     assert classify_metric(0, None, 0, {"min": 60, "max": 140}, 0.2) == "normal"
 
 
 def test_sparse_breach_is_only_a_warning():
     # 10 / 100 = 0.1，低于 0.2 的升级线
+    """验证稀疏越界只记警告。"""
     assert classify_metric(100, 88.0, 10, {"min": 60, "max": 140}, 0.2) == "warning"
 
 
 def test_breach_ratio_at_the_threshold_escalates_to_alert():
     # 20 / 100 = 0.2，正好达到升级线
+    """验证越界比例刚达到阈值时会升级为告警。"""
     assert classify_metric(100, 88.0, 20, {"min": 60, "max": 140}, 0.2) == "alert"
 
 
 @pytest.mark.parametrize("avg", [59.9, 140.1])
 def test_mean_outside_the_range_is_always_an_alert(avg):
     # 均值本身越界说明是持续偏离，不看占比
+    """验证均值超出范围时一律定为告警。"""
     assert classify_metric(100, avg, 1, {"min": 60, "max": 140}, 0.9) == "alert"
 
 
 def test_overall_level_is_the_worst_metric():
+    """验证总体告警级别取各指标中最差的一档。"""
     assert classify_alert(["normal", "warning"]) == "warning"
     assert classify_alert(["warning", "alert"]) == "alert"
     assert classify_alert(["normal", "normal"]) == "normal"
@@ -279,6 +309,7 @@ def test_overall_level_is_the_worst_metric():
 
 @pytest.mark.parametrize("pet_id", [None, "", "   "])
 def test_missing_pet_id_is_rejected_before_touching_the_database(pet_id):
+    """验证缺少宠物 ID 时在碰数据库之前就被拒绝。"""
     result = check_vitals(pet_id=pet_id)
     assert result["status"] == "INVALID_ARGUMENT"
 
@@ -288,6 +319,7 @@ def test_missing_pet_id_is_rejected_before_touching_the_database(pet_id):
     [(24, 24), (0, 1), (-5, 1), (9999, 720), ("48", 48), ("abc", 24), (None, 24)],
 )
 def test_hours_are_clamped_into_the_supported_window(raw, expected):
+    """验证小时数会被钳制到支持的时间窗内。"""
     assert coerce_hours(raw) == expected
 
 
@@ -295,6 +327,7 @@ def test_hours_are_clamped_into_the_supported_window(raw, expected):
 
 
 def test_happy_path_reports_stats_thresholds_and_alert_level(monkeypatch):
+    """验证正常路径会回报统计、阈值和告警级别。"""
     samples = [
         {"timestamp": datetime(2026, 7, 31, 17, 0, tzinfo=timezone.utc), "hr": 145, "rr": 38},
     ]
@@ -320,6 +353,7 @@ def test_happy_path_reports_stats_thresholds_and_alert_level(monkeypatch):
 
 def test_evidence_samples_are_split_per_metric(monkeypatch):
     # 一行同时越界，两个指标都该拿到证据；只越一项的行不该串味
+    """验证证据样本按指标拆分。"""
     rows = [
         {"timestamp": datetime(2026, 7, 31, 17, 0, tzinfo=timezone.utc), "hr": 145, "rr": 38},
         {"timestamp": datetime(2026, 7, 31, 16, 0, tzinfo=timezone.utc), "hr": 150, "rr": 20},
@@ -336,6 +370,7 @@ def test_evidence_samples_are_split_per_metric(monkeypatch):
 
 
 def test_species_specific_bounds_are_pushed_into_the_sql(monkeypatch):
+    """验证物种相关阈值会被写进 SQL。"""
     conn = _install_fake_db(monkeypatch, [{"species": "CAT"}, _stats_row(), []])
 
     check_vitals(pet_id="clx_cat_1", hours=6)
@@ -349,6 +384,7 @@ def test_species_specific_bounds_are_pushed_into_the_sql(monkeypatch):
 
 
 def test_explicit_species_skips_the_pet_lookup(monkeypatch):
+    """验证显式给出物种时会跳过宠物表查询。"""
     conn = _install_fake_db(monkeypatch, [_stats_row(), []])
 
     out = check_vitals(pet_id="clx_1", species="rabbit")
@@ -361,6 +397,7 @@ def test_explicit_species_skips_the_pet_lookup(monkeypatch):
 
 
 def test_unknown_explicit_species_falls_back_to_other_bounds(monkeypatch):
+    """验证未知的显式物种会回退到 other 阈值。"""
     conn = _install_fake_db(monkeypatch, [_stats_row(), []])
 
     out = check_vitals(pet_id="clx_1", species="dragon")
@@ -371,6 +408,7 @@ def test_unknown_explicit_species_falls_back_to_other_bounds(monkeypatch):
 
 
 def test_window_without_samples_returns_no_data(monkeypatch):
+    """验证时间窗内没有样本时返回无数据。"""
     _install_fake_db(monkeypatch, [{"species": "DOG"}, _empty_stats_row()])
 
     out = check_vitals(pet_id="clx_dog_1", hours=3)
@@ -380,6 +418,7 @@ def test_window_without_samples_returns_no_data(monkeypatch):
 
 
 def test_unknown_pet_returns_pet_not_found(monkeypatch):
+    """验证未知宠物返回 pet_not_found。"""
     _install_fake_db(monkeypatch, [None])
 
     out = check_vitals(pet_id="ghost")
@@ -389,7 +428,9 @@ def test_unknown_pet_returns_pet_not_found(monkeypatch):
 
 
 def test_connection_failure_degrades_to_db_unavailable(monkeypatch):
+    """验证连库失败会降级为数据库不可用。"""
     def _boom(cfg):
+        """故意抛错，用来模拟数据库连接失败。"""
         raise OSError("connection refused")
 
     monkeypatch.setattr(db_mod, "_connect", _boom)
@@ -401,8 +442,10 @@ def test_connection_failure_degrades_to_db_unavailable(monkeypatch):
 
 
 def test_query_failure_also_degrades_to_db_unavailable(monkeypatch):
+    """验证查询失败同样降级为数据库不可用。"""
     class ExplodingCursor(FakeCursor):
         def execute(self, query, params=None):
+            """记录 SQL 与参数，按脚本返回下一组结果。"""
             raise RuntimeError("relation does not exist")
 
     conn = FakeConn([])
@@ -417,6 +460,7 @@ def test_query_failure_also_degrades_to_db_unavailable(monkeypatch):
 
 def test_mean_out_of_range_produces_an_alert(monkeypatch):
     # 猫的心率上限 220，均值 260 属于持续性心动过速
+    """验证均值越界会产生告警。"""
     stats = _stats_row(hr_avg=260.0, hr_above=120, hr_min=240, hr_max=280)
     _install_fake_db(monkeypatch, [{"species": "CAT"}, stats, []])
 
@@ -429,11 +473,13 @@ def test_mean_out_of_range_produces_an_alert(monkeypatch):
 
 
 def test_configured_table_names_are_quoted_identifiers():
+    """验证配置的表名会作为引用标识符写入 SQL。"""
     assert 'FROM "PetHealthMetric"' in db_mod.stats_sql("PetHealthMetric").as_string()
     assert 'FROM "Pet"' in db_mod.species_sql("Pet").as_string()
 
 
 def test_hostile_table_name_cannot_break_out_of_the_identifier():
+    """验证恶意表名无法突破标识符引用。"""
     rendered = db_mod.stats_sql('x"; DROP TABLE "Pet"; --').as_string()
     # 内部的双引号被转义成 ""，整段仍是一个标识符，不会变成新语句
     assert 'FROM "x""; DROP TABLE ""Pet""; --"' in rendered
@@ -441,6 +487,7 @@ def test_hostile_table_name_cannot_break_out_of_the_identifier():
 
 
 def test_custom_table_names_reach_the_generated_sql(monkeypatch):
+    """验证自定义表名会出现在生成的 SQL 里。"""
     monkeypatch.setenv("VITALS_METRIC_TABLE", "MetricsArchive")
     monkeypatch.setenv("VITALS_PET_TABLE", "Animals")
     conn = _install_fake_db(monkeypatch, [{"species": "DOG"}, _stats_row(), []])
@@ -455,6 +502,7 @@ def test_custom_table_names_reach_the_generated_sql(monkeypatch):
 
 
 def test_tool_is_advertised_with_a_usable_schema():
+    """验证工具对外声明了可用的参数 schema。"""
     import asyncio
 
     tools = asyncio.run(srv.list_tools())
@@ -466,6 +514,7 @@ def test_tool_is_advertised_with_a_usable_schema():
 
 
 def test_call_tool_returns_json_text_content(monkeypatch):
+    """验证调用工具返回的是 JSON 文本内容。"""
     import asyncio
 
     _install_fake_db(monkeypatch, [{"species": "DOG"}, _stats_row(), []])
@@ -477,6 +526,7 @@ def test_call_tool_returns_json_text_content(monkeypatch):
 
 
 def test_unknown_tool_name_is_reported_not_raised():
+    """验证未知工具名会被报告而不是抛异常。"""
     import asyncio
 
     content = asyncio.run(srv.call_tool("nope", {}))

@@ -8,10 +8,12 @@ from app.services.moe.trace import MoETrace
 
 
 def _esc_cell(s: Any) -> str:
+    """转义 Markdown 表格单元格中的竖线和换行。"""
     return str(s).replace("|", "\\|").replace("\n", " ")
 
 
 def _fmt_messages(messages: List[Dict[str, Any]]) -> str:
+    """把对话消息列表格式化成分角色文本。"""
     lines: List[str] = []
     for m in messages or []:
         role = m.get("role", "?")
@@ -21,6 +23,7 @@ def _fmt_messages(messages: List[Dict[str, Any]]) -> str:
 
 
 def _config_table(config: Dict[str, Any]) -> str:
+    """把运行超参渲染成 Markdown 表。"""
     if not config:
         return "_（无）_"
     rows = ["| 超参 | 取值 |", "| --- | --- |"]
@@ -30,6 +33,7 @@ def _config_table(config: Dict[str, Any]) -> str:
 
 
 def _router_section(trace: MoETrace) -> str:
+    """渲染路由决策：拒答、急症、专家分与权重。"""
     d = trace.router_decision
     if not d:
         return "_（无路由记录）_"
@@ -50,6 +54,7 @@ def _router_section(trace: MoETrace) -> str:
 
 
 def _intent_section(trace: MoETrace) -> str:
+    """渲染医生端意图分类结果。"""
     decision = trace.intent_decision
     if not decision:
         return "_（非医生端请求或无意图分类记录）_"
@@ -64,6 +69,7 @@ def _intent_section(trace: MoETrace) -> str:
 
 
 def _llm_calls_section(trace: MoETrace) -> str:
+    """渲染各次 LLM 调用的耗时、token 与输入输出明细。"""
     if not trace.llm_calls:
         return "_（无 LLM 调用）_"
     out: List[str] = []
@@ -96,6 +102,7 @@ def _llm_calls_section(trace: MoETrace) -> str:
 
 
 def _experts_section(trace: MoETrace) -> str:
+    """渲染各专家意见、检索情况、结论与风险。"""
     if not trace.expert_opinions:
         return "_（未激活专家）_"
     out: List[str] = []
@@ -129,6 +136,7 @@ def _experts_section(trace: MoETrace) -> str:
 
 
 def _rag_section(trace: MoETrace) -> str:
+    """渲染 RAG 检索次数、分数与查询文本。"""
     if not trace.rag_calls:
         return "_（无 RAG 检索）_"
     out = ["| # | 阶段 | 命中数 | 最高分 | 耗时(ms) | 查询 |", "| --- | --- | --- | --- | --- | --- |"]
@@ -138,6 +146,7 @@ def _rag_section(trace: MoETrace) -> str:
 
 
 def _tools_section(trace: MoETrace) -> str:
+    """渲染工具调用时序及失败详情。"""
     if not getattr(trace, "tool_calls", None):
         return "_（无工具调用）_"
     out = [
@@ -159,6 +168,7 @@ def _tools_section(trace: MoETrace) -> str:
 
 
 def _critic_section(trace: MoETrace) -> str:
+    """渲染审核器裁决、问题与约束。"""
     c = trace.critic_result
     if not c:
         return "_（无审核记录）_"
@@ -175,6 +185,7 @@ def _critic_section(trace: MoETrace) -> str:
 
 
 def _summary_section(trace: MoETrace) -> str:
+    """汇总 LLM/RAG/工具次数、耗时与 token。"""
     stage_ms: Dict[str, float] = {}
     for c in trace.llm_calls:
         stage_ms[c.stage] = round(stage_ms.get(c.stage, 0.0) + c.latency_ms, 1)
@@ -199,6 +210,7 @@ def _summary_section(trace: MoETrace) -> str:
 
 
 def render(trace: MoETrace) -> str:
+    """把 MoETrace 拼成完整的 Markdown 评测报告。"""
     parts: List[str] = []
     parts.append("# MoE 评测报告")
     parts.append("")

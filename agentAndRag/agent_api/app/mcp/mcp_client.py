@@ -17,13 +17,13 @@ except Exception:  # noqa: BLE001
 
 
 def _require_mcp() -> None:
+    """确认已安装 mcp 依赖，否则抛出 RuntimeError。"""
     if ClientSession is None or StdioServerParameters is None or stdio_client is None:
         raise RuntimeError("Missing dependency: install 'mcp' to enable MCP tools.")
 
 
 def _run_sync(coro: Any) -> Any:
-    """Legacy sync wrapper -- kept for backward compatibility only."""
-    """通过线程隔离创建独立事件循环"""
+    """同步包装协程：无运行中事件循环时直接 asyncio.run，否则在独立线程中跑新循环。"""
     try:
         asyncio.get_running_loop()
     except RuntimeError:
@@ -33,6 +33,7 @@ def _run_sync(coro: Any) -> Any:
     error: Dict[str, BaseException] = {}
 
     def _runner() -> None:
+        """在新线程的事件循环中执行协程并记录结果或异常。"""
         try:
             result["value"] = asyncio.run(coro)
         except BaseException as exc:  # noqa: BLE001
@@ -47,7 +48,7 @@ def _run_sync(coro: Any) -> Any:
 
 
 def _normalize_tool(tool: Any) -> Dict[str, Any]:
-    """规范化 MCP 工具列表"""
+    """将 MCP 工具对象规范为 name/description/input_schema 字典。"""
     name = getattr(tool, "name", "") or ""
     description = getattr(tool, "description", "") or ""
     input_schema = getattr(tool, "inputSchema", None) or getattr(tool, "input_schema", None) or {}
@@ -57,6 +58,7 @@ def _normalize_tool(tool: Any) -> Dict[str, Any]:
 
 
 def _dump_content_item(item: Any) -> Dict[str, Any]:
+    """将 MCP 内容项转为可序列化字典。"""
     if hasattr(item, "model_dump"):
         return item.model_dump()  # type: ignore[no-any-return]
     if hasattr(item, "dict"):
@@ -67,6 +69,7 @@ def _dump_content_item(item: Any) -> Dict[str, Any]:
 
 
 def _normalize_call_result(result: Any) -> Dict[str, Any]:
+    """将 MCP call_tool 结果规范为 is_error 与 content 列表。"""
     is_error = bool(getattr(result, "isError", False) or getattr(result, "is_error", False))
     content = getattr(result, "content", None)
     if content is None and isinstance(result, dict):
@@ -130,10 +133,12 @@ async def _with_session(cfg: McpServerConfig, fn: Any) -> Any:
                 return await fn(session)
 
 
-# ── Async API (preferred) ──────────────────────────────────────────────
+# ── 异步 API（推荐）──────────────────────────────────────────────
 
 async def list_mcp_tools_async(cfg: McpServerConfig) -> List[Dict[str, Any]]:
+    """列出指定 MCP 服务器上的工具。"""
     async def _do(session: Any) -> List[Dict[str, Any]]:
+        """在已初始化会话中列出并规范化工具。"""
         result = await session.list_tools()
         tools = getattr(result, "tools", None) or []
         return [_normalize_tool(t) for t in tools]
@@ -142,18 +147,22 @@ async def list_mcp_tools_async(cfg: McpServerConfig) -> List[Dict[str, Any]]:
 
 
 async def call_mcp_tool_async(cfg: McpServerConfig, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """异步调用指定 MCP 工具。"""
     async def _do(session: Any) -> Dict[str, Any]:
+        """在已初始化会话中执行 call_tool 并规范化结果。"""
         result = await session.call_tool(tool_name, arguments)
         return _normalize_call_result(result)
 
     return await _with_session(cfg, _do)
 
 
-# ── Sync wrappers (backward compatibility) ─────────────────────────────
+# ── 同步包装（向后兼容）─────────────────────────────
 
 def list_mcp_tools(cfg: McpServerConfig) -> List[Dict[str, Any]]:
+    """同步列出 MCP 工具。"""
     return _run_sync(list_mcp_tools_async(cfg))
 
 
 def call_mcp_tool(cfg: McpServerConfig, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """同步调用 MCP 工具。"""
     return _run_sync(call_mcp_tool_async(cfg, tool_name, arguments or {}))

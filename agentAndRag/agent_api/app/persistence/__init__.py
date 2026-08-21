@@ -1,1 +1,1 @@
-"""SQLite traces, Q&A store, sessions."""
+"""SQLite 轨迹、问答存储与会话。"""

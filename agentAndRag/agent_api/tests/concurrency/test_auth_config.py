@@ -15,6 +15,7 @@ MISSING_KEYS_PATH = Path(__file__).with_name("_missing_auth_test_keys.txt")
 
 
 def test_missing_key_configuration_fails_fast(monkeypatch):
+    """验证缺少密钥配置时会快速失败。"""
     monkeypatch.setattr(auth, "_keys_file_path", lambda: MISSING_KEYS_PATH)
     monkeypatch.delenv("AGENT_API_KEYS", raising=False)
     monkeypatch.delenv("AGENT_ALLOW_INSECURE_DEFAULT_KEY", raising=False)
@@ -28,6 +29,7 @@ def test_missing_key_configuration_fails_fast(monkeypatch):
 
 
 def test_environment_keys_work_without_writing_a_file(monkeypatch):
+    """验证环境变量里的密钥无需写文件即可生效。"""
     monkeypatch.setattr(auth, "_keys_file_path", lambda: MISSING_KEYS_PATH)
     monkeypatch.setenv("AGENT_API_KEYS", "key-one,key-two")
     monkeypatch.delenv("AGENT_ALLOW_INSECURE_DEFAULT_KEY", raising=False)
@@ -42,6 +44,7 @@ def test_environment_keys_work_without_writing_a_file(monkeypatch):
 
 
 def test_disabled_legacy_keys_do_not_require_or_load_key_file(monkeypatch, tmp_path):
+    """验证禁用旧版密钥后既不要求也不加载密钥文件。"""
     key_file = tmp_path / "keys.txt"
     key_file.write_text("legacy-secret\n", encoding="utf-8")
     monkeypatch.setattr(auth, "_keys_file_path", lambda: key_file)

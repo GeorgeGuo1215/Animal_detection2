@@ -1,7 +1,6 @@
-"""Export or overwrite-restore one user's conversations and memory snapshot.
+"""导出或覆盖恢复指定用户的会话与记忆快照。
 
-The API token must belong to a SUPER_ADMIN. Snapshot files contain sensitive
-conversation and memory data; keep them encrypted at rest and never commit them.
+操作令牌必须属于超级管理员。快照含敏感会话与记忆数据，需加密存放且禁止提交到仓库。
 """
 from __future__ import annotations
 
@@ -15,6 +14,7 @@ import httpx
 
 
 def main() -> int:
+    """命令行入口：按模式导出或覆盖恢复指定用户的会话与记忆快照。"""
     parser = argparse.ArgumentParser(description="PetMind user data backup/restore")
     parser.add_argument("mode", choices=("export", "restore"))
     parser.add_argument("--base-url", default=os.getenv("PETMIND_API_URL", "http://127.0.0.1:8002"))

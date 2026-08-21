@@ -23,7 +23,9 @@ from agent_api.app.platform.security import hash_password
 
 
 def test_conversation_snapshot_overwrite_restore(tmp_path, monkeypatch):
+    """验证会话快照可以覆盖恢复。"""
     async def scenario():
+        """本用例的异步执行体。"""
         await close_platform_database()
         monkeypatch.setenv(
             "AGENT_PLATFORM_DB_URL",

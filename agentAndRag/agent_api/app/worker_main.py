@@ -35,6 +35,7 @@ _QUEUE_TASK: asyncio.Task[None] | None = None
 
 @app.middleware("http")
 async def authenticate_internal_request(request: Request, call_next):
+    """校验内部 Worker Token；健康检查除外，未就绪时返回 503。"""
     if request.url.path not in {"/health", "/ready"}:
         supplied = request.headers.get("x-petmind-worker-token", "")
         if not supplied or not hmac.compare_digest(supplied, worker_token()):
@@ -49,6 +50,7 @@ async def authenticate_internal_request(request: Request, call_next):
 
 
 async def _initialize_worker() -> None:
+    """初始化数据库、记忆、工具、RAG 预热与平台队列消费者。"""
     global _READY, _WARMUP_INFO, _QUEUE_TASK
     configure_resource_limits()
     init_qa_db()
@@ -72,14 +74,13 @@ async def _initialize_worker() -> None:
 
 @app.on_event("startup")
 async def startup() -> None:
-    # Complete model/tool initialization before Uvicorn accepts execution
-    # traffic. An initialization failure terminates the Worker so the service
-    # supervisor can restart it instead of leaving a permanently unready shell.
+    """启动时先完成模型/工具初始化，再接受执行流量；失败则让进程退出以便 supervisor 重启。"""
     await _initialize_worker()
 
 
 @app.on_event("shutdown")
 async def shutdown() -> None:
+    """停止队列消费者并关闭记忆、LLM 与平台数据库连接。"""
     global _READY
     _READY = False
     if _QUEUE_TASK is not None and not _QUEUE_TASK.done():
@@ -100,11 +101,13 @@ async def shutdown() -> None:
 
 @app.get("/health")
 async def health() -> dict[str, Any]:
+    """存活探针：进程已启动即返回 ok。"""
     return {"ok": True, "role": "worker"}
 
 
 @app.get("/ready")
 async def ready() -> JSONResponse:
+    """就绪探针：预热完成且队列消费者存活时返回 200，否则 503。"""
     queue_alive = _QUEUE_TASK is not None and not _QUEUE_TASK.done()
     ready_now = _READY and queue_alive
     return JSONResponse(

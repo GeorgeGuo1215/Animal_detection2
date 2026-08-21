@@ -1,7 +1,6 @@
-"""Run Memory Service and Agent API under one development/service lifecycle.
+"""在同一开发/服务生命周期下拉起 Memory Service 与 Agent API。
 
-The services stay in separate processes (so model/DB failures remain isolated), while
-this supervisor owns startup ordering, readiness, termination and exit propagation.
+各服务仍分进程运行（模型或数据库故障彼此隔离），本监督进程负责启动顺序、就绪检查、终止与退出码传递。
 """
 from __future__ import annotations
 
@@ -22,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def _flag(value: Optional[str], default: bool = False) -> bool:
+    """把环境变量字符串解析成布尔开关，缺省时返回 default。"""
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
@@ -34,6 +34,7 @@ def build_child_environment(
     memory_port: int,
     memory_required: bool,
 ) -> tuple[Dict[str, str], Dict[str, str]]:
+    """为 Memory 与 Agent 子进程分别构造隔离后的环境变量。"""
     memory_env = dict(base)
     memory_env["MEMORY_HOST"] = memory_host
     memory_env["MEMORY_PORT"] = str(memory_port)
@@ -46,6 +47,7 @@ def build_child_environment(
 
 
 def wait_for_memory(url: str, timeout_s: float) -> Dict[str, object]:
+    """轮询 Memory 服务 /health，直到数据库就绪或超时失败。"""
     deadline = time.monotonic() + timeout_s
     last_error = "not started"
     while time.monotonic() < deadline:
@@ -62,6 +64,7 @@ def wait_for_memory(url: str, timeout_s: float) -> Dict[str, object]:
 
 
 def _stop_process(process: Optional[subprocess.Popen[bytes]], timeout_s: float = 15.0) -> None:
+    """先 terminate 再必要时 kill，等待子进程退出。"""
     if process is None or process.poll() is not None:
         return
     process.terminate()
@@ -73,6 +76,7 @@ def _stop_process(process: Optional[subprocess.Popen[bytes]], timeout_s: float =
 
 
 def _commands(args: argparse.Namespace) -> tuple[List[str], List[str]]:
+    """组装 Memory 服务与 Agent API 的启动命令。"""
     memory = [sys.executable, "-m", "memory_service.app.main"]
     agent = [
         sys.executable,
@@ -93,10 +97,12 @@ def _commands(args: argparse.Namespace) -> tuple[List[str], List[str]]:
 
 
 def _worker_command() -> List[str]:
+    """返回平台 Worker 子进程的启动命令。"""
     return [sys.executable, "-m", "agent_api.scripts.run_platform_worker"]
 
 
 def main() -> int:
+    """监督入口：按序拉起 Memory、Agent，可选 Worker，并转发信号退出。"""
     parser = argparse.ArgumentParser(description="Start Memory Service, then Agent API.")
     parser.add_argument("--agent-host", default=os.getenv("AGENT_HOST", "127.0.0.1"))
     parser.add_argument("--agent-port", type=int, default=int(os.getenv("AGENT_PORT", "8000")))
@@ -146,6 +152,7 @@ def main() -> int:
     stopping = False
 
     def request_stop(_signum: int, _frame: object) -> None:
+        """收到 SIGINT/SIGTERM 时标记停止，让主循环优雅退出。"""
         nonlocal stopping
         stopping = True
 

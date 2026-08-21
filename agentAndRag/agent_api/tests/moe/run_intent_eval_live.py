@@ -40,6 +40,7 @@ class EvalCase:
 
     @property
     def question(self) -> str:
+        """返回本评测用例的问题文本。"""
         return self.messages[-1]["content"]
 
 
@@ -59,6 +60,7 @@ class EvalResult:
 
     @property
     def passed(self) -> bool:
+        """根据期望与实际结果判断本条是否通过。"""
         return not self.issues
 
 
@@ -74,6 +76,7 @@ def _case(
     must_include_any: Sequence[Sequence[str]] = (),
     forbidden: Sequence[str] = (),
 ) -> EvalCase:
+    """构造一条评测用例。"""
     return EvalCase(
         case_id=case_id,
         intent_id=intent_id,
@@ -278,6 +281,7 @@ CASES: Tuple[EvalCase, ...] = (
 
 
 def _api_key() -> str:
+    """读取本次运行使用的 API 密钥。"""
     key_path = _AGENT_API / "keys.txt"
     if key_path.exists():
         for line in key_path.read_text(encoding="utf-8").splitlines():
@@ -288,17 +292,19 @@ def _api_key() -> str:
 
 
 def _has_markdown_heading(answer: str) -> bool:
+    """判断文本是否含 Markdown 标题。"""
     return any(line.lstrip().startswith("#") for line in answer.splitlines())
 
 
 def _normalized_fact_text(value: str) -> str:
-    """Normalize harmless typography without weakening numeric assertions."""
+    """归一化无害排版差异，同时不削弱数值断言。"""
     normalized = "".join(str(value).replace("–", "-").replace("—", "-").split())
     # Common clinically equivalent word order, e.g. 尿血史/血尿史.
     return normalized.replace("血尿", "尿血")
 
 
 def validate(case: EvalCase, result: EvalResult) -> None:
+    """校验回答是否符合评测期望。"""
     if result.actual_intent != case.intent_id:
         result.issues.append(f"意图错误：期望 {case.intent_id}，实际 {result.actual_intent or '缺失'}")
     if case.variant != "default" and result.actual_variant != case.variant:
@@ -350,6 +356,7 @@ async def _run_case(
     semaphore: asyncio.Semaphore,
     tools_mode: str,
 ) -> EvalResult:
+    """执行单条评测用例并记录结果。"""
     result = EvalResult(
         case_id=case.case_id,
         expected_intent=case.intent_id,
@@ -416,6 +423,7 @@ async def _run_case(
 
 
 def _render_summary(results: Sequence[EvalResult], tools_mode: str) -> str:
+    """把评测汇总渲染成 Markdown。"""
     passed = sum(result.passed for result in results)
     lines = [
         "# D1-D8 医生端意图真实后端评测",
@@ -457,6 +465,7 @@ def _render_summary(results: Sequence[EvalResult], tools_mode: str) -> str:
 
 
 def _write_results(results: Sequence[EvalResult], out_dir: Path, tools_mode: str) -> Path:
+    """把评测结果写到磁盘。"""
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "results.json").write_text(
         json.dumps([asdict(result) | {"passed": result.passed} for result in results], ensure_ascii=False, indent=2),
@@ -468,7 +477,7 @@ def _write_results(results: Sequence[EvalResult], out_dir: Path, tools_mode: str
 
 
 def revalidate_results(source: Path, out_dir: Path, tools_mode: str) -> Tuple[int, int, Path]:
-    """Re-run current assertions over immutable raw LLM answers without a new API call."""
+    """对已有结果做复验。"""
     raw_results = json.loads(source.read_text(encoding="utf-8"))
     if not isinstance(raw_results, list):
         raise ValueError("results file must contain a JSON array")
@@ -490,6 +499,7 @@ def revalidate_results(source: Path, out_dir: Path, tools_mode: str) -> Tuple[in
 
 
 async def async_main(args: argparse.Namespace) -> int:
+    """异步主流程入口。"""
     base_url = args.base_url.rstrip("/")
     api_key = args.api_key or _api_key()
     async with httpx.AsyncClient(trust_env=False) as client:
@@ -544,6 +554,7 @@ async def async_main(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
+    """脚本入口，解析参数并执行主流程。"""
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
     parser.add_argument("--api-key", default="")

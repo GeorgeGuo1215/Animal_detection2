@@ -14,13 +14,16 @@ class MalformedLLM:
     model = "fake"
 
     def __init__(self, content):
+        """初始化该测试替身。"""
         self.content = content
 
     async def chat(self, **kwargs):
+        """测试用假 LLM 聊天实现。"""
         return {"choices": [{"message": {"content": self.content}}]}
 
 
 def test_malformed_critic_output_requires_revision():
+    """验证审核器输出畸形时会要求修订。"""
     result = asyncio.run(review(
         query="cat case",
         expert_opinions=[],
@@ -35,6 +38,7 @@ def test_malformed_critic_output_requires_revision():
 
 
 def test_missing_critic_verdict_requires_revision():
+    """验证缺少审核裁决时会要求修订。"""
     result = asyncio.run(review(
         query="cat case",
         expert_opinions=[],
@@ -47,6 +51,7 @@ def test_missing_critic_verdict_requires_revision():
 
 
 def test_malformed_unified_policy_falls_back_to_clinical_expert():
+    """验证畸形统一策略会回退到临床专家。"""
     policy = parse_task_policy("not json")
     decision = policy.as_router_decision()
     assert decision.out_of_scope is False

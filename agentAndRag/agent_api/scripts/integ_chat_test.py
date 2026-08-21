@@ -16,6 +16,7 @@ PET_ID = sys.argv[1] if len(sys.argv) > 1 else "cmr1t462i00011sv8bjr1ixws"
 
 
 def main() -> None:
+    """三端联调冒烟：登录后走 /api/chat/stream，确认请求被代理到 MoE。"""
     c = httpx.Client(trust_env=False, timeout=httpx.Timeout(connect=10, read=180, write=10, pool=30))
 
     # 1) 登录

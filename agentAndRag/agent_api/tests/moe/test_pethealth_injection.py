@@ -19,6 +19,7 @@ from app.tools.tool_registry import ToolRegistry, ToolSpec
 
 
 def _decision() -> RouterDecision:
+    """构造或返回路由决策。"""
     return RouterDecision(
         scores={"clinical": 8.0},
         raw_weights={"clinical": 1.0},
@@ -34,9 +35,11 @@ class _FinalLLM:
     model = "fake"
 
     def __init__(self) -> None:
+        """初始化该测试替身。"""
         self.messages = []
 
     async def chat(self, messages=None, **kwargs):
+        """测试用假 LLM 聊天实现。"""
         self.messages.append(deepcopy(messages or []))
         return {"choices": [{"message": {"content": "final answer"}, "finish_reason": "stop"}]}
 
@@ -45,6 +48,7 @@ class _NoopLLM:
     model = "fake"
 
     async def chat(self, messages=None, **kwargs):
+        """测试用假 LLM 聊天实现。"""
         return {
             "choices": [{
                 "message": {
@@ -63,6 +67,7 @@ class _NoopLLM:
 
 
 def test_schema_accepts_pethealth_server_context_and_keeps_legacy_default():
+    """验证 schema 接受 PetHealth 服务端上下文，并保留旧默认值。"""
     legacy = ChatCompletionRequest(messages=[{"role": "user", "content": "hi"}])
     assert legacy.pethealth_server is None
 
@@ -82,6 +87,7 @@ def test_schema_accepts_pethealth_server_context_and_keeps_legacy_default():
 
 
 def test_pethealth_injection_requires_abnormal_flag_and_animal_id():
+    """验证 PetHealth 注入需要异常标志和动物 ID。"""
     assert build_pethealth_vitals_injection(
         animal_id="pet_1", heart_rate_abnormal=False, stage="router"
     ) == ""
@@ -105,6 +111,7 @@ def test_pethealth_injection_requires_abnormal_flag_and_animal_id():
 
 
 def test_task_policy_messages_include_pethealth_injection():
+    """验证任务策略消息包含 PetHealth 注入。"""
     injection = build_pethealth_vitals_injection(
         animal_id="pet_1",
         heart_rate_abnormal=True,
@@ -122,6 +129,7 @@ def test_task_policy_messages_include_pethealth_injection():
 
 
 def test_pethealth_injection_does_not_enter_expert_prompt():
+    """验证 PetHealth 注入不会进入专家提示词。"""
     registry = ToolRegistry()
     registry.register(
         ToolSpec(
@@ -144,6 +152,7 @@ def test_pethealth_injection_does_not_enter_expert_prompt():
 
 
 def test_aggregator_prompt_and_payload_include_pethealth_vitals_result():
+    """验证综合器提示词和载荷都带上 PetHealth 体征结果。"""
     orch = MoEOrchestrator(
         config=OrchestratorConfig(
             user_role="pet_owner",
@@ -176,10 +185,12 @@ def test_aggregator_prompt_and_payload_include_pethealth_vitals_result():
 
 
 def test_moe_pethealth_check_uses_pethealth_animal_id_as_pet_id():
+    """验证 MoE 的 PetHealth 检查用 animal_id 作为 pet_id。"""
     calls = []
     registry = ToolRegistry()
 
     async def check_vitals(**kwargs):
+        """调用体征检查工具。"""
         calls.append(dict(kwargs))
         return {"status": "OK", "alert_level": "alert", "heart_rate": {"avg": 188}}
 
@@ -194,9 +205,11 @@ def test_moe_pethealth_check_uses_pethealth_animal_id_as_pet_id():
 
     class _PetHealthOnlyOrchestrator(MoEOrchestrator):
         async def _run_experts(self, query, decision, recorder):
+            """驱动专家执行路径的测试替身。"""
             return []
 
         async def _critique(self, query, opinions, emergency, recorder):
+            """测试用审核器替身。"""
             return CriticResult(verdict="pass", issues=[], constraints=[], reason="ok")
 
     llm = _FinalLLM()

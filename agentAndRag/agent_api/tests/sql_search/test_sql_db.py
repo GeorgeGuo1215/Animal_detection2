@@ -21,6 +21,7 @@ from app.context.request_context import set_request_animal_id
 
 
 def _db_available() -> bool:
+    """检测本地 petmind 数据库是否可连。"""
     try:
         import pymysql
 
@@ -43,10 +44,12 @@ pytestmark = pytest.mark.skipif(not _db_available(), reason="petmind MySQL not r
 
 
 def _clear_scope():
+    """清掉当前 SQL 作用域。"""
     set_request_animal_id(explicit=None)
 
 
 def test_sql_search_animals_scoped():
+    """验证 SQL 检索 animals 时受动物作用域限制。"""
     set_request_animal_id(explicit="cat_001")
     try:
         res = sql_search_tool(table="animals")
@@ -59,6 +62,7 @@ def test_sql_search_animals_scoped():
 
 
 def test_sql_search_requires_animal_id():
+    """验证 SQL 检索必须提供动物 ID。"""
     _clear_scope()
     res = sql_search_tool(table="animals")
     assert res["ok"] is False
@@ -66,6 +70,7 @@ def test_sql_search_requires_animal_id():
 
 
 def test_sql_search_scope_cannot_be_bypassed():
+    """验证 SQL 检索作用域无法被绕过。"""
     set_request_animal_id(explicit="cat_001")
     try:
         res = sql_search_tool(
@@ -81,6 +86,7 @@ def test_sql_search_scope_cannot_be_bypassed():
 
 
 def test_sql_search_sensor_events_table():
+    """验证可以按白名单查询 sensor_events 表。"""
     set_request_animal_id(explicit="dog_001")
     try:
         res = sql_search_tool(table="sensor_events", limit=5)
@@ -93,6 +99,7 @@ def test_sql_search_sensor_events_table():
 
 
 def test_vitals_summary_dog001():
+    """验证 dog001 的体征摘要查询。"""
     set_request_animal_id(explicit="dog_001")
     try:
         res = vitals_summary_tool()
@@ -109,6 +116,7 @@ def test_vitals_summary_dog001():
 
 
 def test_vitals_summary_requires_animal_id():
+    """验证体征摘要必须提供动物 ID。"""
     _clear_scope()
     res = vitals_summary_tool()
     assert res["ok"] is False
@@ -116,6 +124,7 @@ def test_vitals_summary_requires_animal_id():
 
 
 def test_fetch_animal_profile():
+    """验证能够读取动物档案。"""
     assert fetch_animal_profile("cat_001")["species"] == "cat"
     assert fetch_animal_profile("does_not_exist") is None
     assert fetch_animal_profile(None) is None
@@ -123,7 +132,7 @@ def test_fetch_animal_profile():
 
 
 def test_pool_reuses_connections_across_calls():
-    """Many sequential queries must not open more than pool_size connections."""
+    """验证连接池在多次查询间复用连接。"""
     from app.sql_search.pool import close_pool, get_pool
 
     cfg = load_mysql_config()

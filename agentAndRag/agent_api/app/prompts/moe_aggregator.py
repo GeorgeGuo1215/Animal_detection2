@@ -1,4 +1,4 @@
-"""Final MoE aggregator prompt assembly."""
+"""终答 MoE 融合器（aggregator）提示词组装。"""
 from __future__ import annotations
 
 from typing import Iterable
@@ -12,6 +12,7 @@ def build_aggregator_prompt(
     emergency: bool,
     critic_constraints: Iterable[str],
 ) -> str:
+    """按角色、检索来源、急症与 Critic 约束组装 aggregator 系统提示。"""
     is_vet = user_role == "veterinarian"
     if has_retrieved_sources:
         source_rule = (

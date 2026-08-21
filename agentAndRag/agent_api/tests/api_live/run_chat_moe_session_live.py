@@ -25,6 +25,7 @@ UNRELATED_MESSAGE = "现在明确换个话题：请用Python写一个快速排�
 
 
 def _api_key() -> str:
+    """读取本次运行使用的 API 密钥。"""
     value = os.getenv("AGENT_API_KEY", "").strip()
     if value:
         return value
@@ -38,6 +39,7 @@ def _api_key() -> str:
 
 
 async def _read_sse(response: httpx.Response, started: float) -> Dict[str, Any]:
+    """读取并解析 SSE 事件流。"""
     events: List[Dict[str, Any]] = []
     answer: List[str] = []
     finish_reason = None
@@ -70,6 +72,7 @@ async def _chat_moe(
     session_id: str,
     message: str,
 ) -> Dict[str, Any]:
+    """调用 MoE 聊天接口并收集事件。"""
     started = time.perf_counter()
     async with client.stream(
         "POST",
@@ -92,6 +95,7 @@ async def _production_chat(
     base_url: str,
     api_key: str,
 ) -> Dict[str, Any]:
+    """按生产路径发起一次聊天请求。"""
     started = time.perf_counter()
     async with client.stream(
         "POST",
@@ -111,6 +115,7 @@ async def _production_chat(
 
 
 def _context_event(result: Dict[str, Any]) -> Dict[str, Any]:
+    """从事件列表里取出上下文事件。"""
     for event in result["events"]:
         if event.get("agent_status") == "session_context_loaded":
             return dict(event.get("agent_detail") or {})
@@ -118,6 +123,7 @@ def _context_event(result: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _out_of_scope(result: Dict[str, Any]) -> bool:
+    """判断事件中是否出现超出范围标记。"""
     return any(
         event.get("agent_status") == "routing"
         and bool((event.get("agent_detail") or {}).get("out_of_scope"))
@@ -126,6 +132,7 @@ def _out_of_scope(result: Dict[str, Any]) -> bool:
 
 
 def _error_events(result: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """筛选出错误类事件。"""
     return [
         event
         for event in result["events"]
@@ -135,6 +142,7 @@ def _error_events(result: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def _session_snapshot(db_path: Path, session_id: str) -> Dict[str, Any]:
+    """读取当前会话快照。"""
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     try:
@@ -156,6 +164,7 @@ def _session_snapshot(db_path: Path, session_id: str) -> Dict[str, Any]:
 
 
 def _tool_names(snapshot: Dict[str, Any]) -> List[str]:
+    """从事件中收集用到的工具名。"""
     names = set()
     for context in snapshot["expert_contexts"]:
         for expert in context.get("experts") or []:
@@ -164,6 +173,7 @@ def _tool_names(snapshot: Dict[str, Any]) -> List[str]:
 
 
 async def _seed(args: argparse.Namespace) -> None:
+    """写入本用例所需的种子数据。"""
     timeout = httpx.Timeout(connect=20, read=args.timeout, write=30, pool=30)
     async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
         response: httpx.Response | None = None
@@ -221,6 +231,7 @@ async def _seed(args: argparse.Namespace) -> None:
 
 
 async def _resume(args: argparse.Namespace) -> None:
+    """按已有会话继续聊一轮。"""
     state = json.loads(args.state.read_text(encoding="utf-8"))
     session_id = state["session_id"]
     before = _session_snapshot(args.db_path, session_id)
@@ -285,6 +296,7 @@ async def _resume(args: argparse.Namespace) -> None:
 
 
 def _args() -> argparse.Namespace:
+    """解析本脚本的命令行参数。"""
     parser = argparse.ArgumentParser()
     parser.add_argument("--phase", choices=("seed", "resume"), required=True)
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")

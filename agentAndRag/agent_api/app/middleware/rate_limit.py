@@ -1,7 +1,7 @@
 """
-Token-bucket rate limiter middleware for per-API-key throttling.
+按 API key 节流的令牌桶限流中间件。
 
-No external dependency required -- uses a simple in-memory token bucket.
+无需外部依赖，使用进程内内存令牌桶。
 """
 from __future__ import annotations
 
@@ -18,25 +18,28 @@ from starlette.responses import JSONResponse
 
 @dataclass
 class _Bucket:
+    """单个令牌桶的剩余令牌数与上次补充时间。"""
+
     tokens: float
     last_refill: float
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """
-    Per-key token-bucket rate limiter.
+    按 key 的令牌桶限流。
 
     Parameters
     ----------
     rate : float
-        Number of requests allowed per *period* seconds.
+        每个 *period* 秒允许的请求数。
     period : float
-        Time window in seconds (default 60 → rate requests per minute).
+        时间窗口秒数（默认 60，即每分钟 rate 次）。
     burst : int | None
-        Maximum burst size.  Defaults to *rate*.
+        最大突发量，默认等于 *rate*。
     """
 
     def __init__(self, app, *, rate: float = 30, period: float = 60, burst: Optional[int] = None):
+        """初始化限流参数与豁免路径。"""
         super().__init__(app)
         self.rate = rate
         self.period = period
@@ -54,6 +57,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         }
 
     def _extract_key(self, request: Request) -> str:
+        """从 Bearer / X-API-Key 或客户端 IP 提取限流键。"""
         auth = request.headers.get("authorization", "")
         if auth.lower().startswith("bearer "):
             return auth[7:].strip()[:32]
@@ -64,6 +68,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return client.host if client else "unknown"
 
     async def dispatch(self, request: Request, call_next):
+        """豁免路径直接放行，否则按令牌桶扣减；不足则返回 429。"""
         if (
             request.url.path in self._exempt
             or request.url.path.startswith(("/api/v1/", "/v1/"))

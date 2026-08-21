@@ -82,6 +82,7 @@ def final_answer_max_tokens() -> int:
 
 
 def normalize_finish_reason(reason: Optional[str]) -> str:
+    """将上游 finish_reason 规范为 stop/truncated 等。"""
     normalized = str(reason or "stop").strip().lower()
     if normalized in {"length", "max_tokens", "token_limit", "truncated"}:
         return "truncated"
@@ -91,6 +92,7 @@ def normalize_finish_reason(reason: Optional[str]) -> str:
 
 
 def _response_finish_reason(response: Dict[str, Any]) -> str:
+    """从 LLM 响应提取 finish_reason。"""
     choices = response.get("choices") if isinstance(response, dict) else None
     choice = choices[0] if isinstance(choices, list) and choices else {}
     reason = choice.get("finish_reason") if isinstance(choice, dict) else None
@@ -98,12 +100,18 @@ def _response_finish_reason(response: Dict[str, Any]) -> str:
 
 
 def _block_fallback_text(user_role: str) -> str:
+    """按用户角色返回安全兜底话术。"""
     if user_role == "veterinarian":
         return _BLOCK_FALLBACK_TEXT_VET
     return _BLOCK_FALLBACK_TEXT_OWNER
 
 
 def _collect_retrieved_sources(opinions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """从成功的 RAG/Web 工具结果提取、去重并编号可引用来源。
+
+    仅保留可公开的标题、路径、URL、页码和截断摘录；相同来源不会因被多个
+    专家复用而重复进入最终引用列表。
+    """
     sources: List[Dict[str, Any]] = []
     seen = set()
     counts = {"rag": 0, "web": 0}
@@ -158,11 +166,13 @@ def _collect_retrieved_sources(opinions: List[Dict[str, Any]]) -> List[Dict[str,
 
 
 def _synthesis_opinions(opinions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """为融合阶段整理专家意见。"""
     fields = ("expert", "name_zh", "weight", "conclusion", "evidence", "risks", "confidence")
     return [{field: opinion.get(field) for field in fields} for opinion in opinions or []]
 
 
 def _opinions_used_web(opinions: List[Dict[str, Any]]) -> bool:
+    """判断意见是否使用了网络搜索。"""
     if any(source.get("type") == "web" for source in _collect_retrieved_sources(opinions)):
         return True
     return any(
@@ -172,12 +182,13 @@ def _opinions_used_web(opinions: List[Dict[str, Any]]) -> bool:
     )
 
 
-# Backward-compatible alias (pet-owner copy)
+# 向后兼容别名（宠主文案）
 _BLOCK_FALLBACK_TEXT = _BLOCK_FALLBACK_TEXT_OWNER
 
 
 @dataclass
 class OrchestratorConfig:
+    """编排器温度、token、角色与工具白名单配置。"""
     router: RouterConfig = field(default_factory=RouterConfig)
     rag_top_k: int = 5
     temperature: float = 0.3
@@ -192,10 +203,12 @@ class OrchestratorConfig:
 
 def _event(content: str = "", status: Optional[str] = None,
            detail: Optional[Dict[str, Any]] = None, finish: Optional[str] = None) -> Dict[str, Any]:
+    """构造流式事件字典。"""
     return {"content": content, "status": status, "detail": detail, "finish": finish}
 
 
 class MoEOrchestrator:
+    """MoE 主编排器。"""
     def __init__(
         self,
         *,
@@ -204,6 +217,7 @@ class MoEOrchestrator:
         stream_llm: Optional[AsyncOpenAIStreamClient] = None,
         config: Optional[OrchestratorConfig] = None,
     ) -> None:
+        """绑定工具注册表与编排配置。"""
         self.registry = registry or get_registry()
         self.llm = llm or get_shared_async_client()
         self.stream_llm = stream_llm or get_shared_async_stream_client()
@@ -220,6 +234,7 @@ class MoEOrchestrator:
     # ------------------------------------------------------------------ stages
     def _resolve_species(self) -> Tuple[Optional[str], Optional[str], Optional[str]]:
         # Resolve (species_en, species_zh, breed) for the request-scoped animal.
+        """解析请求物种（画像或文本）。"""
         animal_id = self.config.animal_id or get_request_animal_id()
         if not animal_id:
             return None, None, None
@@ -231,9 +246,11 @@ class MoEOrchestrator:
         return (profile.get("species") or None), species_label(profile), (breed_s or None)
 
     def _aggregator_max_tokens(self, query: str) -> int:
+        """融合器 max_tokens。"""
         return max(1, min(int(self.config.max_tokens), final_answer_max_tokens()))
 
     def _pethealth_server_context(self) -> Optional[Dict[str, Any]]:
+        """读取 PetHealth_Server 上下文。"""
         ctx = self.config.pethealth_server if isinstance(self.config.pethealth_server, dict) else None
         if not ctx or not bool(ctx.get("heart_rate_abnormal")):
             return None
@@ -251,6 +268,7 @@ class MoEOrchestrator:
         }
 
     def _pethealth_prompt_injection(self, stage: str) -> str:
+        """构造体征提示注入。"""
         ctx = self._pethealth_server_context()
         if not ctx:
             return ""
@@ -262,6 +280,7 @@ class MoEOrchestrator:
         )
 
     def _intent_prompt_injection(self, stage: str) -> str:
+        """构造意图输出契约注入。"""
         decision = self._active_intent_decision
         if decision is None:
             return ""
@@ -274,6 +293,7 @@ class MoEOrchestrator:
         return ""
 
     def _request_prompt_injection(self, stage: str) -> str:
+        """合并本请求全部提示注入。"""
         prompt = inject_prompt("", self._intent_prompt_injection(stage))
         return inject_prompt(prompt, self._pethealth_prompt_injection(stage))
 
@@ -282,6 +302,7 @@ class MoEOrchestrator:
         query: str,
         recorder: Optional[MoETrace],
     ) -> TaskPolicyDecision:
+        """调用统一任务策略分类。"""
         _, species_zh, breed = self._resolve_species()
         return await decide_task_policy(
             query=query,
@@ -302,7 +323,7 @@ class MoEOrchestrator:
         query: str,
         recorder: Optional[MoETrace],
     ) -> RouterDecision:
-        """Run the single production task policy and return its execution route."""
+        """准备本请求的意图、路由与证据策略。"""
         self._active_task_policy = await self._decide_task_policy(query, recorder)
         if self.config.user_role == "veterinarian":
             self._active_intent_decision = self._active_task_policy.as_intent_decision()
@@ -332,6 +353,7 @@ class MoEOrchestrator:
 
     @staticmethod
     def _unwrap_mcp_json_content(result: Any) -> Any:
+        """解开 MCP JSON 内容包装。"""
         if not isinstance(result, dict):
             return result
         content = result.get("content")
@@ -350,6 +372,7 @@ class MoEOrchestrator:
         self,
         recorder: Optional[MoETrace],
     ) -> Optional[Dict[str, Any]]:
+        """按需调用 PetHealth 体征核验工具。"""
         ctx = self._pethealth_server_context()
         if not ctx:
             return None
@@ -416,6 +439,11 @@ class MoEOrchestrator:
         expert_context_history: Optional[List[Dict[str, Any]]] = None,
         user_memory: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
+        """为路由入选专家创建独立会话，并通过同一 ToolBroker 并发执行。
+
+        会话共享请求级工具去重与 RAG 串行门控，但各自保留权重、历史、记忆和
+        结构化意见；单个专家失败由专家层生成安全兜底，不中断其他专家。
+        """
         conversation_history = conversation_history or self._active_conversation_history
         expert_context_history = expert_context_history or self._active_expert_context_history
         memory_text = self._active_user_memory if user_memory is None else user_memory
@@ -478,6 +506,7 @@ class MoEOrchestrator:
         expert_context_history: Optional[List[Dict[str, Any]]] = None,
         user_memory: Optional[str] = None,
     ) -> CriticResult:
+        """调用 Critic 审核。"""
         conversation_history = conversation_history or self._active_conversation_history
         expert_context_history = expert_context_history or self._active_expert_context_history
         memory_text = self._active_user_memory if user_memory is None else user_memory
@@ -506,6 +535,11 @@ class MoEOrchestrator:
         user_memory: Optional[str] = None,
         pethealth_vitals_result: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, str]]:
+        """组装最终 Aggregator 的 system/user 消息。
+
+        输入包含公开化专家意见、Critic 结论、会话历史、用户记忆、物种与外部
+        心率核验约束，并附带去重后的来源目录；不会直接注入原始工具载荷。
+        """
         retrieved_sources = _collect_retrieved_sources(opinions)
         has_web = any(source.get("type") == "web" for source in retrieved_sources)
         base = build_solve_prompt(
@@ -569,13 +603,7 @@ class MoEOrchestrator:
         ]
 
     def _requires_terminal_block(self, critic: CriticResult) -> bool:
-        """Return whether Critic should bypass synthesis entirely.
-
-        A recognized doctor intent always keeps its output contract.  A Critic
-        block constrains unsafe content inside that contract instead of
-        replacing D1-D8 with a generic fallback.  Unknown/non-doctor requests
-        retain the legacy terminal safety fallback.
-        """
+        """判断是否必须走终端安全阻断。"""
         intent_id = getattr(self._active_intent_decision, "intent_id", "")
         return critic.blocked and intent_id not in INTENT_SPECS
 
@@ -591,6 +619,12 @@ class MoEOrchestrator:
         recorder: Optional[MoETrace] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         # 1) 统一任务策略（意图、专家路由、证据任务）
+        """按统一策略、专家会诊、Critic 与 Aggregator 顺序流式产出 MoE 事件。
+
+        该异步生成器发布阶段状态、专家结果和终答增量；终答流中断时发送
+        ``answer_reset`` 并用非流式调用生成完整替代答案。安全阻断与工具核验失败
+        也会形成可持久化终态事件，不暴露系统提示词或内部推理。
+        """
         self.last_run_context = {}
         self._active_conversation_history = conversation_history
         self._active_expert_context_history = expert_context_history
@@ -789,9 +823,8 @@ class MoEOrchestrator:
                 reason = stream_error or "empty response without an upstream error"
                 raise RuntimeError(f"aggregator returned no visible content after fallback: {reason}")
             if collected:
-                # The caller may already have rendered/persisted partial deltas.  A
-                # durable reset event lets every first-party consumer replace that
-                # incomplete text instead of appending a second answer to it.
+                # 调用方可能已渲染或持久化了部分增量。持久 reset 事件让第一方消费者
+                # 替换这段不完整文本，而不是把第二份答案追加在后面。
                 yield _event(
                     status="answer_reset",
                     detail={"reason": "aggregator_stream_interrupted", "replacement": True},
@@ -836,6 +869,11 @@ class MoEOrchestrator:
         user_memory: str = "",
         recorder: Optional[MoETrace] = None,
     ) -> Tuple[str, Optional[MoETrace]]:
+        """消费完整编排链路，非流式返回唯一终答与最终化 Trace。
+
+        主要供评测和非流式兼容调用使用；它不会另行执行专家或工具，并在收到
+        ``answer_reset`` 后丢弃此前部分增量，只保留完整替代答案。
+        """
         self.last_run_context = {}
         self._active_conversation_history = conversation_history
         self._active_expert_context_history = expert_context_history

@@ -16,20 +16,25 @@ from app.services.moe.retrieval_policy import RetrievalRequirement
 
 class FakeRegistry:
     def __init__(self):
+        """初始化该测试替身。"""
         self.calls = []
 
     def list_tools(self):
+        """列出测试替身所暴露的工具。"""
         from app.tools.tool_registry import ToolSpec
 
         async def _rag(**kwargs):
+            """返回测试用的假 RAG 检索结果。"""
             return {"hits": []}
 
         return [ToolSpec(name="rag.search", description="fake", input_schema={"type": "object"}, handler=_rag)]
 
     def get(self, name):
+        """按键读取测试替身中的值。"""
         return next((tool for tool in self.list_tools() if tool.name == name), None)
 
     async def call(self, name, args):
+        """触发一次测试替身调用。"""
         self.calls.append((name, args))
         return {"hits": []}
 
@@ -38,9 +43,11 @@ class FakeLLM:
     model = "fake"
 
     def __init__(self):
+        """初始化该测试替身。"""
         self.last_messages = None
 
     async def chat(self, messages=None, **kwargs):
+        """测试用假 LLM 聊天实现。"""
         self.last_messages = messages
         content = json.dumps(
             {
@@ -52,14 +59,17 @@ class FakeLLM:
 
 
 def _user_content(messages):
+    """取出用户消息文本。"""
     return [m for m in messages if m["role"] == "user"][0]["content"]
 
 
 def _system_content(messages):
+    """取出系统提示词文本。"""
     return [m for m in messages if m["role"] == "system"][0]["content"]
 
 
 def _retrieval(tool="rag.search"):
+    """构造或拦截一次检索调用。"""
     return RetrievalRequirement(
         required_tools=(), recommended_tools=(tool,),
         require_web_on_rag_failure=False, reason="test assignment",
@@ -67,6 +77,7 @@ def _retrieval(tool="rag.search"):
 
 
 def test_run_expert_injects_species():
+    """验证跑专家时会注入物种。"""
     reg, llm = FakeRegistry(), FakeLLM()
     res = asyncio.run(
         run_expert(
@@ -92,6 +103,7 @@ def test_run_expert_injects_species():
 
 
 def test_run_expert_injects_breed_and_guard():
+    """验证跑专家时会注入品种和守卫约束。"""
     reg, llm = FakeRegistry(), FakeLLM()
     asyncio.run(
         run_expert(
@@ -116,6 +128,7 @@ def test_run_expert_injects_breed_and_guard():
 
 
 def test_run_expert_without_species():
+    """验证没有物种时仍能跑专家。"""
     reg, llm = FakeRegistry(), FakeLLM()
     asyncio.run(
         run_expert(
@@ -132,14 +145,18 @@ def test_run_expert_without_species():
 
 
 def test_run_expert_only_executes_tool_assigned_by_task_policy():
+    """验证专家只执行任务策略分配给它的工具。"""
     from app.tools.tool_registry import ToolSpec
 
     class Reg(FakeRegistry):
         def list_tools(self):
+            """列出测试替身所暴露的工具。"""
             async def _web(**kwargs):
+                """拦截或构造网页检索。"""
                 return {"results": []}
 
             async def _rag(**kwargs):
+                """返回测试用的假 RAG 检索结果。"""
                 return {"hits": []}
 
             return [
@@ -153,6 +170,7 @@ def test_run_expert_only_executes_tool_assigned_by_task_policy():
             ]
 
         def get(self, name):
+            """按键读取测试替身中的值。"""
             return next((tool for tool in self.list_tools() if tool.name == name), None)
 
     reg, llm = Reg(), FakeLLM()

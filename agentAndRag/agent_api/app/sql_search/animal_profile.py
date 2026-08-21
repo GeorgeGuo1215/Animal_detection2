@@ -18,10 +18,7 @@ _PROFILE_SQL = (
 
 
 def fetch_animal_profile(animal_id: Optional[str]) -> Optional[Dict[str, Any]]:
-    """Return the animal profile dict, or None if missing / on any error.
-
-    This never raises: profile is an enhancement, not a hard dependency of the agent.
-    """
+    """返回宠物画像字典；缺失或出错时返回 None（画像为增强项，不阻断 Agent）。"""
     aid = (animal_id or "").strip()
     if not aid:
         return None
@@ -36,7 +33,7 @@ def fetch_animal_profile(animal_id: Optional[str]) -> Optional[Dict[str, Any]]:
 
 
 def species_label(profile: Optional[Dict[str, Any]]) -> Optional[str]:
-    """Human-facing species word for prompts; None when unknown/other."""
+    """提示词用的物种中文名；未知或其他物种时返回 None。"""
     if not profile:
         return None
     sp = str(profile.get("species") or "").strip().lower()

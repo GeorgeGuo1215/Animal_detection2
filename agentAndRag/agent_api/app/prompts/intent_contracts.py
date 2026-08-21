@@ -1,8 +1,7 @@
-"""Doctor-side intent catalogue and output contracts for MoE.
+"""医生端意图目录与输出契约，供 MoE 分类器、Router/Aggregator 注入及评测共用。
 
-The classifier, Router injection, Aggregator injection and evaluation harness all
-consume this registry so adding or revising an intent does not require editing
-the orchestration code.
+分类器、Router 注入、Aggregator 注入与评测套件都消费本注册表，
+因此新增或修订意图不必改编排代码。
 """
 from __future__ import annotations
 
@@ -44,6 +43,8 @@ INTENT_CLASSIFICATION_BOUNDARIES: Tuple[str, ...] = (
 
 @dataclass(frozen=True)
 class IntentPromptSpec:
+    """单个意图的名称、描述、路由指导、输出契约与必填分节。"""
+
     intent_id: str
     name: str
     description: str
@@ -189,10 +190,12 @@ _D6_VARIANT_FIELDS = {
 
 
 def get_intent_spec(intent_id: str) -> IntentPromptSpec:
+    """按意图 id 取规范；未知则回退到默认 D2。"""
     return INTENT_SPECS.get(str(intent_id or "").upper(), INTENT_SPECS[DEFAULT_INTENT_ID])
 
 
 def classification_boundary_catalog() -> str:
+    """将分类边界规则格式化为编号列表文本。"""
     return "\n".join(
         f"{index}. {rule}"
         for index, rule in enumerate(INTENT_CLASSIFICATION_BOUNDARIES, start=1)
@@ -200,6 +203,7 @@ def classification_boundary_catalog() -> str:
 
 
 def task_policy_catalog() -> str:
+    """将各意图的描述与路由指导格式化为任务策略目录。"""
     return "\n".join(
         (
             f"- {spec.intent_id} {spec.name}：{spec.description}\n"
@@ -210,6 +214,7 @@ def task_policy_catalog() -> str:
 
 
 def normalize_variant(intent_id: str, variant: str) -> str:
+    """规范化输出变体；非法或不适用于该意图时回退 default。"""
     value = str(variant or "default").strip().lower()
     if value not in INTENT_VARIANTS:
         return "default"
@@ -223,6 +228,7 @@ def normalize_variant(intent_id: str, variant: str) -> str:
 
 
 def intent_output_contract(intent_id: str, variant: str = "default") -> str:
+    """返回该意图（及变体）的输出契约文本。"""
     spec = get_intent_spec(intent_id)
     normalized = normalize_variant(spec.intent_id, variant)
     if spec.intent_id == "D1" and normalized in _D1_VARIANTS:
@@ -233,6 +239,7 @@ def intent_output_contract(intent_id: str, variant: str = "default") -> str:
 
 
 def intent_required_sections(intent_id: str, variant: str = "default") -> Tuple[str, ...]:
+    """返回该意图（及变体）要求的分节标题。"""
     spec = get_intent_spec(intent_id)
     normalized = normalize_variant(spec.intent_id, variant)
     if spec.intent_id == "D1":
@@ -248,6 +255,7 @@ def intent_required_sections(intent_id: str, variant: str = "default") -> Tuple[
 
 
 def build_intent_aggregator_injection(intent_id: str, confidence: float, variant: str = "default") -> str:
+    """为 aggregator 构建医生端能力输出契约注入块。"""
     spec = get_intent_spec(intent_id)
     contract = intent_output_contract(spec.intent_id, variant)
     safety_note = ""
@@ -272,4 +280,5 @@ def build_intent_aggregator_injection(intent_id: str, confidence: float, variant
 
 
 def all_intent_ids() -> Iterable[str]:
+    """返回已注册的全部意图 id。"""
     return INTENT_SPECS.keys()

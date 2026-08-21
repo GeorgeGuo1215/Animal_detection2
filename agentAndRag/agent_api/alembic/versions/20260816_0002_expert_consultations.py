@@ -1,4 +1,4 @@
-"""Persist public-safe MoE expert consultations per Agent Run.
+"""持久化每次 Agent Run 中可对外展示的 MoE 专家会诊记录。
 
 Revision ID: 20260816_0002
 Revises: 20260814_0001
@@ -22,6 +22,7 @@ TABLE_NAME = "platform_expert_consultations"
 
 
 def _as_payload(value):
+    """将事件 payload 规范为 dict；无法解析时返回空字典。"""
     if isinstance(value, dict):
         return value
     if isinstance(value, str):
@@ -34,6 +35,7 @@ def _as_payload(value):
 
 
 def _create_table_if_missing(bind) -> None:
+    """若不存在则创建专家会诊表及其索引。"""
     inspector = sa.inspect(bind)
     if TABLE_NAME not in inspector.get_table_names():
         op.create_table(
@@ -67,6 +69,7 @@ def _create_table_if_missing(bind) -> None:
 
 
 def _backfill_from_run_events(bind) -> None:
+    """从已完成的 status 事件回填专家会诊行，按 (run_id, expert_key) 去重。"""
     metadata = sa.MetaData()
     consultations = sa.Table(TABLE_NAME, metadata, autoload_with=bind)
     events = sa.Table("platform_run_events", metadata, autoload_with=bind)
@@ -113,12 +116,14 @@ def _backfill_from_run_events(bind) -> None:
 
 
 def upgrade() -> None:
+    """创建专家会诊表并从历史 run 事件回填数据。"""
     bind = op.get_bind()
     _create_table_if_missing(bind)
     _backfill_from_run_events(bind)
 
 
 def downgrade() -> None:
+    """删除专家会诊表及其索引；表不存在则直接返回。"""
     bind = op.get_bind()
     if TABLE_NAME not in sa.inspect(bind).get_table_names():
         return

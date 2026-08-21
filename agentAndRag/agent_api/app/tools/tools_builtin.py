@@ -12,11 +12,7 @@ _DEFAULT_DEVICE = os.getenv("AGENT_WARMUP_DEVICE") or None
 
 
 def register_builtin_tools(registry: ToolRegistry) -> None:
-    """
-    Register built-in tools here.
-
-    Keep tool names and input schemas stable for Agent callers.
-    """
+    """在此注册内置工具。保持工具名与 input schema 对 Agent 调用方稳定。"""
 
     registry.register(
         ToolSpec(
@@ -191,10 +187,12 @@ def register_builtin_tools(registry: ToolRegistry) -> None:
 
 
 def _debug_echo_tool(**kwargs: Any) -> Dict[str, Any]:
+    """回显参数，供工作流调试。"""
     return {"echo": kwargs}
 
 
 def register_debug_tools(registry: ToolRegistry) -> None:
+    """注册 debug.echo 调试工具。"""
     registry.register(
         ToolSpec(
             name="debug.echo",

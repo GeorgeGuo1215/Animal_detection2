@@ -16,6 +16,7 @@ SENTINEL = "SPECIES_SENTINEL_XYZ"
 
 
 def test_task_policy_user_message_injects_species():
+    """验证任务策略用户消息会注入物种。"""
     msgs = build_task_policy_messages(
         query="why is my pet vomiting", user_role="pet_owner", species_zh=SENTINEL
     )
@@ -25,6 +26,7 @@ def test_task_policy_user_message_injects_species():
 
 
 def test_task_policy_user_message_omits_species_when_unknown():
+    """验证物种未知时用户消息不写物种。"""
     msgs = build_task_policy_messages(
         query="why is my pet vomiting", user_role="pet_owner", species_zh=None
     )

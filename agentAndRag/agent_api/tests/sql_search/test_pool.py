@@ -22,21 +22,25 @@ _ids = itertools.count(1)
 
 class FakeConn:
     def __init__(self) -> None:
+        """初始化该测试替身。"""
         self.id = next(_ids)
         self.closed = False
         self.ping_calls = 0
         self.ping_should_fail = False
 
     def ping(self, reconnect: bool = False) -> None:
+        """探活假连接；可被配置为失败以模拟过期连接。"""
         self.ping_calls += 1
         if self.ping_should_fail:
             raise RuntimeError("connection dead")
 
     def close(self) -> None:
+        """关闭假连接。"""
         self.closed = True
 
 
 def _cfg() -> MysqlConfig:
+    """构造测试用的 SQL 连接配置。"""
     return MysqlConfig(
         host="x", port=3306, user="u", password="", database="petmind",
         max_limit=200, debug_sql=False, pool_size=2, pool_timeout=0.3,
@@ -44,6 +48,7 @@ def _cfg() -> MysqlConfig:
 
 
 def _pool(size: int = 2, timeout: float = 0.3) -> MysqlPool:
+    """构造测试用的连接池。"""
     cfg = _cfg()
     pool = MysqlPool(cfg, size=size, borrow_timeout=timeout)
     # Route connection creation through the fake factory.
@@ -52,6 +57,7 @@ def _pool(size: int = 2, timeout: float = 0.3) -> MysqlPool:
 
 
 def test_idle_connection_is_reused():
+    """验证空闲连接会被复用。"""
     pool = _pool(size=2)
     with pool.connection() as c1:
         first_id = c1.id
@@ -62,6 +68,7 @@ def test_idle_connection_is_reused():
 
 
 def test_capacity_bound_and_timeout():
+    """验证连接池容量上限与取连接超时。"""
     pool = _pool(size=1, timeout=0.2)
     borrowed = pool._acquire()
     assert pool.in_use == 1
@@ -76,6 +83,7 @@ def test_capacity_bound_and_timeout():
 
 
 def test_stale_connection_is_revived():
+    """验证过期连接会被探测后重建。"""
     pool = _pool(size=1)
     with pool.connection() as c1:
         dead_id = c1.id
@@ -89,6 +97,7 @@ def test_stale_connection_is_revived():
 
 
 def test_broken_connection_is_discarded():
+    """验证损坏的连接会被丢弃而不是放回池里。"""
     pool = _pool(size=2)
     captured = {}
     with pytest.raises(ValueError):
@@ -103,6 +112,7 @@ def test_broken_connection_is_discarded():
 
 
 def test_close_all_closes_idle_and_resets():
+    """验证 close_all 会关掉空闲连接并重置池状态。"""
     pool = _pool(size=2)
     a = pool._acquire()
     b = pool._acquire()

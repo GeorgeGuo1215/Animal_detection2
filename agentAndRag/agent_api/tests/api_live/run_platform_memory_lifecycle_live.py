@@ -56,10 +56,12 @@ PROMPT_GROUPS = [
 
 
 def _headers() -> dict[str, str]:
+    """构造带鉴权的请求头。"""
     return {"Idempotency-Key": str(uuid.uuid4())}
 
 
 def _run_turn(client: httpx.Client, base_url: str, conversation_id: str, prompt: str) -> dict:
+    """跑一轮对话并返回结果。"""
     client_message_id = str(uuid.uuid4())
     started = time.perf_counter()
     events, answer, run_id = [], "", ""
@@ -100,6 +102,7 @@ def _run_turn(client: httpx.Client, base_url: str, conversation_id: str, prompt:
 
 
 def main() -> int:
+    """脚本入口，解析参数并执行主流程。"""
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://127.0.0.1:8002")
     parser.add_argument("--memory-url", default="http://127.0.0.1:8300")

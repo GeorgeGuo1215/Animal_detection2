@@ -22,6 +22,7 @@ from .models import (
 
 
 async def seed_platform_plans(session: AsyncSession) -> None:
+    """幂等写入默认套餐（试用、专业月付、专业年付），已存在的 code 不覆盖。"""
     defaults = (
         {
             "code": "trial",
@@ -67,6 +68,7 @@ async def seed_platform_plans(session: AsyncSession) -> None:
 
 
 async def seed_platform_rbac(session: AsyncSession) -> None:
+    """幂等写入默认权限、角色及角色-权限关联。"""
     permissions = {
         "chat.use": "创建、查看和取消自己的 Agent 任务",
         "profile.manage": "管理个人资料和 API Key",
@@ -111,6 +113,7 @@ async def audit(
     ip_address: str | None = None,
     detail: dict[str, Any] | None = None,
 ) -> None:
+    """向当前会话追加一条审计日志（不主动 commit）。"""
     session.add(AuditLog(
         action=action,
         resource_type=resource_type,
@@ -123,6 +126,7 @@ async def audit(
 
 
 async def ensure_credit_account(session: AsyncSession, user_id: str, *, lock: bool = False) -> CreditAccount:
+    """获取用户积分账户，不存在则创建；``lock=True`` 时使用 ``FOR UPDATE``。"""
     statement = select(CreditAccount).where(CreditAccount.user_id == user_id)
     if lock:
         statement = statement.with_for_update()
@@ -144,6 +148,11 @@ async def adjust_credits(
     reference_id: str | None,
     idempotency_key: str,
 ) -> CreditLedger:
+    """按幂等键调整积分余额并写入账本。
+
+    同一 ``idempotency_key`` 重复调用直接返回已有账本记录。
+    调整后余额不得低于已预留额度，也不得为负。
+    """
     existing = await session.scalar(select(CreditLedger).where(
         CreditLedger.user_id == user_id,
         CreditLedger.idempotency_key == idempotency_key,
@@ -171,6 +180,7 @@ async def adjust_credits(
 
 
 async def reserve_credits(session: AsyncSession, *, user_id: str, run_id: str, amount: int) -> None:
+    """为一次 Agent Run 预留积分；同一 ``run_id`` 已有预留则跳过。"""
     existing = await session.get(CreditReservation, run_id)
     if existing is not None:
         return
@@ -183,14 +193,17 @@ async def reserve_credits(session: AsyncSession, *, user_id: str, run_id: str, a
 
 
 async def settle_credits(session: AsyncSession, *, run_id: str, actual_amount: int) -> int:
+    """结算一次 Run 的预留积分，按实际用量扣减并释放剩余预留。
+
+    本次 Run 可消耗自身预留，以及当前未被其他并发 Run 预留的余额，
+    但不得动用其他 Run 已预留的积分。无有效预留时返回 0。
+    """
     reservation = await session.scalar(
         select(CreditReservation).where(CreditReservation.run_id == run_id).with_for_update()
     )
     if reservation is None or reservation.status != "active":
         return 0
     account = await ensure_credit_account(session, reservation.user_id, lock=True)
-    # This run may consume its reservation plus any currently unreserved
-    # balance, but never credits reserved by concurrent runs.
     spendable = max(0, account.balance - max(0, account.reserved - reservation.amount))
     charge = min(max(0, int(actual_amount)), spendable)
     account.reserved = max(0, account.reserved - reservation.amount)
@@ -219,6 +232,7 @@ async def grant_plan(
     reference_type: str,
     reference_id: str,
 ) -> Subscription:
+    """为用户开通套餐订阅，并按套餐配置发放积分。"""
     now = utcnow()
     subscription = Subscription(
         user_id=user_id,
@@ -244,6 +258,10 @@ async def grant_plan(
 
 
 async def fulfill_order(session: AsyncSession, order: Order) -> Order:
+    """将已支付/待支付订单履约为 fulfilled，并开通对应套餐。
+
+    已履约订单原样返回；状态不允许履约或套餐已删除时抛出 ``ValueError``。
+    """
     if order.status == "fulfilled":
         return order
     if order.status not in {"pending_payment", "paid"}:
@@ -266,6 +284,7 @@ async def fulfill_order(session: AsyncSession, order: Order) -> Order:
 
 
 def user_payload(user: Any) -> dict[str, Any]:
+    """将平台用户对象序列化为对外安全的公开字段字典。"""
     return {
         "id": user.id,
         "email": user.email,

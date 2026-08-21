@@ -16,6 +16,7 @@ from app.sql_search.animal_profile import species_label
 
 
 def test_whitelist_has_new_tables():
+    """验证白名单包含新增表。"""
     assert "animals" in ALLOWED_TABLES
     assert "sensor_events" in ALLOWED_TABLES
     assert "daily_reports" in ALLOWED_TABLES
@@ -23,12 +24,14 @@ def test_whitelist_has_new_tables():
 
 def test_validate_table_rejects_timeseries_and_unknown():
     # Time-series tables have no animal_id column and must stay out of sql.search.
+    """验证表名校验会拒绝时序表和未知表。"""
     for bad in ["vitals_samples", "temp_samples", "accel_samples", "devices", "users"]:
         with pytest.raises(ValueError):
             validate_table(bad)
 
 
 def test_validate_columns_animals():
+    """验证 animals 表的列白名单校验。"""
     cols = validate_columns("animals", ["species", "breed"])
     assert cols == ["species", "breed"]
     with pytest.raises(ValueError):
@@ -36,6 +39,7 @@ def test_validate_columns_animals():
 
 
 def test_compile_select_animals_with_scope():
+    """验证带作用域编译 animals 表的 SELECT。"""
     where = _merge_animal_scope("cat_001", [{"column": "species", "op": "eq", "value": "cat"}])
     sql, params = compile_select(
         table="animals",
@@ -51,6 +55,7 @@ def test_compile_select_animals_with_scope():
 
 
 def test_merge_scope_drops_user_supplied_animal_id():
+    """验证合并作用域时会丢掉用户自己塞的 animal_id。"""
     where = _merge_animal_scope(
         "cat_001",
         [{"column": "animal_id", "op": "eq", "value": "dog_999"}],
@@ -61,6 +66,7 @@ def test_merge_scope_drops_user_supplied_animal_id():
 
 
 def test_species_label_mapping():
+    """验证物种标签映射。"""
     assert species_label({"species": "cat"}) is not None
     assert species_label({"species": "dog"}) is not None
     assert species_label({"species": "cat"}) != species_label({"species": "dog"})

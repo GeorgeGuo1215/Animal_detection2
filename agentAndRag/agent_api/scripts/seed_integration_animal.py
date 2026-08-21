@@ -42,6 +42,7 @@ TEMPS = [
 
 
 def main() -> None:
+    """向 petmind 库幂等写入联调用动物画像与体征样本。"""
     animal_id = sys.argv[1] if len(sys.argv) > 1 else "cmr1t462i00011sv8bjr1ixws"
     species = sys.argv[2] if len(sys.argv) > 2 else "cat"
     event_id = f"integ_evt_{animal_id}_1"

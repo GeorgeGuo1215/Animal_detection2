@@ -126,6 +126,7 @@ SCENARIOS: List[Dict[str, str]] = [
 
 
 def load_dotenv() -> None:
+    """从 .env 加载尚未设置的环境变量。"""
     path = ROOT / ".env"
     if not path.exists():
         return
@@ -138,6 +139,7 @@ def load_dotenv() -> None:
 
 
 def default_api_key() -> str:
+    """解析默认 API 密钥。"""
     path = ROOT / "agent_api" / "keys.txt"
     if path.exists():
         for line in path.read_text(encoding="utf-8").splitlines():
@@ -155,6 +157,7 @@ async def call_chat(
     messages: List[Dict[str, str]],
     max_tokens: int,
 ) -> Dict[str, Any]:
+    """调用聊天接口并返回结构化结果。"""
     payload = {
         "model": "agent-moe",
         "messages": messages,
@@ -215,6 +218,7 @@ async def run_scenario(
     max_tokens: int,
     reused_turn_1: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
+    """跑完一个在线场景。"""
     if reused_turn_1 is None:
         print(f"[turn 1] {scenario['case_id']} {scenario['candidate']}", flush=True)
         turn_1 = await call_chat(
@@ -262,6 +266,7 @@ async def run_scenario(
 
 
 async def async_main(args: argparse.Namespace) -> int:
+    """异步主流程入口。"""
     load_dotenv()
     api_key = args.api_key or default_api_key()
     if not api_key:
@@ -306,6 +311,7 @@ async def async_main(args: argparse.Namespace) -> int:
 
 
 def parse_args() -> argparse.Namespace:
+    """解析命令行参数并返回配置。"""
     parser = argparse.ArgumentParser(description="Live multi-turn epistemic-history regression")
     parser.add_argument("--phase", choices=("baseline", "after"), required=True)
     parser.add_argument("--output", required=True)

@@ -9,10 +9,12 @@ from typing import Any, Dict, Optional
 
 
 def new_trace_id() -> str:
+    """生成十六进制 trace id。"""
     return uuid.uuid4().hex
 
 
 def _default_trace_dir() -> Path:
+    """默认轨迹目录：仓库根下的 agent_api_logs/。"""
     # 统一落在仓库根下的 agent_api_logs/
     here = Path(__file__).resolve()
     repo_root = here.parents[3]
@@ -27,6 +29,7 @@ def write_trace(
     response: Dict[str, Any],
     error: Optional[str] = None,
 ) -> None:
+    """将一次工具调用轨迹追加写入 JSONL。"""
     trace_dir = Path(os.getenv("AGENT_TRACE_DIR", str(_default_trace_dir())))
     trace_dir.mkdir(parents=True, exist_ok=True)
     path = trace_dir / "trace.jsonl"

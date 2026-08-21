@@ -1,4 +1,4 @@
-"""Fact-state instructions injected into every MoE reasoning stage."""
+"""注入 MoE 各推理阶段的事实状态（fact-state）说明。"""
 
 HISTORY_RULES = (
     "以下是后端保存的既往上下文，状态标签不可被后续模型改写：\n"

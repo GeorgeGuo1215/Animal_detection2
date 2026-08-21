@@ -28,6 +28,7 @@ for _path in (str(_AGENT_API), str(_ROOT)):
 
 
 def _load_dotenv() -> None:
+    """从项目 .env 读取环境变量（不覆盖已有值）。"""
     path = _ROOT / ".env"
     if not path.exists():
         return
@@ -86,6 +87,7 @@ def _case(
     no_retrieval: bool = False,
     preserve: Sequence[str] = (),
 ) -> Case:
+    """构造一条评测用例。"""
     return Case(
         case_id=case_id,
         intent=intent,
@@ -264,6 +266,7 @@ class Result:
 
     @property
     def passed(self) -> bool:
+        """根据期望与实际结果判断本条是否通过。"""
         return not self.issues
 
 
@@ -271,6 +274,7 @@ _CJK = re.compile(r"[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]")
 
 
 def _validate_policy(case: Case, result: Result) -> None:
+    """校验统一策略输出是否符合约定。"""
     if result.actual_intent != case.intent:
         result.issues.append(f"主意图错误：期望 {case.intent}，实际 {result.actual_intent or '缺失'}")
     if result.actual_variant != case.variant:
@@ -295,6 +299,7 @@ def _validate_policy(case: Case, result: Result) -> None:
 
 
 def _validate_output(case: Case, result: Result) -> None:
+    """校验最终回答是否符合契约。"""
     answer = result.answer.strip()
     if not answer:
         result.issues.append("终答为空")
@@ -332,6 +337,7 @@ def _validate_output(case: Case, result: Result) -> None:
 
 
 def _validate_tools(case: Case, result: Result) -> None:
+    """校验工具调用是否符合策略。"""
     missing_required = set(case.required_tools) - set(result.required_tools)
     if missing_required:
         result.issues.append(f"专家未接收必需工具：{sorted(missing_required)}")
@@ -367,6 +373,7 @@ def _validate_tools(case: Case, result: Result) -> None:
 
 
 async def _run_case(case: Case, *, full: bool, max_tokens: int) -> Result:
+    """执行单条评测用例并记录结果。"""
     result = Result(
         case_id=case.case_id,
         expected_intent=case.intent,
@@ -437,6 +444,7 @@ async def _run_case(case: Case, *, full: bool, max_tokens: int) -> Result:
 
 
 def _report(cases: Sequence[Case], results: Sequence[Result], mode: str) -> str:
+    """写出或打印本次评测报告。"""
     passed = sum(item.passed for item in results)
     total_tokens = sum(item.total_tokens for item in results)
     lines = [
@@ -489,6 +497,7 @@ def _report(cases: Sequence[Case], results: Sequence[Result], mode: str) -> str:
 
 
 async def _main(args: argparse.Namespace) -> int:
+    """脚本内部主流程。"""
     selected = [case for case in CASES if not args.case or case.case_id in set(args.case)]
     if len(CASES) != 24:
         raise RuntimeError(f"suite must contain exactly 24 cases, got {len(CASES)}")
@@ -500,6 +509,7 @@ async def _main(args: argparse.Namespace) -> int:
     semaphore = asyncio.Semaphore(max(1, args.concurrency))
 
     async def guarded(case: Case) -> Result:
+        """带守卫逻辑的对照实现。"""
         async with semaphore:
             return await _run_case(case, full=args.mode == "full", max_tokens=args.max_tokens)
 
@@ -539,6 +549,7 @@ async def _main(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
+    """脚本入口，解析参数并执行主流程。"""
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=("policy", "full"), default="policy")
     parser.add_argument("--case", action="append", default=[])

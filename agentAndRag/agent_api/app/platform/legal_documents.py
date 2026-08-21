@@ -92,6 +92,14 @@ PRIVACY = f"""# PetMind 隐私政策
 
 
 def current_document(document_type: str) -> dict[str, str]:
+    """返回当前生效的服务协议或隐私政策。
+
+    Args:
+        document_type: ``terms`` 或 ``privacy``。
+
+    Raises:
+        KeyError: 未知文档类型。
+    """
     if document_type == "terms":
         return {"type": "terms", "version": TERMS_VERSION, "content": TERMS}
     if document_type == "privacy":

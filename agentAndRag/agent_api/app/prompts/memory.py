@@ -1,8 +1,9 @@
-"""Prompt boundary for untrusted user-level memory context."""
+"""不可信用户级记忆上下文的提示词边界。"""
 from __future__ import annotations
 
 
 def build_memory_context_injection(memory_text: str) -> str:
+    """将记忆文本包进不可执行的 user_memory 提示块；空文本返回空串。"""
     text = str(memory_text or "").strip()
     if not text:
         return ""

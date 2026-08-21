@@ -1,4 +1,4 @@
-"""Role-aware final-answer prompts shared by all agent architectures."""
+"""各 Agent 架构共用的、按角色区分的终答提示词。"""
 from __future__ import annotations
 
 from datetime import date
@@ -26,7 +26,7 @@ _CONDITION_SIGNAL_RE = re.compile(
 
 
 def is_medical_query(query: str) -> bool:
-    """Return whether a query contains concrete clinical/medical signals."""
+    """判断查询是否包含具体临床/医学信号。"""
     return bool(_CONDITION_SIGNAL_RE.search(query or ""))
 
 
@@ -36,7 +36,7 @@ def build_solve_prompt(
     query: str = "",
     max_tokens: Optional[int] = None,
 ) -> str:
-    """Build the role-aware final-answer prompt used by the MoE aggregator."""
+    """构建 MoE aggregator 使用的、按角色区分的终答提示词。"""
     return build_solve_prompt_text(
         user_role=user_role,
         has_web_search=has_web_search,
@@ -46,7 +46,7 @@ def build_solve_prompt(
 
 
 def answer_char_budget(max_tokens: Optional[int]) -> Optional[int]:
-    """Convert a token budget into a conservative Chinese-character budget."""
+    """将 token 预算换算为偏保守的中文字符预算。"""
     if not max_tokens:
         return None
     tokens = int(max_tokens)
@@ -56,6 +56,7 @@ def answer_char_budget(max_tokens: Optional[int]) -> Optional[int]:
 
 
 def _length_budget_instruction(char_budget: int) -> str:
+    """生成篇幅硬预算说明。"""
     return (
         "\n\n**篇幅预算**\n"
         f"- 全文（含分节标题、列表与参考来源）控制在 {char_budget} 字以内。\n"
@@ -111,7 +112,7 @@ def build_solve_prompt_text(
     medical_query: bool = False,
     max_tokens: Optional[int] = None,
 ) -> str:
-    """Build the final-answer system prompt from caller-computed intent flags."""
+    """根据调用方已计算的意图标志组装终答 system prompt。"""
     today = date.today().isoformat()
     if user_role == "veterinarian":
         prompt = (

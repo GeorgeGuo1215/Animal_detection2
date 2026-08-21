@@ -1,1 +1,1 @@
-"""Prompt assembly helpers shared by agent services."""
+"""Agent 各服务共用的提示词组装辅助。"""

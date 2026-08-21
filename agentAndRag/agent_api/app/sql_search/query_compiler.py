@@ -7,6 +7,7 @@ from .schema_catalog import column_allowed, validate_columns, validate_table
 
 
 def _quote_ident(name: str) -> str:
+    """校验并反引号包裹 SQL 标识符。"""
     if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", name):
         raise ValueError(f"Invalid identifier: {name!r}")
     return f"`{name}`"
@@ -17,6 +18,7 @@ def _compile_where_clause(
     where: list[dict[str, Any]] | None,
     params: List[Any],
 ) -> str:
+    """将 where 条件编译为参数化 AND 子句。"""
     if not where:
         return ""
 
@@ -76,6 +78,7 @@ def compile_select(
     order_by: list[dict[str, Any]] | None,
     limit: int,
 ) -> Tuple[str, List[Any]]:
+    """将结构化意图编译为白名单内的参数化 SELECT。"""
     t = validate_table(table)
     cols = validate_columns(t, columns)
     col_sql = ", ".join(_quote_ident(c) for c in cols)

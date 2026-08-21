@@ -1,4 +1,4 @@
-"""Persistent, TTL-aware sessions used only by the built-in browser test UI."""
+"""仅内置浏览器测试 UI 使用的、带 TTL 的持久化会话。"""
 from __future__ import annotations
 
 import asyncio
@@ -16,11 +16,13 @@ from typing import Any, AsyncIterator, Dict, List, Optional, Sequence, Tuple
 
 def _default_db_path() -> Path:
     # agent_api/app/persistence/session_manager.py -> agentAndRag is parents[3].
+    """默认会话库路径。"""
     repo_root = Path(__file__).resolve().parents[3]
     return repo_root / "agent_api_logs" / "petmind_sessions.db"
 
 
 def _env_int(name: str, default: int) -> int:
+    """读取正整数环境变量。"""
     try:
         return max(1, int(os.getenv(name, "") or default))
     except (TypeError, ValueError):
@@ -28,6 +30,7 @@ def _env_int(name: str, default: int) -> int:
 
 
 def _env_float(name: str, default: float) -> float:
+    """读取正浮点环境变量。"""
     try:
         return max(1.0, float(os.getenv(name, "") or default))
     except (TypeError, ValueError):
@@ -36,6 +39,7 @@ def _env_float(name: str, default: float) -> float:
 
 @dataclass
 class Session:
+    """一条测试会话的消息、专家上下文与元数据。"""
     session_id: str
     messages: List[Dict[str, str]] = field(default_factory=list)
     tool_results: List[Dict[str, Any]] = field(default_factory=list)
@@ -45,11 +49,12 @@ class Session:
     last_active: float = field(default_factory=time.time)
 
     def touch(self) -> None:
+        """刷新最后活跃时间。"""
         self.last_active = time.time()
 
 
 def _complete_turns(messages: Sequence[Dict[str, str]]) -> List[Tuple[Dict[str, str], Dict[str, str]]]:
-    """Return complete user/assistant pairs; never expose an orphan message."""
+    """返回完整的 user/assistant 轮次对，不暴露孤立消息。"""
     turns: List[Tuple[Dict[str, str], Dict[str, str]]] = []
     pending_user: Optional[Dict[str, str]] = None
     for raw in messages:
@@ -72,7 +77,7 @@ def select_complete_turn_context(
     max_turns: int,
     max_chars: int,
 ) -> List[Dict[str, str]]:
-    """Select newest complete turns while keeping every selected pair intact."""
+    """选取最近的完整轮次，并保证每对消息不被拆开。"""
     turns = _complete_turns(messages)[-max(1, int(max_turns)):]
     selected: List[Tuple[Dict[str, str], Dict[str, str]]] = []
     used = 0
@@ -87,7 +92,7 @@ def select_complete_turn_context(
 
 
 class SessionManager:
-    """SQLite test-session store with an in-memory hot cache and per-session locks."""
+    """带内存热缓存与会话锁的 SQLite 测试会话存储。"""
 
     def __init__(
         self,
@@ -97,6 +102,7 @@ class SessionManager:
         context_max_turns: Optional[int] = None,
         context_max_chars: Optional[int] = None,
     ) -> None:
+        """按 TTL、容量与上下文预算初始化会话管理器。"""
         self._sessions: Dict[str, Session] = {}
         self._session_locks: Dict[str, asyncio.Lock] = {}
         self._session_lock_users: Dict[str, int] = {}
@@ -117,6 +123,7 @@ class SessionManager:
         self._init_db_sync()
 
     def _connect(self) -> sqlite3.Connection:
+        """打开会话库 SQLite 连接。"""
         Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(self._db_path, timeout=10)
         conn.execute("PRAGMA journal_mode=WAL")
@@ -125,6 +132,7 @@ class SessionManager:
         return conn
 
     def _init_db_sync(self) -> None:
+        """同步创建会话表。"""
         conn = self._connect()
         try:
             conn.execute(
@@ -150,6 +158,7 @@ class SessionManager:
 
     @staticmethod
     def _json_load(value: str, fallback: Any) -> Any:
+        """安全解析 JSON 文本。"""
         try:
             parsed = json.loads(value)
             return parsed
@@ -157,6 +166,7 @@ class SessionManager:
             return fallback
 
     def _row_to_session(self, row: sqlite3.Row) -> Session:
+        """将数据库行转为 Session。"""
         return Session(
             session_id=str(row["session_id"]),
             messages=list(self._json_load(row["messages"], [])),
@@ -168,6 +178,7 @@ class SessionManager:
         )
 
     def _load_sync(self, session_id: str) -> Optional[Session]:
+        """同步按 id 加载会话。"""
         conn = self._connect()
         try:
             row = conn.execute(
@@ -178,6 +189,7 @@ class SessionManager:
             conn.close()
 
     def _save_sync(self, session: Session) -> None:
+        """同步持久化会话。"""
         conn = self._connect()
         try:
             conn.execute(
@@ -208,6 +220,7 @@ class SessionManager:
             conn.close()
 
     def _delete_sync(self, session_id: str) -> bool:
+        """同步删除会话。"""
         conn = self._connect()
         try:
             cur = conn.execute("DELETE FROM agent_sessions WHERE session_id = ?", (session_id,))
@@ -217,6 +230,11 @@ class SessionManager:
             conn.close()
 
     def _evict_sync(self, now: float, protected_session_ids: Sequence[str] = ()) -> List[str]:
+        """从 SQLite 删除未受锁保护的过期会话，并按最久未活跃顺序收缩容量。
+
+        返回实际删除的 session_id；活跃请求保护的会话即使过期或处于容量候选中也会
+        跳过，避免并发提交过程中被清理。
+        """
         cutoff = now - self._ttl
         protected = set(protected_session_ids)
         conn = self._connect()
@@ -252,6 +270,7 @@ class SessionManager:
             conn.close()
 
     def _protected_session_ids(self) -> List[str]:
+        """返回当前仍被请求锁保护的会话 id。"""
         return [
             session_id
             for session_id, users in self._session_lock_users.items()
@@ -259,7 +278,7 @@ class SessionManager:
         ]
 
     async def cleanup(self) -> List[str]:
-        """Remove expired/overflow sessions without disrupting active requests."""
+        """清理过期/超量会话，不打断进行中的请求。"""
         async with self._lock:
             removed = await asyncio.to_thread(
                 self._evict_sync,
@@ -273,6 +292,7 @@ class SessionManager:
             return removed
 
     async def create(self, metadata: Optional[Dict[str, Any]] = None) -> Session:
+        """创建新会话并写入存储。"""
         async with self._lock:
             removed = await asyncio.to_thread(
                 self._evict_sync, time.time(), self._protected_session_ids()
@@ -297,6 +317,7 @@ class SessionManager:
             return session
 
     async def get(self, session_id: str, *, touch: bool = True) -> Optional[Session]:
+        """读取会话；过期且未锁定则删除。"""
         async with self._lock:
             session = self._sessions.get(session_id)
             if session is None:
@@ -322,6 +343,7 @@ class SessionManager:
         session_id: Optional[str],
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Session:
+        """按 id 获取会话，不存在则新建。"""
         if session_id:
             session = await self.get(session_id)
             if session:
@@ -330,6 +352,7 @@ class SessionManager:
 
     @asynccontextmanager
     async def session_lock(self, session_id: str) -> AsyncIterator[None]:
+        """获取针对单个会话的异步锁。"""
         async with self._lock:
             lock = self._session_locks.setdefault(session_id, asyncio.Lock())
             self._session_lock_users[session_id] = self._session_lock_users.get(session_id, 0) + 1
@@ -345,6 +368,7 @@ class SessionManager:
                     self._session_lock_users.pop(session_id, None)
 
     async def context(self, session_id: str) -> Tuple[List[Dict[str, str]], List[Dict[str, Any]]]:
+        """返回裁剪后的对话历史与对应专家上下文。"""
         session = await self.get(session_id)
         if session is None:
             return [], []
@@ -372,6 +396,11 @@ class SessionManager:
         expert_context: Optional[Dict[str, Any]] = None,
         tool_results: Optional[List[Dict[str, Any]]] = None,
     ) -> Optional[Session]:
+        """在会话锁内原子追加一轮完整 user/assistant 消息并持久化。
+
+        仅提交成对消息，避免恢复时出现孤儿半轮；可同时保存专家上下文与工具结果。
+        会话不存在或等待锁期间已被清理时返回 ``None``，容量/TTL 清理不会驱逐活跃锁。
+        """
         async with self._lock:
             session = self._sessions.get(session_id)
             if session is None:
@@ -404,6 +433,7 @@ class SessionManager:
             return updated
 
     async def delete(self, session_id: str) -> bool:
+        """删除会话，返回是否曾存在。"""
         async with self._lock:
             cached = self._sessions.pop(session_id, None) is not None
             self._session_locks.pop(session_id, None)
@@ -416,6 +446,7 @@ _MANAGER: Optional[SessionManager] = None
 
 
 def get_session_manager() -> SessionManager:
+    """获取全局 SessionManager 单例。"""
     global _MANAGER  # noqa: PLW0603
     if _MANAGER is None:
         _MANAGER = SessionManager()

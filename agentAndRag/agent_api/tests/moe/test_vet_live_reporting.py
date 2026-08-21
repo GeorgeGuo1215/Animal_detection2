@@ -7,6 +7,7 @@ from agent_api.tests.moe.run_moe_vet_live import (
 
 
 def test_web_search_results_are_extracted_and_rendered_with_urls():
+    """验证网页检索结果会被抽出并带 URL 渲染。"""
     events = [{
         "agent_status": "expert_complete",
         "agent_detail": {

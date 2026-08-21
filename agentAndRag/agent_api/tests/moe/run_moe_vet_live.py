@@ -34,6 +34,7 @@ for _p in (str(_AGENT_API), str(_AGENTANDRAG)):
 
 
 def _load_dotenv() -> None:
+    """从项目 .env 读取环境变量（不覆盖已有值）。"""
     env_path = _AGENTANDRAG / ".env"
     if not env_path.exists():
         return
@@ -134,6 +135,7 @@ CASES: List[Dict[str, Any]] = [
 
 
 def _default_api_key() -> str:
+    """解析默认 API 密钥。"""
     keys_path = _AGENT_API / "keys.txt"
     if keys_path.exists():
         for line in keys_path.read_text(encoding="utf-8").splitlines():
@@ -144,6 +146,7 @@ def _default_api_key() -> str:
 
 
 def _style_checks(case: Dict[str, Any], answer: str) -> List[str]:
+    """检查回答文风是否符合约定。"""
     issues: List[str] = []
     for sec in case.get("expect_sections") or []:
         if sec not in answer:
@@ -158,6 +161,7 @@ def _style_checks(case: Dict[str, Any], answer: str) -> List[str]:
 
 
 def _parse_sse_block(block: str) -> Optional[Dict[str, Any]]:
+    """解析一块 SSE 数据。"""
     data_lines = []
     for line in block.splitlines():
         if line.startswith("data:"):
@@ -181,6 +185,7 @@ def _chat_stream(
     max_tokens: int,
     timeout_s: float,
 ) -> Tuple[str, List[Dict[str, Any]]]:
+    """发起聊天流式请求并收集事件。"""
     url = base_url.rstrip("/") + "/v1/chat/completions"
     body = {
         "model": "agent-moe",
@@ -230,6 +235,7 @@ def _chat_stream(
 
 
 def _expert_opinions(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """从追踪记录取出专家意见。"""
     opinions: List[Dict[str, Any]] = []
     seen = set()
     for event in events:
@@ -248,6 +254,7 @@ def _expert_opinions(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def _web_search_records(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """从追踪记录取出网页检索记录。"""
     records: List[Dict[str, Any]] = []
     for opinion in _expert_opinions(events):
         for tool_result in opinion.get("tool_results") or []:
@@ -265,6 +272,7 @@ def _web_search_records(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def _web_result_items(record: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """抽出网页检索结果条目。"""
     result = record.get("result")
     if not isinstance(result, dict):
         return []
@@ -273,6 +281,7 @@ def _web_result_items(record: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def _render_web_search_section(records: List[Dict[str, Any]]) -> List[str]:
+    """渲染报告里的网页检索章节。"""
     lines = ["## Web Search 结果", ""]
     if not records:
         lines.append("_本次没有记录到 Web Search 调用。_")
@@ -314,6 +323,7 @@ def _render_report(
     issues: List[str],
     base_url: str,
 ) -> str:
+    """把本次运行结果写成报告。"""
     lines: List[str] = []
     lines.append("# Vet MoE HTTP Live Report")
     lines.append("")
@@ -402,6 +412,7 @@ def _render_report(
 
 
 def parse_args() -> argparse.Namespace:
+    """解析命令行参数并返回配置。"""
     p = argparse.ArgumentParser(description="兽医 MoE：HTTP 请求已启动后端")
     p.add_argument("--base-url", default=os.getenv("AGENT_BASE_URL") or "http://127.0.0.1:8000")
     p.add_argument("--api-key", default=None, help="默认读 agent_api/keys.txt")
@@ -413,6 +424,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """脚本入口，解析参数并执行主流程。"""
     args = parse_args()
     api_key = args.api_key or _default_api_key()
     base = args.base_url.rstrip("/")

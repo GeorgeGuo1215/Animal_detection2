@@ -27,6 +27,7 @@ def extract_usage(resp: Dict[str, Any]) -> Dict[str, int]:
 
 @dataclass
 class LLMCallRecord:
+    """一次 LLM 调用记录。"""
     seq: int
     stage: str
     model: str
@@ -41,6 +42,7 @@ class LLMCallRecord:
 
 @dataclass
 class RagCallRecord:
+    """一次 RAG 调用记录。"""
     seq: int
     stage: str
     query: str
@@ -51,6 +53,7 @@ class RagCallRecord:
 
 @dataclass
 class ToolCallRecord:
+    """一次工具调用记录。"""
     seq: int
     stage: str
     tool_name: str
@@ -87,6 +90,7 @@ class MoETrace:
     _seq: int = 0
 
     def _next_seq(self) -> int:
+        """分配下一个序号。"""
         self._seq += 1
         return self._seq
 
@@ -101,6 +105,7 @@ class MoETrace:
         usage: Optional[Dict[str, int]] = None,
         meta: Optional[Dict[str, Any]] = None,
     ) -> None:
+        """记录一次 LLM 调用。"""
         usage = usage or {}
         self.llm_calls.append(
             LLMCallRecord(
@@ -126,6 +131,7 @@ class MoETrace:
         best_score: float,
         latency_ms: float,
     ) -> None:
+        """记录一次 RAG 调用。"""
         self.rag_calls.append(
             RagCallRecord(
                 seq=self._next_seq(),
@@ -147,6 +153,7 @@ class MoETrace:
         latency_ms: float,
         error: Optional[str] = None,
     ) -> None:
+        """记录一次工具调用。"""
         try:
             arg_s = json.dumps(arguments, ensure_ascii=False)[:300]
         except Exception:  # noqa: BLE001
@@ -164,17 +171,22 @@ class MoETrace:
         )
 
     def finalize(self) -> None:
+        """计算总耗时。"""
         self.total_ms = round((time.perf_counter() - self._started_at) * 1000, 1)
 
     # --- aggregate metrics (for reports) ---
     def total_llm_calls(self) -> int:
+        """LLM 调用总次数。"""
         return len(self.llm_calls)
 
     def total_tokens(self) -> int:
+        """累计 total_tokens。"""
         return sum(c.total_tokens for c in self.llm_calls)
 
     def total_prompt_tokens(self) -> int:
+        """累计 prompt_tokens。"""
         return sum(c.prompt_tokens for c in self.llm_calls)
 
     def total_completion_tokens(self) -> int:
+        """累计 completion_tokens。"""
         return sum(c.completion_tokens for c in self.llm_calls)

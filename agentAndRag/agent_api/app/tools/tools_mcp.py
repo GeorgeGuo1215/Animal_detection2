@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 async def _direct_web_search_handler(**kwargs: Any) -> Dict[str, Any]:
-    """Call Tavily REST API directly, bypassing MCP subprocess."""
+    """直接调用 Tavily REST API，绕过 MCP 子进程。"""
     from mcp_servers.web_search.tavily_client import tavily_search
 
     query = kwargs.get("query", "")
@@ -26,7 +26,7 @@ async def _direct_web_search_handler(**kwargs: Any) -> Dict[str, Any]:
 
 
 async def _direct_ingredient_check_handler(**kwargs: Any) -> Dict[str, Any]:
-    """Call ingredient checker directly, bypassing MCP subprocess."""
+    """直接调用成分检查，绕过 MCP 子进程。"""
     from mcp_servers.web_search.ingredient_checker import check_ingredients
 
     product_name = str(kwargs.get("product_name") or "").strip()
@@ -40,15 +40,17 @@ async def _direct_ingredient_check_handler(**kwargs: Any) -> Dict[str, Any]:
 
 
 def _make_async_handler(server: McpServerConfig, tool_name: str):
-    """Return an async handler that calls the MCP tool natively."""
+    """返回原生调用该 MCP 工具的异步 handler。"""
 
     async def _handler(**kwargs: Any) -> Dict[str, Any]:
+        """把关键字参数原样转发给 MCP 工具。"""
         return await call_mcp_tool_async(server, tool_name, kwargs)
 
     return _handler
 
 
 def _register_server_tools(registry: ToolRegistry, server: McpServerConfig, tools: list[Dict[str, Any]]) -> int:
+    """将 MCP 服务器上的工具注册进 ToolRegistry，返回新注册数量。"""
     registered = 0
     for tool in tools:
         tool_name = str(tool.get("name") or "").strip()
@@ -73,6 +75,7 @@ def _register_server_tools(registry: ToolRegistry, server: McpServerConfig, tool
 
 
 def _register_direct_web_search(registry: ToolRegistry) -> int:
+    """注册直连 Tavily 的 web_search 与 ingredient_check 工具。"""
     registered = 0
     name = "mcp.web_search.web_search"
     if registry.get(name) is None:
@@ -123,7 +126,7 @@ def _register_direct_web_search(registry: ToolRegistry) -> int:
 
 
 async def register_mcp_tools_async(registry: ToolRegistry) -> Dict[str, Any]:
-    """Register MCP tools without creating a second event loop."""
+    """注册 MCP 工具，不创建第二个事件循环。"""
     servers = load_mcp_servers()
     summary: Dict[str, Any] = {"servers": [], "tools": 0}
 
@@ -146,8 +149,8 @@ async def register_mcp_tools_async(registry: ToolRegistry) -> Dict[str, Any]:
 
 def register_mcp_tools(registry: ToolRegistry) -> Dict[str, Any]:
     """
-    Load MCP servers from config and register each MCP tool into ToolRegistry.
-    For web_search, uses direct REST API call instead of MCP subprocess.
+    从配置加载 MCP 服务器，并将各 MCP 工具注册进 ToolRegistry。
+    web_search 走直连 REST API，而非 MCP 子进程。
     """
     servers = load_mcp_servers()
     summary: Dict[str, Any] = {"servers": [], "tools": 0}

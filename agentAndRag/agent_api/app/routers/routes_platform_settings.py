@@ -40,10 +40,12 @@ router = APIRouter(prefix="/api/v1", tags=["platform-settings"])
 
 
 def _aware(value):
+    """将 naive datetime 标为 UTC 感知。"""
     return value if value is None or value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
 def _preferences_payload(item: UserPreference) -> dict:
+    """将偏好设置转为 API 载荷。"""
     return {
         "theme": item.theme,
         "locale": item.locale,
@@ -55,6 +57,7 @@ def _preferences_payload(item: UserPreference) -> dict:
 
 
 async def _preferences(session: AsyncSession, user_id: str) -> UserPreference:
+    """读取或创建用户偏好。"""
     item = await session.get(UserPreference, user_id)
     if item is None:
         item = UserPreference(user_id=user_id)
@@ -69,6 +72,7 @@ async def update_profile(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """更新用户资料。"""
     user = await session.get(PlatformUser, principal.user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="user not found")
@@ -82,6 +86,7 @@ async def get_preferences(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """获取偏好设置。"""
     item = await _preferences(session, principal.user_id)
     await session.commit()
     return _preferences_payload(item)
@@ -93,6 +98,7 @@ async def update_preferences(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """更新偏好设置。"""
     item = await _preferences(session, principal.user_id)
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(item, field, value)
@@ -102,6 +108,7 @@ async def update_preferences(
 
 
 def _phrase_payload(item: CommonPhrase) -> dict:
+    """将常用语转为 API 载荷。"""
     return {"id": item.id, "title": item.title, "content": item.content, "sort_order": item.sort_order, "created_at": item.created_at, "updated_at": item.updated_at}
 
 
@@ -110,6 +117,7 @@ async def list_common_phrases(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """列出常用语。"""
     rows = list((await session.scalars(select(CommonPhrase).where(CommonPhrase.user_id == principal.user_id).order_by(CommonPhrase.sort_order, CommonPhrase.created_at))).all())
     return {"items": [_phrase_payload(item) for item in rows]}
 
@@ -120,6 +128,7 @@ async def create_common_phrase(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """创建常用语。"""
     count = await session.scalar(select(func.count()).select_from(CommonPhrase).where(CommonPhrase.user_id == principal.user_id))
     if int(count or 0) >= 50:
         raise HTTPException(status_code=409, detail="common phrase limit reached")
@@ -130,6 +139,7 @@ async def create_common_phrase(
 
 
 async def _owned_phrase(session: AsyncSession, user_id: str, phrase_id: str) -> CommonPhrase:
+    """校验常用语归属。"""
     item = await session.scalar(select(CommonPhrase).where(CommonPhrase.id == phrase_id, CommonPhrase.user_id == user_id))
     if item is None:
         raise HTTPException(status_code=404, detail="common phrase not found")
@@ -143,6 +153,7 @@ async def update_common_phrase(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """更新常用语。"""
     item = await _owned_phrase(session, principal.user_id, phrase_id)
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(item, field, value)
@@ -157,6 +168,7 @@ async def delete_common_phrase(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """删除常用语。"""
     await session.delete(await _owned_phrase(session, principal.user_id, phrase_id))
     await session.commit()
     return Response(status_code=204)
@@ -169,6 +181,7 @@ async def create_feedback(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """提交用户反馈。"""
     user = await session.get(PlatformUser, principal.user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="user not found")
@@ -185,6 +198,7 @@ async def create_feedback(
 
 
 def _memory_client_or_503():
+    """获取记忆客户端；未启用则 503。"""
     client = get_memory_client()
     if client is None:
         raise HTTPException(status_code=503, detail="memory service unavailable")
@@ -196,6 +210,7 @@ async def list_memories(
     limit: int = Query(default=100, ge=1, le=200),
     principal: Principal = Depends(require_user_session),
 ):
+    """列出用户记忆。"""
     try:
         return await _memory_client_or_503().manage_list(user_id=principal.user_id, limit=limit)
     except HTTPException:
@@ -211,6 +226,7 @@ async def delete_memory(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """删除一条记忆。"""
     try:
         result = await _memory_client_or_503().manage_delete(user_id=principal.user_id, item_id=item_id)
     except HTTPException:
@@ -229,6 +245,7 @@ async def clear_memories(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """按范围清空记忆。"""
     try:
         result = await _memory_client_or_503().manage_clear(
             user_id=principal.user_id, scope=body.scope
@@ -244,6 +261,7 @@ async def clear_memories(
 
 @router.get("/legal/{document_type}")
 async def get_legal_document(document_type: str):
+    """获取法律文档。"""
     try:
         return current_document(document_type)
     except KeyError as exc:
@@ -251,6 +269,7 @@ async def get_legal_document(document_type: str):
 
 
 async def _record_legal_acceptance(session: AsyncSession, *, user_id: str, body: LegalAcceptRequest, request: Request) -> None:
+    """记录法律文档接受状态。"""
     if not body.accept_terms or not body.accept_privacy or body.terms_version != TERMS_VERSION or body.privacy_version != PRIVACY_VERSION:
         raise HTTPException(status_code=422, detail="current legal documents must be accepted")
     for kind, version in (("terms", body.terms_version), ("privacy", body.privacy_version)):
@@ -266,6 +285,7 @@ async def accept_current_legal_documents(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """接受当前版本法律文档。"""
     await _record_legal_acceptance(session, user_id=principal.user_id, body=body, request=request)
     await session.commit()
     return Response(status_code=204)
@@ -279,6 +299,11 @@ async def redeem_activation_code(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """在行锁保护下为当前用户一次性兑换有效激活码。
+
+    校验启用时间、有效期、总兑换上限和用户重复兑换；随后原子写入兑换记录、开通套餐、
+    发放额外积分并更新计数。所有无效或冲突情况返回同一错误，避免被用于枚举撞库。
+    """
     normalized = body.code.replace("-", "").upper()
     generic = HTTPException(status_code=400, detail="activation code is invalid or unavailable")
     code = await session.scalar(select(ActivationCode).where(ActivationCode.code_hash == hash_secret(normalized)).with_for_update())

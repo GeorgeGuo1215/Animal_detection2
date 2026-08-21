@@ -73,6 +73,7 @@ if _PLATFORM_SETTINGS.production:
 
 
 def _platform_error(request: Request, *, status_code: int, code: str, message: str, details=None) -> JSONResponse:
+    """构造平台 API 统一错误 JSON 响应。"""
     return JSONResponse(
         status_code=status_code,
         content={
@@ -86,6 +87,7 @@ def _platform_error(request: Request, *, status_code: int, code: str, message: s
 
 @app.exception_handler(RequestValidationError)
 async def _validation_error(request: Request, exc: RequestValidationError):
+    """平台路径上的请求校验失败转为统一错误格式。"""
     if not request.url.path.startswith("/api/v1/"):
         return JSONResponse(status_code=422, content={"detail": exc.errors()})
     fields = [{"path": ".".join(str(part) for part in item["loc"]), "type": item["type"], "message": item["msg"]} for item in exc.errors()]
@@ -94,6 +96,7 @@ async def _validation_error(request: Request, exc: RequestValidationError):
 
 @app.exception_handler(HTTPException)
 async def _http_error(request: Request, exc: HTTPException):
+    """平台路径上的 HTTPException 转为统一错误格式。"""
     if not request.url.path.startswith("/api/v1/"):
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}, headers=exc.headers)
     if isinstance(exc.detail, dict):
@@ -155,15 +158,15 @@ if _cors_on:
         )
 
 
-# --- Readiness state --------------------------------------------------------
-# Liveness (/health) is up the moment the process starts; readiness (/ready)
-# flips true only after the (async) RAG warmup finishes, so an orchestrator
-# won't route traffic into a cold instance whose first request would be slow.
+# --- 就绪状态 --------------------------------------------------------
+# /health 在进程启动后即可存活；/ready 仅在异步 RAG 预热完成后变为 true，
+# 避免编排器把流量打进首请求会很慢的冷实例。
 _READY: bool = False
 _WARMUP_INFO: Dict[str, Any] = {"status": "pending"}
 
 
 def _run_rag_warmup() -> None:
+    """在后台线程执行 RAG 预热并标记进程就绪。"""
     global _READY, _WARMUP_INFO
     _WARMUP_INFO = warmup_rag_runtime()
     _READY = True
@@ -172,6 +175,7 @@ def _run_rag_warmup() -> None:
 
 @app.on_event("startup")
 async def _startup() -> None:
+    """启动时加载密钥、数据库、记忆、工具与可选 RAG 预热。"""
     global _READY, _WARMUP_INFO
     configure_resource_limits()
     load_api_keys()
@@ -200,8 +204,7 @@ async def _startup() -> None:
         _READY = True
         print("[startup] Gateway mode: local RAG warmup disabled; Agent execution is delegated to Worker.")
     elif os.getenv("AGENT_WARMUP_RAG", "1") == "1":
-        # Warm up off the startup path so uvicorn finishes startup immediately
-        # and /health (liveness) responds right away; /ready flips when done.
+        # 放到启动路径之外预热，让 uvicorn 立即完成启动、/health 马上可探活；/ready 在完成后翻转。
         threading.Thread(target=_run_rag_warmup, name="rag-warmup", daemon=True).start()
     else:
         _WARMUP_INFO = {"status": "disabled"}
@@ -210,15 +213,16 @@ async def _startup() -> None:
 
 @app.on_event("shutdown")
 async def _shutdown() -> None:
+    """关闭平台库、会话清理、记忆与 LLM 连接池。"""
     if get_platform_settings().enabled:
         await stop_platform_cleanup_task()
         await close_platform_database()
     await stop_session_cleanup_task()
     await close_memory_client()
-    # Release the shared LLM httpx connection pools.
+    # 释放共享 LLM httpx 连接池。
     await aclose_shared_async_client()
     await aclose_shared_async_stream_client()
-    # Close pooled MySQL connections used by sql.search / vitals.summary.
+    # 关闭 sql.search / vitals.summary 使用的池化 MySQL 连接。
     try:
         from .sql_search.pool import close_pool
 
@@ -229,13 +233,13 @@ async def _shutdown() -> None:
 
 @app.get("/health")
 def health() -> Dict[str, Any]:
-    """Liveness probe — up as soon as the process is running."""
+    """存活探针：进程已启动即返回 ok。"""
     return {"ok": True}
 
 
 @app.get("/ready")
 async def ready() -> JSONResponse:
-    """Readiness probe — 200 once RAG warmup finished, 503 while still warming."""
+    """就绪探针：RAG 预热完成（及 Worker 就绪）后返回 200，否则 503。"""
     worker_ok = True
     worker_detail: dict[str, Any] | None = None
     if should_delegate_agent_execution():
@@ -243,8 +247,7 @@ async def ready() -> JSONResponse:
     ready_now = _READY and worker_ok
     status = 200 if ready_now else 503
     if _PLATFORM_SETTINGS.production:
-        # This endpoint is normally exposed through the public reverse proxy.
-        # Keep filesystem paths, dependency URLs and capacity details internal.
+        # 该端点通常经公网反向代理暴露，路径、依赖 URL 与容量细节仅内部可见。
         return JSONResponse(status_code=status, content={"ready": ready_now})
     return JSONResponse(
         status_code=status,
@@ -260,19 +263,14 @@ async def ready() -> JSONResponse:
 
 
 # ---------------------------------------------------------------------------
-# QA management endpoints — admin token required
+# 问答管理接口 — 需要管理员 Token
 # ---------------------------------------------------------------------------
 
 _QA_ADMIN_TOKEN = os.getenv("QA_ADMIN_TOKEN", "")
 
 
 async def _require_admin(request: Request) -> None:
-    """Verify admin access via X-Admin-Token header.
-
-    Separate from the general API key auth so it is never bypassed
-    by AGENT_DISABLE_AUTH.  Rejects requests without the correct token
-    with 403 — external users through frp do not know this token.
-    """
+    """校验 X-Admin-Token；不受 AGENT_DISABLE_AUTH 影响。"""
     if not _QA_ADMIN_TOKEN:
         raise HTTPException(status_code=403, detail="QA admin token not configured on server")
     token = request.headers.get("X-Admin-Token", "").strip()
@@ -288,6 +286,7 @@ async def qa_history(
     date_to: Optional[str] = Query(None, description="YYYY-MM-DD"),
     keyword: Optional[str] = Query(None),
 ) -> Dict[str, Any]:
+    """分页查询问答历史。"""
     data = await query_qa_history(
         page=page, page_size=page_size,
         date_from=date_from, date_to=date_to, keyword=keyword,
@@ -300,6 +299,7 @@ async def qa_stats(
     date_from: Optional[str] = Query(None, description="YYYY-MM-DD"),
     date_to: Optional[str] = Query(None, description="YYYY-MM-DD"),
 ) -> Dict[str, Any]:
+    """查询问答统计。"""
     data = await get_qa_stats(date_from=date_from, date_to=date_to)
     return {"ok": True, **data}
 
@@ -311,6 +311,7 @@ async def qa_knowledge_gaps(
     min_occurrences: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
 ) -> Dict[str, Any]:
+    """查询潜在知识库缺口问题。"""
     data = await get_knowledge_gaps(
         date_from=date_from, date_to=date_to,
         min_occurrences=min_occurrences, limit=limit,
@@ -319,12 +320,12 @@ async def qa_knowledge_gaps(
 
 
 # ---------------------------------------------------------------------------
-# Feedback endpoints
+# 反馈接口
 # ---------------------------------------------------------------------------
 
 @app.post("/qa/feedback")
 async def qa_feedback(request: Request) -> Dict[str, Any]:
-    """Public endpoint — any user can submit feedback for an answer."""
+    """公开接口：为某条回答提交评分反馈。"""
     try:
         body = await request.json()
     except Exception:
@@ -347,5 +348,6 @@ async def qa_feedback_stats(
     date_from: Optional[str] = Query(None, description="YYYY-MM-DD"),
     date_to: Optional[str] = Query(None, description="YYYY-MM-DD"),
 ) -> Dict[str, Any]:
+    """查询反馈统计。"""
     data = await get_feedback_stats(date_from=date_from, date_to=date_to)
     return {"ok": True, **data}

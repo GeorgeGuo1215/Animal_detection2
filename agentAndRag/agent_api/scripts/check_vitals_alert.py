@@ -43,7 +43,7 @@ def _unwrap(result: dict) -> dict:
 
 
 async def _check_registry() -> bool:
-    """Run the same registration the backend does at startup, then assert our tool landed."""
+    """复用后端启动时的 MCP 注册流程，确认 vitals_alert 工具已挂上。"""
     from app.tools.tool_registry import ToolRegistry
     from app.tools.tools_mcp import register_mcp_tools_async
 
@@ -60,6 +60,7 @@ async def _check_registry() -> bool:
 
 
 async def main() -> int:
+    """冒烟入口：拉起 vitals_alert 子进程，列出或调用 check_vitals。"""
     parser = argparse.ArgumentParser(description="Smoke-test the vitals_alert MCP server")
     parser.add_argument("--pet-id", default="", help="Pet.id to query")
     parser.add_argument("--hours", type=int, default=24, help="look-back window in hours")

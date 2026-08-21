@@ -1,4 +1,4 @@
-"""User-level cross-session memory integration for Agent API."""
+"""Agent API 的用户级跨会话记忆集成。"""
 
 from .client import (
     MemoryClient,

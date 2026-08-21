@@ -13,6 +13,7 @@ from typing import Optional
 
 
 def hf_home() -> Path:
+    """返回 Hugging Face 缓存根目录（HF_HOME 或 ~/.cache/huggingface）。"""
     h = os.getenv("HF_HOME", "").strip()
     if h:
         return Path(os.path.expanduser(h))
@@ -20,6 +21,7 @@ def hf_home() -> Path:
 
 
 def hf_hub_cache_repo_dir(repo_id: str) -> Path:
+    """将 Hub repo id 映射为本地 hub/models--* 缓存目录。"""
     rid = (repo_id or "").strip()
     return hf_home() / "hub" / f"models--{rid.replace('/', '--')}"
 
@@ -55,16 +57,19 @@ def resolve_hf_hub_weights_dir(root: Path) -> Optional[Path]:
 
 
 def expand_user_path(p: str) -> str:
+    """展开 ~ 并去掉路径两端的引号与空白。"""
     return os.path.expanduser(p.strip().strip('"').strip("'"))
 
 
 def maybe_resolve_hf_cache_path(p: str) -> str:
+    """若路径是 Hub 缓存顶层目录，则解析到实际权重目录。"""
     root = Path(expand_user_path(p))
     resolved = resolve_hf_hub_weights_dir(root)
     return str(resolved) if resolved else str(root)
 
 
 def is_local_path(p: str) -> bool:
+    """判断字符串是否指向本地存在的文件或目录。"""
     try:
         return os.path.isdir(p) or os.path.isfile(p)
     except OSError:
@@ -97,6 +102,7 @@ def resolve_embedding_model_id(requested: Optional[str], repo_root: Path) -> str
 
 
 def resolve_rerank_model_id(requested: Optional[str], repo_root: Path) -> str:
+    """按与 embedding 相同的优先级解析 reranker 模型路径或 Hub id。"""
     req = (requested or "").strip() or os.getenv("AGENT_WARMUP_RERANK_MODEL", "BAAI/bge-reranker-large").strip()
     rerank_override = os.getenv("AGENT_RERANKER_MODEL_PATH", "").strip()
     if rerank_override:

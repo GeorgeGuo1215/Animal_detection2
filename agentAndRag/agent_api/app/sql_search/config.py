@@ -6,6 +6,8 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class MysqlConfig:
+    """只读 sql.search 使用的 MySQL 连接与限流配置。"""
+
     host: str
     port: int
     user: str
@@ -18,6 +20,7 @@ class MysqlConfig:
 
 
 def load_mysql_config() -> MysqlConfig:
+    """从环境变量加载 MySQL 配置。"""
     return MysqlConfig(
         host=os.getenv("PETMIND_MYSQL_HOST", "127.0.0.1"),
         port=int(os.getenv("PETMIND_MYSQL_PORT", "3306")),

@@ -24,12 +24,17 @@ class Principal:
 
 
 def _aware(value: datetime | None) -> datetime | None:
+    """将无时区 datetime 视为 UTC；``None`` 原样返回。"""
     if value is None:
         return None
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
 async def authenticate_platform_api_key(raw_key: str) -> Principal | None:
+    """用明文 API Key 查找未吊销、未过期且对应用户仍为 active 的主体。
+
+    前缀不是 ``pm_live_``、密钥无效或账号不可用时返回 ``None``；成功时会更新 ``last_used_at``。
+    """
     if not raw_key.startswith("pm_live_"):
         return None
     digest = hash_secret(raw_key)
@@ -58,6 +63,10 @@ async def get_current_principal(
     request: Request,
     session: AsyncSession = Depends(get_platform_session),
 ) -> Principal:
+    """从 Authorization Bearer 解析当前主体：API Key 或 JWT 登录会话。
+
+    同一请求内会缓存到 ``request.state``。凭证缺失、过期或账号不可用时返回 401。
+    """
     cached = getattr(request.state, "platform_principal", None)
     if isinstance(cached, Principal):
         return cached
@@ -96,10 +105,9 @@ async def get_current_principal(
 async def require_user_session(
     principal: Principal = Depends(get_current_principal),
 ) -> Principal:
-    """Restrict browser/platform APIs to short-lived JWT login sessions.
+    """将浏览器/平台 API 限制为短时 JWT 登录会话。
 
-    Database API keys are intentionally limited to the OpenAI-compatible
-    surface and must never inherit profile or administrator privileges.
+    数据库 API Key 仅允许用于 OpenAI 兼容接口，不得继承资料管理或管理员权限。
     """
     if principal.auth_kind != "jwt":
         raise HTTPException(
@@ -110,9 +118,11 @@ async def require_user_session(
 
 
 def require_roles(*roles: str) -> Callable:
+    """返回 FastAPI 依赖：要求当前 JWT 用户角色属于 ``roles``。"""
     allowed = set(roles)
 
     async def dependency(principal: Principal = Depends(require_user_session)) -> Principal:
+        """校验主体角色是否在允许集合内，否则返回 403。"""
         if principal.role not in allowed:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="insufficient role")
         return principal
@@ -121,7 +131,9 @@ def require_roles(*roles: str) -> Callable:
 
 
 def require_scope(scope: str) -> Callable:
+    """返回 FastAPI 依赖：要求主体具备指定 API scope（SUPER_ADMIN 豁免）。"""
     async def dependency(principal: Principal = Depends(require_user_session)) -> Principal:
+        """校验主体是否拥有指定 scope，否则返回 403。"""
         if scope not in principal.scopes and principal.role != "SUPER_ADMIN":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="missing API scope")
         return principal

@@ -1,1 +1,1 @@
-"""MCP client and server config."""
+"""MCP 客户端与服务器配置。"""

@@ -1,6 +1,4 @@
-"""
-Streaming LLM client for SSE responses.
-"""
+"""面向 SSE 响应的流式 LLM 客户端。"""
 from __future__ import annotations
 
 import json
@@ -21,11 +19,7 @@ from .openai_compat import (
 
 
 class OpenAIStreamClient:
-    """
-    OpenAI-compatible streaming client.
-
-    Yields content chunks from SSE stream.
-    """
+    """OpenAI 兼容流式客户端，从 SSE 中产出内容增量。"""
 
     def __init__(
         self,
@@ -35,6 +29,7 @@ class OpenAIStreamClient:
         model: Optional[str] = None,
         timeout_s: float = 300.0,
     ) -> None:
+        """按参数或环境变量初始化同步流式客户端。"""
         settings = resolve_settings(base_url=base_url, api_key=api_key, model=model)
         self.base_url = settings.base_url
         self.api_key = settings.api_key
@@ -49,11 +44,7 @@ class OpenAIStreamClient:
         max_tokens: int = 768,
         thinking: Optional[bool] = None,
     ) -> Iterator[str]:
-        """
-        Stream chat completion, yielding content chunks.
-
-        Yields each content delta as a string.
-        """
+        """流式调用 chat completion，逐块产出 content delta。"""
         require_api_key(self.api_key)
         payload = build_chat_payload(
             model=self.model, messages=messages, temperature=temperature,
@@ -92,9 +83,7 @@ class OpenAIStreamClient:
         max_tokens: int = 768,
         thinking: Optional[bool] = None,
     ) -> str:
-        """
-        Stream chat completion and return full content.
-        """
+        """流式调用 chat completion 并拼接为完整文本返回。"""
         chunks = []
         for chunk in self.chat_stream(
             messages=messages,
@@ -107,7 +96,7 @@ class OpenAIStreamClient:
 
 
 class AsyncOpenAIStreamClient:
-    """Async streaming client with connection pooling."""
+    """带连接池的异步流式客户端。"""
 
     def __init__(
         self,
@@ -116,6 +105,7 @@ class AsyncOpenAIStreamClient:
         api_key: Optional[str] = None,
         model: Optional[str] = None,
     ) -> None:
+        """按参数或环境变量初始化异步流式客户端。"""
         settings = resolve_settings(base_url=base_url, api_key=api_key, model=model)
         self.base_url = settings.base_url
         self.api_key = settings.api_key
@@ -130,6 +120,7 @@ class AsyncOpenAIStreamClient:
         max_tokens: int = 768,
         thinking: Optional[bool] = None,
     ) -> AsyncIterator[str]:
+        """异步流式调用，仅产出 content 字符串增量。"""
         events = self.chat_stream_events(
             messages=messages,
             temperature=temperature,
@@ -152,7 +143,7 @@ class AsyncOpenAIStreamClient:
         max_tokens: int = 768,
         thinking: Optional[bool] = None,
     ) -> AsyncIterator[Dict[str, Optional[str]]]:
-        """Yield content deltas plus the upstream finish reason."""
+        """产出 content delta 以及上游 finish_reason。"""
         require_api_key(self.api_key)
         payload = build_chat_payload(
             model=self.model, messages=messages, temperature=temperature,
@@ -195,6 +186,7 @@ class AsyncOpenAIStreamClient:
         max_tokens: int = 768,
         thinking: Optional[bool] = None,
     ) -> str:
+        """异步流式调用并拼接为完整文本返回。"""
         chunks: List[str] = []
         async for chunk in self.chat_stream(
             messages=messages,
@@ -206,16 +198,17 @@ class AsyncOpenAIStreamClient:
         return "".join(chunks)
 
     async def close(self) -> None:
+        """关闭底层 httpx 客户端。"""
         await self._client.aclose()
 
 
-# --- Shared singleton (default env config) ---------------------------------
-# Reuse one streaming client across requests so its httpx connection pool is
-# shared rather than rebuilt (and leaked) per request.
+# --- 共享单例（默认环境配置）---
+# 跨请求复用同一个流式客户端，共享 httpx 连接池，避免每次重建导致泄漏。
 _SHARED_ASYNC_STREAM_CLIENT: Optional["AsyncOpenAIStreamClient"] = None
 
 
 def get_shared_async_stream_client() -> "AsyncOpenAIStreamClient":
+    """获取默认环境配置的共享异步流式客户端（懒加载）。"""
     global _SHARED_ASYNC_STREAM_CLIENT  # noqa: PLW0603
     if _SHARED_ASYNC_STREAM_CLIENT is None:
         _SHARED_ASYNC_STREAM_CLIENT = AsyncOpenAIStreamClient()
@@ -223,6 +216,7 @@ def get_shared_async_stream_client() -> "AsyncOpenAIStreamClient":
 
 
 async def aclose_shared_async_stream_client() -> None:
+    """关闭并清空共享异步流式客户端。"""
     global _SHARED_ASYNC_STREAM_CLIENT  # noqa: PLW0603
     if _SHARED_ASYNC_STREAM_CLIENT is not None:
         await _SHARED_ASYNC_STREAM_CLIENT.close()

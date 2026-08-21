@@ -28,6 +28,7 @@ def openai_sse_chunk(
     detail: Optional[Dict[str, Any]] = None,
     finish: Optional[str] = None,
 ) -> str:
+    """构造 OpenAI 兼容的 SSE data 行。"""
     chunk = ChatCompletionChunk(
         id=request_id,
         created=int(created if created is not None else time.time()),

@@ -11,7 +11,7 @@ from .models import AgentRun, ExpertConsultation, RunEvent
 
 
 def consultation_payload(item: ExpertConsultation) -> dict[str, Any]:
-    """Serialize only the expert work product that is safe for end users."""
+    """将专家会诊记录序列化为对终端用户安全的公开结构。"""
     return {
         "expert": item.expert_key,
         "name": item.expert_name,
@@ -31,6 +31,7 @@ def consultation_payload(item: ExpertConsultation) -> dict[str, Any]:
 
 
 def _trace_values(trace: dict[str, Any]) -> dict[str, Any]:
+    """从公开专家轨迹中提取可写入 ``ExpertConsultation`` 的字段。"""
     opinion = trace.get("opinion") if isinstance(trace.get("opinion"), dict) else {}
     return {
         "expert_name": str(trace.get("name") or "专家")[:100],
@@ -48,7 +49,7 @@ def _trace_values(trace: dict[str, Any]) -> dict[str, Any]:
 
 
 async def persist_expert_consultation(run_id: str, trace: dict[str, Any]) -> None:
-    """Idempotently persist one completed expert opinion for an Agent Run."""
+    """幂等持久化一次已完成的专家意见；同一 Run + 专家键则更新已有行。"""
     expert_key = str(trace.get("expert") or "")[:40]
     if not expert_key:
         return
@@ -76,6 +77,7 @@ async def persist_expert_consultation(run_id: str, trace: dict[str, Any]) -> Non
 
 
 def _event_trace(payload: Any) -> dict[str, Any] | None:
+    """从 Run 状态事件载荷中提取已完成的专家轨迹；结构不符则返回 ``None``。"""
     if not isinstance(payload, dict):
         return None
     expert = payload.get("expert")
@@ -88,10 +90,9 @@ async def consultations_by_run(
     session: AsyncSession,
     run_ids: Iterable[str | None],
 ) -> dict[str, list[dict[str, Any]]]:
-    """Load consultations, falling back to durable legacy run events.
+    """按 Run ID 批量加载专家会诊；表中没有记录时回退到历史 RunEvent。
 
-    The event fallback makes consultations created before this table's migration
-    visible immediately; the Alembic migration also backfills them permanently.
+    事件回退用于在迁移完成前立即展示旧数据；Alembic 迁移也会永久回填该表。
     """
     ids = {run_id for run_id in run_ids if run_id}
     if not ids:

@@ -1,4 +1,4 @@
-"""Small helpers for parsing structured LLM output."""
+"""解析结构化 LLM 输出的小型辅助函数。"""
 from __future__ import annotations
 
 import json
@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional, Tuple
 
 
 def safe_json_loads(text: str) -> Tuple[Optional[Dict[str, Any]], str]:
-    """Best-effort extraction of the first JSON object from model output."""
+    """尽力从模型输出中提取第一个 JSON 对象。"""
     value = (text or "").strip()
     if not value:
         return None, "empty response"

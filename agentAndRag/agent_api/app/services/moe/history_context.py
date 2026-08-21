@@ -1,4 +1,4 @@
-"""Fact-state-aware history shared by every MoE reasoning stage."""
+"""各 MoE 推理阶段共用的、带事实状态标签的历史上下文。"""
 from __future__ import annotations
 
 import json
@@ -10,6 +10,7 @@ _HISTORY_RULES = HISTORY_RULES
 
 
 def _compact_expert(expert: Dict[str, Any]) -> Dict[str, Any]:
+    """压缩专家上下文为结论、证据与工具决策摘要。"""
     plan_steps = []
     for step in expert.get("plan_steps") or []:
         if not isinstance(step, dict):
@@ -36,7 +37,12 @@ def build_fact_state_history(
     expert_context_history: Optional[Sequence[Dict[str, Any]]] = None,
     user_memory: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Build one structured history payload consumed by all MoE stages."""
+    """按事实来源标签构建各 MoE 阶段共用的结构化历史载荷。
+
+    用户陈述、旧助手回答、旧专家意见和跨会话记忆分别标为 user_report、
+    assistant_inference、expert_inference 与 user_memory，防止模型把历史推断误当成
+    已核实患者事实；所有来源都为空时返回 ``None``。
+    """
     entries: List[Dict[str, Any]] = []
     for message in conversation_history or []:
         role = str(message.get("role") or "")
@@ -92,6 +98,7 @@ def fact_state_history_text(
     expert_context_history: Optional[Sequence[Dict[str, Any]]] = None,
     user_memory: Optional[str] = None,
 ) -> str:
+    """将事实状态历史序列化为注入文本。"""
     payload = build_fact_state_history(
         conversation_history,
         expert_context_history,

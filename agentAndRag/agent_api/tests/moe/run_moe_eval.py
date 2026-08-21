@@ -57,12 +57,14 @@ from report_writer import render  # noqa: E402
 
 
 def _slugify(text: str, max_len: int = 30) -> str:
+    """把标题转成适合做文件名的短名。"""
     s = re.sub(r"\s+", "_", (text or "").strip())
     s = re.sub(r"[^\w\u4e00-\u9fff]+", "", s)
     return s[:max_len] or "moe"
 
 
 def _ensure_tools(with_mcp: bool) -> None:
+    """若注册表还没有 rag.search，则注册内置工具，可选再挂 MCP。"""
     reg = get_registry()
     if reg.get("rag.search") is None:
         register_builtin_tools(reg)
@@ -73,6 +75,7 @@ def _ensure_tools(with_mcp: bool) -> None:
 
 
 def parse_args() -> argparse.Namespace:
+    """解析命令行参数并返回配置。"""
     p = argparse.ArgumentParser(description="MoE 离线评测：调超参跑单问题并产出 markdown 报告")
     p.add_argument("--question", "-q", required=True, help="输入问题")
     p.add_argument("--user-role", default="pet_owner", choices=["pet_owner", "veterinarian"])
@@ -90,6 +93,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def _build_router_config(args: argparse.Namespace) -> RouterConfig:
+    """构造本次评测用的路由配置。"""
     cfg = RouterConfig()
     if args.gating_threshold is not None:
         cfg.gating_threshold = args.gating_threshold
@@ -103,6 +107,7 @@ def _build_router_config(args: argparse.Namespace) -> RouterConfig:
 
 
 async def _amain(args: argparse.Namespace) -> Path:
+    """内部异步主流程。"""
     _ensure_tools(with_mcp=args.with_mcp)
 
     router_cfg = _build_router_config(args)
@@ -144,6 +149,7 @@ async def _amain(args: argparse.Namespace) -> Path:
 
 
 def main() -> None:
+    """脚本入口，解析参数并执行主流程。"""
     args = parse_args()
     try:
         out_path = asyncio.run(_amain(args))

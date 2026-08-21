@@ -1,4 +1,4 @@
-"""Batch semantic coverage check for high-scoring local RAG evidence."""
+"""对高分本地 RAG 证据做批量语义覆盖检查。"""
 from __future__ import annotations
 
 import asyncio
@@ -18,6 +18,7 @@ _VALID_STATUSES = frozenset({"supported", "partial", "unsupported"})
 
 @dataclass(frozen=True)
 class EvidenceSufficiencyItem:
+    """待审计的一条证据任务及其检索命中。"""
     id: str
     expert: str
     evidence_query: str
@@ -27,15 +28,18 @@ class EvidenceSufficiencyItem:
 
 @dataclass(frozen=True)
 class EvidenceSufficiencyAssessment:
+    """单条证据充分性评估结果。"""
     status: str
     reason: str
     matched_hit_ids: tuple[str, ...] = ()
 
     @property
     def supported(self) -> bool:
+        """状态是否为 supported。"""
         return self.status == "supported"
 
     def as_dict(self) -> Dict[str, Any]:
+        """转为可序列化字典。"""
         return {
             "status": self.status,
             "reason": self.reason,
@@ -44,12 +48,14 @@ class EvidenceSufficiencyAssessment:
 
 
 def evidence_sufficiency_enabled() -> bool:
+    """是否启用证据充分性审计。"""
     return os.getenv("MOE_EVIDENCE_SUFFICIENCY_ENABLED", "1").strip().lower() not in {
         "0", "false", "no", "off",
     }
 
 
 def _positive_int_env(name: str, default: int) -> int:
+    """读取正整数环境变量。"""
     try:
         return max(1, int(os.getenv(name, str(default)) or default))
     except (TypeError, ValueError):
@@ -57,6 +63,7 @@ def _positive_int_env(name: str, default: int) -> int:
 
 
 def _positive_float_env(name: str, default: float) -> float:
+    """读取正浮点环境变量。"""
     try:
         return max(0.1, float(os.getenv(name, str(default)) or default))
     except (TypeError, ValueError):
@@ -64,6 +71,7 @@ def _positive_float_env(name: str, default: float) -> float:
 
 
 def _prompt_items(items: Iterable[EvidenceSufficiencyItem]) -> List[Dict[str, Any]]:
+    """将证据条目裁剪为提示词载荷。"""
     max_hits = _positive_int_env("MOE_EVIDENCE_SUFFICIENCY_MAX_HITS", 3)
     max_chars = _positive_int_env("MOE_EVIDENCE_SUFFICIENCY_HIT_MAX_CHARS", 1200)
     payload: List[Dict[str, Any]] = []
@@ -91,6 +99,7 @@ def parse_evidence_sufficiency(
     *,
     expected_ids: Iterable[str],
 ) -> Dict[str, EvidenceSufficiencyAssessment]:
+    """解析充分性审计 JSON。"""
     expected = set(expected_ids)
     obj, _error = safe_json_loads(text)
     raw_items = obj.get("assessments") if isinstance(obj, dict) else None
@@ -123,6 +132,12 @@ async def assess_evidence_sufficiency(
     recorder: Optional[MoETrace] = None,
     timeout_s: Optional[float] = None,
 ) -> Dict[str, EvidenceSufficiencyAssessment]:
+    """批量判断各证据任务的本地 RAG 命中是否足以支持当前病例结论。
+
+    评估依据查询、命中摘要和分数，而非单一阈值；结果按 request_key 返回
+    supported/ambiguous/insufficient。禁用、无任务、超时或解析失败时采用保守结果，
+    由专家层决定是否触发 Web 补证。
+    """
     batch = list(items)
     if not batch or not evidence_sufficiency_enabled():
         return {}

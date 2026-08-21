@@ -14,6 +14,7 @@ from app.services.moe.evidence_sufficiency import (  # noqa: E402
 
 
 def test_parse_evidence_sufficiency_only_accepts_expected_ids_and_statuses():
+    """验证充分性解析只接受预期的任务 ID 与状态。"""
     parsed = parse_evidence_sufficiency(
         """{
           "assessments": [
@@ -31,6 +32,7 @@ def test_parse_evidence_sufficiency_only_accepts_expected_ids_and_statuses():
 
 
 def test_sufficiency_prompt_rejects_score_and_terminology_shortcuts():
+    """验证充分性提示词拒绝分数和术语捷径。"""
     for expected in (
         "检索分数和排序不能作为充分性的理由",
         "washout interval",

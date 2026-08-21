@@ -30,11 +30,12 @@ _TEMP_SQL = (
     "WHERE e.animal_id = %s"
 )
 
-# Optional recency window appended when `days` is provided.
+# 提供 `days` 时追加的可选时间窗口。
 _DAYS_CLAUSE = " AND e.ts >= NOW() - INTERVAL %s DAY"
 
 
 def _num(v: Any) -> Optional[float]:
+    """将值转为 float；无法转换则返回 None。"""
     if v is None:
         return None
     if isinstance(v, bool):
@@ -48,6 +49,7 @@ def _num(v: Any) -> Optional[float]:
 
 
 def _round(v: Optional[float], ndigits: int) -> Optional[float]:
+    """对数值四舍五入；非数值返回 None。"""
     return round(v, ndigits) if isinstance(v, (int, float)) else None
 
 
@@ -55,10 +57,10 @@ def vitals_summary_tool(
     days: Optional[int] = None,
     **extra: Any,
 ) -> Dict[str, Any]:
-    """Aggregate HR/RR/temperature for the request-scoped animal.
+    """聚合请求级宠物的心率/呼吸/体温摘要。
 
     Args:
-        days: if provided (>0), only include samples from the last N days; else all history.
+        days: 若提供且 >0，仅包含最近 N 天样本；否则为全部历史。
     """
     _ = extra
     cfg = load_mysql_config()

@@ -36,6 +36,7 @@ for _p in (str(_AGENT_API), str(_AGENTANDRAG)):
 
 
 def _load_dotenv() -> None:
+    """从项目 .env 读取环境变量（不覆盖已有值）。"""
     env_path = _AGENTANDRAG / ".env"
     if not env_path.exists():
         return
@@ -64,16 +65,19 @@ from report_writer import render  # noqa: E402
 
 
 def _slugify(text: str, max_len: int = 30) -> str:
+    """把标题转成适合做文件名的短名。"""
     s = re.sub(r"\s+", "_", (text or "").strip())
     s = re.sub(r"[^\w\u4e00-\u9fff]+", "", s)
     return s[:max_len] or "moe"
 
 
 def _check_api_key() -> bool:
+    """检查运行所需的 API 密钥是否已配置。"""
     return bool(os.getenv("OPENAI_API_KEY") or os.getenv("DEEPSEEK_API_KEY"))
 
 
 def _register_tools(with_mcp: bool) -> None:
+    """注册本次评测要用的工具。"""
     reg = get_registry()
     if reg.get("rag.search") is None:
         register_builtin_tools(reg)
@@ -84,6 +88,7 @@ def _register_tools(with_mcp: bool) -> None:
 
 
 def _warmup_rag(*, device, enable_bm25: bool, enable_reranker: bool) -> None:
+    """预热 RAG 索引，避免首问把耗时算进评测。"""
     from RAG.simple_rag.config import default_config
 
     cfg = default_config(_AGENTANDRAG)
@@ -122,6 +127,7 @@ def _warmup_rag(*, device, enable_bm25: bool, enable_reranker: bool) -> None:
 
 
 def parse_args() -> argparse.Namespace:
+    """解析命令行参数并返回配置。"""
     p = argparse.ArgumentParser(description="MoE 实时运行：预加载真实 RAG 向量库 + 真实 API")
     p.add_argument("--question", "-q", default=None, help="单次提问；不提供则进入交互式 REPL")
     p.add_argument("--user-role", default="pet_owner", choices=["pet_owner", "veterinarian"])
@@ -143,6 +149,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def _build_config(args: argparse.Namespace) -> OrchestratorConfig:
+    """根据命令行参数组装编排器配置。"""
     router_cfg = RouterConfig()
     if args.gating_threshold is not None:
         router_cfg.gating_threshold = args.gating_threshold
@@ -163,6 +170,7 @@ def _build_config(args: argparse.Namespace) -> OrchestratorConfig:
 
 
 def _config_snapshot(cfg: OrchestratorConfig) -> dict:
+    """把当前超参拍成可写入报告的快照。"""
     return {
         "user_role": cfg.user_role,
         "gating_threshold": cfg.router.gating_threshold,
@@ -179,6 +187,7 @@ def _config_snapshot(cfg: OrchestratorConfig) -> dict:
 
 
 async def _stream_to_console(orch: MoEOrchestrator, question: str, user_role: str) -> None:
+    """把流式输出打印到控制台。"""
     print(f"\n=== 提问 ===\n{question}\n\n=== MoE 进度 / 回答 ===")
     async for ev in orch.stream(query=question):
         content = ev.get("content") or ""
@@ -193,6 +202,7 @@ async def _stream_to_console(orch: MoEOrchestrator, question: str, user_role: st
 
 
 async def _run_with_report(orch: MoEOrchestrator, args: argparse.Namespace, cfg: OrchestratorConfig) -> Path:
+    """跑完问题并写出 Markdown 报告。"""
     trace = MoETrace(question=args.question, user_role=args.user_role, config=_config_snapshot(cfg))
     answer, _ = await orch.run(query=args.question, recorder=trace)
     print(f"\n=== 最终答案 ===\n{answer}\n")
@@ -205,6 +215,7 @@ async def _run_with_report(orch: MoEOrchestrator, args: argparse.Namespace, cfg:
 
 
 async def _repl(orch: MoEOrchestrator, user_role: str) -> None:
+    """进入交互式问答循环。"""
     print("进入交互式 MoE（输入空行或 exit/quit 退出）")
     loop = asyncio.get_event_loop()
     while True:
@@ -220,6 +231,7 @@ async def _repl(orch: MoEOrchestrator, user_role: str) -> None:
 
 
 async def _amain(args: argparse.Namespace) -> None:
+    """内部异步主流程。"""
     if not _check_api_key():
         print("[错误] 未检测到 OPENAI_API_KEY / DEEPSEEK_API_KEY，请设置后重试（或写入 agentAndRag/.env）。")
         return
@@ -246,6 +258,7 @@ async def _amain(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
+    """脚本入口，解析参数并执行主流程。"""
     args = parse_args()
     asyncio.run(_amain(args))
 

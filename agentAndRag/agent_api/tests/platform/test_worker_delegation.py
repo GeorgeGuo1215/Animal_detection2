@@ -16,6 +16,7 @@ from agent_api.app import worker_proxy
 
 
 def _request(path: str, headers: list[tuple[bytes, bytes]] | None = None) -> Request:
+    """构造测试用的 HTTP 请求对象。"""
     return Request({
         "type": "http",
         "http_version": "1.1",
@@ -31,6 +32,7 @@ def _request(path: str, headers: list[tuple[bytes, bytes]] | None = None) -> Req
 
 
 def test_only_production_gateway_delegates(monkeypatch):
+    """验证只有生产网关才会把请求委托给 Worker。"""
     monkeypatch.setenv("AGENT_PLATFORM_ENV", "production")
     monkeypatch.setenv("AGENT_PLATFORM_DB_URL", "postgresql+asyncpg://user:pass@127.0.0.1/db")
     monkeypatch.setenv("AGENT_PLATFORM_REDIS_URL", "redis://127.0.0.1:6379/0")
@@ -53,10 +55,13 @@ def test_only_production_gateway_delegates(monkeypatch):
 
 
 def test_openai_completion_delegates_before_local_execution(monkeypatch):
+    """验证 OpenAI 补全会在本地执行前先委托。"""
     async def scenario():
+        """本用例的异步执行体。"""
         captured = {}
 
         async def fake_proxy(request, *, path, payload, stream):
+            """测试替身：假装 Worker 代理。"""
             captured.update(path=path, payload=payload, stream=stream)
             return JSONResponse({"delegated": True})
 
@@ -81,10 +86,13 @@ def test_openai_completion_delegates_before_local_execution(monkeypatch):
 
 
 def test_chat_moe_completion_delegates_to_worker(monkeypatch):
+    """验证 MoE 聊天补全会委托给 Worker。"""
     async def scenario():
+        """本用例的异步执行体。"""
         captured = {}
 
         async def fake_proxy(request, *, path, payload, stream):
+            """测试替身：假装 Worker 代理。"""
             captured.update(path=path, payload=payload, stream=stream)
             return JSONResponse({"delegated": True})
 
@@ -112,14 +120,18 @@ def test_chat_moe_completion_delegates_to_worker(monkeypatch):
 
 
 def test_worker_proxy_forwards_identity_and_stream_bytes(monkeypatch):
+    """验证 Worker 代理会转发身份和流式字节。"""
     async def scenario():
+        """本用例的异步执行体。"""
         seen = {}
 
         class EventStream(httpx.AsyncByteStream):
             async def __aiter__(self):
+                """返回异步迭代器自身。"""
                 yield b"data: {\"ok\":true}\n\n"
 
         def handler(upstream: httpx.Request) -> httpx.Response:
+            """测试用 HTTP 处理函数，返回预置响应。"""
             seen["path"] = upstream.url.path
             seen["token"] = upstream.headers.get("x-petmind-worker-token")
             seen["user"] = upstream.headers.get("x-user-id")
@@ -162,10 +174,13 @@ def test_worker_proxy_forwards_identity_and_stream_bytes(monkeypatch):
 
 
 def test_caller_cannot_spoof_memory_identity_or_forwarded_user_header(monkeypatch):
+    """验证调用方无法伪造记忆身份或转发用户头。"""
     async def scenario():
+        """本用例的异步执行体。"""
         seen = {}
 
         def handler(upstream: httpx.Request) -> httpx.Response:
+            """测试用 HTTP 处理函数，返回预置响应。"""
             seen["user"] = upstream.headers.get("x-user-id")
             return httpx.Response(200, json={"ok": True})
 

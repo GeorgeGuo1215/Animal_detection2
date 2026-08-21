@@ -1,3 +1,5 @@
+"""进程级 LLM / RAG / MCP 并发槽位限流。"""
+
 from .resource_limits import (
     AsyncResourceLimiter,
     ResourceBusyError,

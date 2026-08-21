@@ -9,7 +9,9 @@ from agent_api.app.platform.services import adjust_credits, reserve_credits, set
 
 
 def test_reservation_protects_concurrent_balance_and_settles_actual_usage(tmp_path, monkeypatch):
+    """验证积分预占能保护并发余额，并按实际用量结算。"""
     async def scenario() -> None:
+        """本用例的异步执行体。"""
         await close_platform_database()
         monkeypatch.setenv("AGENT_PLATFORM_DB_URL", f"sqlite+aiosqlite:///{(tmp_path / 'credits.db').as_posix()}")
         reset_platform_settings_cache(); await init_platform_database()

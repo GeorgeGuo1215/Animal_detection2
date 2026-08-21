@@ -11,6 +11,7 @@ from .tools.rag_tools import warmup_rag_cache
 
 
 def _warmup_rag_unlimited() -> dict[str, Any]:
+    """不受槽位限制地预热各分类 RAG 索引、embedding 与 reranker。"""
     try:
         repo_root = Path(__file__).resolve().parents[2]
         device = os.getenv("AGENT_WARMUP_DEVICE") or None
@@ -89,6 +90,7 @@ def _warmup_rag_unlimited() -> dict[str, Any]:
 
 
 def warmup_rag_runtime() -> dict[str, Any]:
+    """在 RAG 并发槽位内执行运行时预热。"""
     limits = get_resource_limits()
     try:
         with limits.rag.slot(timeout_s=max(limits.acquire_timeout_s, 300.0)):

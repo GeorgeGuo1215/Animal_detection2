@@ -46,11 +46,13 @@ _BULLDOG_EXERCISE = (
 
 
 def test_teacher_rubric_has_exactly_eight_maintainable_intents():
+    """验证教师评分表恰好有八个可维护意图。"""
     assert tuple(INTENT_SPECS) == tuple(f"D{i}" for i in range(1, 9))
     assert all(spec.output_contract and spec.routing_guidance for spec in INTENT_SPECS.values())
 
 
 def test_task_policy_parser_selects_intent_without_regex_gate():
+    """验证任务策略解析器不靠正则门控来选意图。"""
     decision = parse_task_policy(
         '{"primary_intent":"D1","secondary_intents":[],"confidence":0.97,'
         '"output_variant":"soap","scores":{"clinical":8},'
@@ -62,6 +64,7 @@ def test_task_policy_parser_selects_intent_without_regex_gate():
 
 
 def test_task_policy_parser_falls_back_safely_for_invalid_label():
+    """验证任务策略解析器对非法标签会安全回退。"""
     decision = parse_task_policy(
         '{"primary_intent":"case_regex","confidence":1,"output_variant":"default","reason":"bad"}'
     )
@@ -70,6 +73,7 @@ def test_task_policy_parser_falls_back_safely_for_invalid_label():
 
 
 def test_d1_soap_contract_is_registry_driven():
+    """验证 D1 SOAP 契约由注册表驱动。"""
     prompt = build_intent_aggregator_injection("D1", 0.9, "soap")
     assert intent_required_sections("D1", "soap") == (
         "S（主观）", "O（客观）", "A（评估）", "P（计划）", "待确认项"
@@ -79,6 +83,7 @@ def test_d1_soap_contract_is_registry_driven():
 
 
 def test_vet_base_prompt_forbids_owner_tone():
+    """验证兽医基础提示词禁止主人语气。"""
     prompt = build_solve_prompt(user_role="veterinarian", query="犬急性胰腺炎鉴别要点")
     assert "禁止宠主话术" in prompt
     assert "AI 临床助手" in prompt or "AI 助手" in prompt
@@ -88,12 +93,14 @@ def test_vet_base_prompt_forbids_owner_tone():
 
 
 def test_owner_prompt_still_suggests_vet():
+    """验证主人提示词仍会建议就医。"""
     prompt = build_solve_prompt(user_role="pet_owner", query="狗吐了怎么办")
     assert "建议咨询兽医" in prompt
     assert "禁止宠主话术" not in prompt
 
 
 def test_owner_prompt_uses_conversational_triage_without_delaying_red_flags():
+    """验证主人提示词用对话式分诊，且不拖延红旗。"""
     prompt = build_solve_prompt(user_role="pet_owner", query="猫突然不吃饭要观察哪些风险？")
     assert "对话式分诊" in prompt
     assert "3~6 个" in prompt
@@ -105,6 +112,7 @@ def test_owner_prompt_uses_conversational_triage_without_delaying_red_flags():
 
 
 def test_owner_expert_and_critic_prompts_enforce_clarification_boundary():
+    """验证主人、专家和审核器提示词都守澄清边界。"""
     assert "3~6 个" in _AUDIENCE_OWNER
     assert "无条件要求立即就医" in _AUDIENCE_OWNER
     assert "明确当前红旗" in _AUDIENCE_OWNER
@@ -115,18 +123,21 @@ def test_owner_expert_and_critic_prompts_enforce_clarification_boundary():
 
 
 def test_unified_policy_does_not_equate_serious_differential_with_emergency():
+    """验证统一策略不会把严重鉴别诊断等同于急症。"""
     assert "只依据用户已报告的当前表现或已核实的外部结果" in TASK_POLICY_SYSTEM_PROMPT
     assert "鉴别诊断中提到严重疾病" in TASK_POLICY_SYSTEM_PROMPT
     assert "不能单独令 emergency=true" in TASK_POLICY_SYSTEM_PROMPT
 
 
 def test_build_solve_prompt_exercise_no_forced_case_structure():
+    """验证运动场景的求解提示词不强行套病例结构。"""
     prompt = build_solve_prompt(user_role="veterinarian", query=_BULLDOG_EXERCISE)
     assert "兽医病例工作流答风" not in prompt
     assert "兽医证据分层规范" in prompt
 
 
 def test_build_solve_prompt_requires_exact_web_url_copy():
+    """验证求解提示词要求网页 URL 必须原样抄写。"""
     prompt = build_solve_prompt(
         user_role="veterinarian",
         query=_BULLDOG_EXERCISE,
@@ -138,17 +149,20 @@ def test_build_solve_prompt_requires_exact_web_url_copy():
 
 
 def test_build_solve_prompt_vet_vague_keeps_evidence_layering():
+    """验证兽医含糊提问仍保持证据分层。"""
     prompt = build_solve_prompt(user_role="veterinarian", query="猫尿血怎么办")
     assert "病例整理" not in prompt or "兽医病例工作流答风" not in prompt
     assert "兽医证据分层规范" in prompt
 
 
 def test_build_solve_prompt_owner_no_case_structure():
+    """验证主人场景的求解提示词不套病例结构。"""
     prompt = build_solve_prompt(user_role="pet_owner", query=_FLUTD_DIAGNOSIS)
     assert "兽医病例工作流答风" not in prompt
 
 
 def test_aggregator_synthesis_structure_for_diagnosis():
+    """验证诊断类综合回答遵循既定结构。"""
     orch = MoEOrchestrator(config=OrchestratorConfig(user_role="veterinarian"))
     orch._active_intent_decision = IntentDecision(
         intent_id="D2", name="临床问题分析", confidence=0.96,
@@ -208,6 +222,7 @@ def test_aggregator_synthesis_structure_for_diagnosis():
 
 
 def test_aggregator_vet_non_case_drops_when_to_seek_care():
+    """验证兽医非病例场景会去掉「何时就医」段落。"""
     orch = MoEOrchestrator(config=OrchestratorConfig(user_role="veterinarian"))
     orch._active_intent_decision = IntentDecision(
         intent_id="D5", name="治疗与用药安全", confidence=0.91,
@@ -252,6 +267,7 @@ def test_aggregator_vet_non_case_drops_when_to_seek_care():
 
 
 def test_aggregator_owner_vague_first_turn_clarifies_even_if_router_flags_emergency():
+    """验证主人首轮表述含糊时会先澄清，即使路由标了急症。"""
     orch = MoEOrchestrator(config=OrchestratorConfig(user_role="pet_owner"))
     decision = RouterDecision(
         scores={"clinical": 8},
@@ -282,6 +298,7 @@ def test_aggregator_owner_vague_first_turn_clarifies_even_if_router_flags_emerge
 
 
 def test_aggregator_owner_followup_advances_and_reported_red_flags_are_not_delayed():
+    """验证主人追问会推进答复，且已上报的红旗不会被拖延。"""
     orch = MoEOrchestrator(config=OrchestratorConfig(user_role="pet_owner"))
     decision = RouterDecision(
         scores={"clinical": 10}, raw_weights={"clinical": 1.0},
@@ -313,6 +330,7 @@ def test_aggregator_owner_followup_advances_and_reported_red_flags_are_not_delay
 
 
 def test_aggregator_preserves_unconfirmed_assistant_hypothesis_across_turns():
+    """验证综合器会跨轮次保留尚未确认的助手假设。"""
     orch = MoEOrchestrator(config=OrchestratorConfig(user_role="veterinarian"))
     decision = RouterDecision(
         scores={"clinical": 8}, raw_weights={"clinical": 1.0},
@@ -357,6 +375,7 @@ def test_aggregator_preserves_unconfirmed_assistant_hypothesis_across_turns():
 
 
 def test_aggregator_epistemic_history_rule_also_applies_to_pet_owner():
+    """验证综合器的认识状态历史规则同样适用于宠物主人。"""
     orch = MoEOrchestrator(config=OrchestratorConfig(user_role="pet_owner"))
     msgs = orch._build_synthesis_messages(
         query="那就按哮喘给它用药",
@@ -379,6 +398,7 @@ def test_aggregator_epistemic_history_rule_also_applies_to_pet_owner():
 
 
 def test_aggregator_exercise_does_not_force_case_sections():
+    """验证运动类问题的综合器不会强行套病例章节。"""
     orch = MoEOrchestrator(config=OrchestratorConfig(user_role="veterinarian"))
     orch._active_intent_decision = IntentDecision(
         intent_id="D5", name="治疗与用药安全", confidence=0.9,
@@ -410,6 +430,7 @@ def test_aggregator_exercise_does_not_force_case_sections():
 
 
 def test_aggregator_rag_evidence_uses_retrieved_source_ledger():
+    """验证综合器的 RAG 证据使用检索来源台账。"""
     orch = MoEOrchestrator(config=OrchestratorConfig(user_role="veterinarian"))
     decision = RouterDecision(
         scores={"clinical": 8}, raw_weights={"clinical": 1.0},
@@ -442,6 +463,7 @@ def test_aggregator_rag_evidence_uses_retrieved_source_ledger():
 
 
 def test_answer_char_budget_converts_tokens_and_ignores_missing_budget():
+    """验证回答字数预算会从 token 换算，并忽略缺失预算。"""
     assert answer_char_budget(2500) == 3000
     assert answer_char_budget(768) == 921
     assert answer_char_budget(None) is None
@@ -451,6 +473,7 @@ def test_answer_char_budget_converts_tokens_and_ignores_missing_budget():
 
 
 def test_solve_prompt_states_char_budget_not_raw_token_count():
+    """验证求解提示词写的是字符预算而不是原始 token 数。"""
     prompt = build_solve_prompt(user_role="veterinarian", query=_FLUTD_DIAGNOSIS, max_tokens=2500)
 
     assert "篇幅预算" in prompt
@@ -463,10 +486,12 @@ def test_solve_prompt_states_char_budget_not_raw_token_count():
 
 
 def test_solve_prompt_omits_budget_clause_when_unspecified():
+    """验证未指定预算时求解提示词省略预算子句。"""
     assert "篇幅预算" not in build_solve_prompt(user_role="pet_owner", query="狗吐了怎么办")
 
 
 def test_aggregator_prompt_carries_its_own_resolved_budget(monkeypatch):
+    """验证综合器提示词携带自己解析后的字数预算。"""
     monkeypatch.setenv("MOE_FINAL_ANSWER_MAX_TOKENS", "1500")
     orch = MoEOrchestrator(config=OrchestratorConfig(user_role="veterinarian", max_tokens=1500))
     msgs = orch._build_synthesis_messages(
@@ -484,6 +509,7 @@ def test_aggregator_prompt_carries_its_own_resolved_budget(monkeypatch):
 
 
 def test_aggregator_max_tokens_defaults_and_caps_at_2500():
+    """验证综合器 max_tokens 有默认值且上限为 2500。"""
     orch = MoEOrchestrator(config=OrchestratorConfig(user_role="veterinarian", max_tokens=900))
     assert orch._aggregator_max_tokens(_FLUTD_DIAGNOSIS) == 900
     assert orch._aggregator_max_tokens(_BULLDOG_EXERCISE) == 900

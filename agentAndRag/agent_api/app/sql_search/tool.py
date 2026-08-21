@@ -12,23 +12,27 @@ from .schema_catalog import validate_table
 
 
 class WhereClause(BaseModel):
+    """单条 WHERE 条件。"""
+
     column: str
     op: Literal["eq", "ne", "gt", "gte", "lt", "lte", "in", "between", "like"] = "eq"
     value: Any = None
 
 
 class OrderByClause(BaseModel):
+    """单条 ORDER BY 子句。"""
+
     column: str
     direction: Literal["asc", "desc"] = "asc"
 
 
 class SqlSearchIntent(BaseModel):
-    """Layer-1 structured query intent (tool arguments)."""
+    """第一层结构化查询意图（工具参数）。"""
 
-    database: str = Field(default="petmind", description="Must match configured MySQL database name")
+    database: str = Field(default="petmind", description="必须与配置的 MySQL 库名一致")
     target: Literal["single_table"] = "single_table"
     table: str = Field(default="daily_reports", min_length=1)
-    columns: Optional[List[str]] = Field(default=None, description="If omitted, all columns (within whitelist)")
+    columns: Optional[List[str]] = Field(default=None, description="省略则返回白名单内全部列")
     where: Optional[List[WhereClause]] = None
     order_by: Optional[List[OrderByClause]] = None
     limit: int = Field(default=50, ge=1)
@@ -36,6 +40,7 @@ class SqlSearchIntent(BaseModel):
     @field_validator("table")
     @classmethod
     def _table_lower(cls, v: str) -> str:
+        """将表名规范为小写。"""
         return (v or "daily_reports").strip().lower()
 
 
@@ -43,7 +48,7 @@ def _merge_animal_scope(
     animal_id: str,
     user_where: Optional[List[Dict[str, Any]]],
 ) -> List[Dict[str, Any]]:
-    """Prepend mandatory animal_id filter; drop user-defined animal_id to avoid scope bypass."""
+    """前置强制 animal_id 过滤，并去掉用户传入的 animal_id 以防越权。"""
     cleaned: List[Dict[str, Any]] = []
     for w in user_where or []:
         col = str(w.get("column", "")).strip().lower()
@@ -64,9 +69,7 @@ def sql_search_tool(
     limit: int = 50,
     **extra: Any,
 ) -> Dict[str, Any]:
-    """
-    Read-only SELECT on whitelist tables. Requires request-level animal_id (see request_context).
-    """
+    """在白名单表上执行只读 SELECT；必须带有请求级 animal_id（见 request_context）。"""
     _ = extra
     cfg = load_mysql_config()
 

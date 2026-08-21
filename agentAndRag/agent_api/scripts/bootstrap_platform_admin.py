@@ -15,6 +15,7 @@ from agent_api.app.platform.services import adjust_credits, ensure_credit_accoun
 
 
 async def _run(email: str, password: str, display_name: str, role: str, credits: int, subscription_days: int) -> None:
+    """初始化平台库并创建/轮换指定角色账号，同时补齐积分账户与试用订阅。"""
     await init_platform_database()
     async with platform_session() as session:
         await seed_platform_plans(session)
@@ -75,6 +76,7 @@ async def _run(email: str, password: str, display_name: str, role: str, credits:
 
 
 def main() -> None:
+    """解析命令行参数并启动管理员引导流程；未给密码时现场生成一次。"""
     parser = argparse.ArgumentParser(description="Create or rotate a PetMind platform account")
     parser.add_argument("--email", required=True)
     parser.add_argument("--password", help="Prefer omitting this option so a password is generated outside shell history")

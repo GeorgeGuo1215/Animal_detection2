@@ -1,4 +1,4 @@
-"""One-call semantic policy for MoE intent, routing, and evidence needs."""
+"""一次 LLM 调用产出 MoE 意图、路由与证据需求的语义策略。"""
 from __future__ import annotations
 
 import json
@@ -30,7 +30,7 @@ _REQUIREMENTS = {"required", "recommended"}
 
 @dataclass(frozen=True)
 class IntentDecision:
-    """Compatibility view of the primary D1-D8 decision for downstream stages."""
+    """下游阶段使用的 D1-D8 主意图兼容视图。"""
 
     intent_id: str
     name: str
@@ -41,6 +41,7 @@ class IntentDecision:
     error: str = ""
 
     def as_dict(self) -> Dict[str, Any]:
+        """转为可序列化字典。"""
         return {
             "intent_id": self.intent_id,
             "name": self.name,
@@ -54,6 +55,7 @@ class IntentDecision:
 
 @dataclass(frozen=True)
 class TaskPolicyDecision:
+    """统一任务策略决策：意图、专家分数、急症与证据任务。"""
     primary_intent: str
     secondary_intents: Tuple[str, ...]
     confidence: float
@@ -69,6 +71,7 @@ class TaskPolicyDecision:
     error: str = ""
 
     def as_dict(self) -> Dict[str, Any]:
+        """转为可序列化字典。"""
         return {
             "primary_intent": self.primary_intent,
             "secondary_intents": list(self.secondary_intents),
@@ -88,6 +91,7 @@ class TaskPolicyDecision:
         }
 
     def as_intent_decision(self) -> IntentDecision:
+        """转为 IntentDecision。"""
         spec = get_intent_spec(self.primary_intent)
         return IntentDecision(
             intent_id=self.primary_intent,
@@ -100,6 +104,7 @@ class TaskPolicyDecision:
         )
 
     def as_router_decision(self, config: Optional[RouterConfig] = None) -> RouterDecision:
+        """按分数生成 RouterDecision。"""
         return resolve_router_decision(
             scores=self.scores,
             emergency=self.emergency,
@@ -108,10 +113,12 @@ class TaskPolicyDecision:
         )
 
     def assigned_tasks(self, selected_experts: Sequence[str]) -> Tuple[EvidenceTask, ...]:
+        """把证据任务分配给入选专家。"""
         return assign_evidence_tasks(self.evidence_tasks, selected_experts)
 
 
 def fallback_task_policy(reason: str, error: str = "") -> TaskPolicyDecision:
+    """策略不可用时的安全回退决策。"""
     return TaskPolicyDecision(
         primary_intent=DEFAULT_INTENT_ID,
         secondary_intents=(),
@@ -135,6 +142,7 @@ def fallback_task_policy(reason: str, error: str = "") -> TaskPolicyDecision:
 
 
 def _json_object(text: str) -> Tuple[Optional[Dict[str, Any]], str]:
+    """从文本提取 JSON 对象。"""
     value = str(text or "").strip()
     if not value:
         return None, "empty task policy response"
@@ -152,6 +160,7 @@ def _json_object(text: str) -> Tuple[Optional[Dict[str, Any]], str]:
 
 
 def _bounded_float(value: Any, low: float, high: float, default: float = 0.0) -> float:
+    """将值钳制为范围内浮点。"""
     try:
         return round(max(low, min(high, float(value))), 4)
     except (TypeError, ValueError):
@@ -159,12 +168,18 @@ def _bounded_float(value: Any, low: float, high: float, default: float = 0.0) ->
 
 
 def _short_strings(value: Any, *, limit: int = 12, width: int = 300) -> Tuple[str, ...]:
+    """提取短字符串列表。"""
     if not isinstance(value, list):
         return ()
     return tuple(str(item).strip()[:width] for item in value[:limit] if str(item).strip())
 
 
 def parse_task_policy(text: str) -> TaskPolicyDecision:
+    """解析并约束统一策略模型返回的 JSON。
+
+    校验 D1-D8 主/次意图、专家分数、急症标记与证据任务，将分数和字符串长度限制在
+    安全范围；任何格式或枚举错误都回退到可解释的临床保守策略。
+    """
     obj, error = _json_object(text)
     if obj is None:
         return fallback_task_policy("统一策略输出无效，回退到临床路径", error)
@@ -245,6 +260,11 @@ async def decide_task_policy(
     prompt_injection: str = "",
     recorder: Optional[MoETrace] = None,
 ) -> TaskPolicyDecision:
+    """调用一次 LLM 同时完成意图、路由、急症与证据任务决策。
+
+    请求会注入 D1-D8 边界、物种/品种和有限会话历史；模型输出经
+    ``parse_task_policy`` 强校验，调用异常时返回临床优先的确定性回退结果。
+    """
     history_context = build_fact_state_history(
         conversation_history,
         expert_context_history,

@@ -11,12 +11,14 @@ from app.tools.tool_registry import ToolRegistry, ToolSpec
 
 
 def test_different_rag_requests_are_not_deduplicated_and_run_serially():
+    """验证不同 RAG 请求不会被去重，并且串行执行。"""
     calls = []
     active = 0
     max_active = 0
     registry = ToolRegistry()
 
     async def rag(**kwargs):
+        """本用例中拦截 RAG 调用的假实现。"""
         nonlocal active, max_active
         active += 1
         max_active = max(max_active, active)
@@ -41,11 +43,13 @@ def test_different_rag_requests_are_not_deduplicated_and_run_serially():
 
 
 def test_rag_requests_are_serialized_across_concurrent_batches():
+    """验证并发批次中的 RAG 请求会被串行化。"""
     active = 0
     max_active = 0
     registry = ToolRegistry()
 
     async def rag(**kwargs):
+        """本用例中拦截 RAG 调用的假实现。"""
         nonlocal active, max_active
         active += 1
         max_active = max(max_active, active)
@@ -57,6 +61,7 @@ def test_rag_requests_are_serialized_across_concurrent_batches():
     broker = ToolBroker(registry=registry, allowed_tools=["rag.search"])
 
     async def run_batches():
+        """按批次跑调用并汇总结果。"""
         return await asyncio.gather(
             broker.execute_batch([
                 ToolRequest("clinical", "rag.search", {"query": "feline obstruction"}, "one")
@@ -72,12 +77,14 @@ def test_rag_requests_are_serialized_across_concurrent_batches():
 
 
 def test_rag_requests_follow_fifo_submission_order_across_batches():
+    """验证跨批次 RAG 请求按提交先后顺序执行。"""
     calls = []
     first_started = asyncio.Event()
     release_first = asyncio.Event()
     registry = ToolRegistry()
 
     async def rag(**kwargs):
+        """本用例中拦截 RAG 调用的假实现。"""
         query = kwargs["query"]
         calls.append(query)
         if query == "first":
@@ -89,6 +96,7 @@ def test_rag_requests_follow_fifo_submission_order_across_batches():
     broker = ToolBroker(registry=registry, allowed_tools=["rag.search"])
 
     async def run_batches():
+        """按批次跑调用并汇总结果。"""
         first = asyncio.create_task(broker.execute_batch([
             ToolRequest("clinical", "rag.search", {"query": "first"}, "one")
         ]))
@@ -106,12 +114,14 @@ def test_rag_requests_follow_fifo_submission_order_across_batches():
 
 
 def test_identical_inflight_rag_requests_share_one_execution_across_batches():
+    """验证批次之间相同的在途 RAG 请求只执行一次。"""
     calls = []
     started = asyncio.Event()
     release = asyncio.Event()
     registry = ToolRegistry()
 
     async def rag(**kwargs):
+        """本用例中拦截 RAG 调用的假实现。"""
         calls.append(dict(kwargs))
         started.set()
         await release.wait()
@@ -121,6 +131,7 @@ def test_identical_inflight_rag_requests_share_one_execution_across_batches():
     broker = ToolBroker(registry=registry, allowed_tools=["rag.search"])
 
     async def run_batches():
+        """按批次跑调用并汇总结果。"""
         first = asyncio.create_task(broker.execute_batch([
             ToolRequest("clinical", "rag.search", {"query": "same evidence"}, "one")
         ]))
@@ -141,10 +152,12 @@ def test_identical_inflight_rag_requests_share_one_execution_across_batches():
 
 
 def test_one_expert_timeout_does_not_cancel_shared_rag_for_another_expert():
+    """验证一名专家超时不会取消另一名专家共享的 RAG。"""
     calls = 0
     registry = ToolRegistry()
 
     async def rag(**kwargs):
+        """本用例中拦截 RAG 调用的假实现。"""
         nonlocal calls
         calls += 1
         await asyncio.sleep(0.03)
@@ -156,6 +169,7 @@ def test_one_expert_timeout_does_not_cancel_shared_rag_for_another_expert():
     )
 
     async def run_batches():
+        """按批次跑调用并汇总结果。"""
         first, second = await asyncio.gather(
             broker.execute_batch(
                 [ToolRequest("clinical", "rag.search", {"query": "same"}, "one")],
@@ -178,10 +192,12 @@ def test_one_expert_timeout_does_not_cancel_shared_rag_for_another_expert():
 
 
 def test_failed_rag_call_clears_pending_slot_for_later_identical_request():
+    """验证失败的 RAG 调用会清掉占位，方便后续相同请求重试。"""
     attempts = 0
     registry = ToolRegistry()
 
     async def rag(**kwargs):
+        """本用例中拦截 RAG 调用的假实现。"""
         nonlocal attempts
         attempts += 1
         if attempts == 1:
@@ -192,6 +208,7 @@ def test_failed_rag_call_clears_pending_slot_for_later_identical_request():
     broker = ToolBroker(registry=registry, allowed_tools=["rag.search"])
 
     async def run_batches():
+        """按批次跑调用并汇总结果。"""
         failed = await broker.execute_batch([
             ToolRequest("clinical", "rag.search", {"query": "same evidence"}, "one")
         ])
@@ -210,11 +227,13 @@ def test_failed_rag_call_clears_pending_slot_for_later_identical_request():
 
 
 def test_drain_failure_still_resolves_remaining_queued_rag_calls():
+    """验证排空失败时仍会结算队列里剩下的 RAG 调用。"""
     registry = ToolRegistry()
     started = asyncio.Event()
     release = asyncio.Event()
 
     async def rag(**kwargs):
+        """本用例中拦截 RAG 调用的假实现。"""
         if kwargs["query"] == "broken":
             started.set()
             await release.wait()
@@ -225,6 +244,7 @@ def test_drain_failure_still_resolves_remaining_queued_rag_calls():
     broker = ToolBroker(registry=registry, allowed_tools=["rag.search"])
 
     async def run_batches():
+        """按批次跑调用并汇总结果。"""
         first = asyncio.create_task(broker.execute_batch([
             ToolRequest("clinical", "rag.search", {"query": "broken"}, "one")
         ]))
@@ -245,10 +265,12 @@ def test_drain_failure_still_resolves_remaining_queued_rag_calls():
 
 
 def test_non_english_rag_query_is_rejected_without_execution():
+    """验证非英文 RAG 查询会在执行前被拒绝。"""
     calls = []
     registry = ToolRegistry()
 
     async def rag(**kwargs):
+        """本用例中拦截 RAG 调用的假实现。"""
         calls.append(dict(kwargs))
         return {"hits": []}
 
@@ -265,6 +287,7 @@ def test_non_english_rag_query_is_rejected_without_execution():
 
 
 def test_direct_rag_tool_rejects_non_english_query_before_loading_index():
+    """验证直接 RAG 工具在加载索引前拒绝非英文查询。"""
     from app.tools.rag_tools import rag_search_tool
 
     try:
@@ -276,10 +299,12 @@ def test_direct_rag_tool_rejects_non_english_query_before_loading_index():
 
 
 def test_disallowed_tool_is_rejected_without_execution():
+    """验证不允许的工具会在执行前被拒绝。"""
     calls = []
     registry = ToolRegistry()
 
     async def rag(**kwargs):
+        """本用例中拦截 RAG 调用的假实现。"""
         calls.append(dict(kwargs))
         return {"hits": []}
 

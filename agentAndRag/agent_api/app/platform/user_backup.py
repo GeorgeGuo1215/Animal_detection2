@@ -1,4 +1,4 @@
-"""Versioned, integrity-checked backup of one user's conversations and runs."""
+"""带版本号与完整性校验的单用户会话/Run 备份。"""
 from __future__ import annotations
 
 import hashlib
@@ -32,12 +32,14 @@ _MODELS = (
 
 
 def _json_value(value: Any) -> Any:
+    """将 datetime 转为 ISO 字符串，其余值原样返回以便 JSON 序列化。"""
     if isinstance(value, datetime):
         return value.isoformat()
     return value
 
 
 def _row(item) -> dict[str, Any]:
+    """将 ORM 行转为列名到 JSON 安全值的字典。"""
     return {
         column.name: _json_value(getattr(item, column.name))
         for column in item.__table__.columns
@@ -45,11 +47,13 @@ def _row(item) -> dict[str, Any]:
 
 
 def checksum(payload: dict[str, Any]) -> str:
+    """对备份载荷做稳定 JSON 序列化后计算 SHA-256 校验和。"""
     raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 async def export_records(session: AsyncSession, *, user_id: str) -> dict[str, Any]:
+    """导出指定用户的会话、消息、Run 及相关子表，并附带 checksum。"""
     conversations = list((await session.scalars(select(Conversation).where(
         Conversation.user_id == user_id
     ))).all())
@@ -66,6 +70,7 @@ async def export_records(session: AsyncSession, *, user_id: str) -> dict[str, An
         messages, runs = [], []
     run_ids = [item.id for item in runs]
     async def by_runs(model, run_column):
+        """按 Run ID 列表查询依赖子表；无 Run 时返回空列表。"""
         if not run_ids:
             return []
         return list((await session.scalars(select(model).where(run_column.in_(run_ids)))).all())
@@ -83,6 +88,7 @@ async def export_records(session: AsyncSession, *, user_id: str) -> dict[str, An
 
 
 def _restore_values(model, raw: dict[str, Any]) -> dict[str, Any]:
+    """校验快照列集合并还原 datetime 字段，供 ORM 构造使用。"""
     allowed = {column.name: column for column in model.__table__.columns}
     if set(raw) != set(allowed):
         raise ValueError(f"invalid columns for {model.__tablename__}")
@@ -96,6 +102,13 @@ def _restore_values(model, raw: dict[str, Any]) -> dict[str, Any]:
 async def restore_records(
     session: AsyncSession, *, user_id: str, snapshot: dict[str, Any]
 ) -> dict[str, int]:
+    """用快照覆盖恢复指定用户的会话与 Run 数据。
+
+    先校验 schema、user_id 与 checksum，再删除该用户现有相关行并按表写入。
+
+    Returns:
+        各表恢复的行数。
+    """
     payload = {key: value for key, value in snapshot.items() if key != "checksum"}
     if snapshot.get("schema_version") != 1 or snapshot.get("user_id") != user_id:
         raise ValueError("snapshot schema or user does not match")

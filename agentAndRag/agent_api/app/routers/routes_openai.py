@@ -1,4 +1,4 @@
-"""OpenAI-compatible API backed exclusively by the PetMind MoE runtime."""
+"""仅由 PetMind MoE 运行时支撑的 OpenAI 兼容 API。"""
 from __future__ import annotations
 
 import json
@@ -35,19 +35,21 @@ DEFAULT_ALLOWED_TOOLS = [
 
 
 def _clean_identity(value: Optional[str], max_length: int = 200) -> Optional[str]:
+    """截断并规范化身份字符串。"""
     text = str(value or "").strip()
     return text[:max_length] if text else None
 
 
 def _memory_user_id(req: ChatCompletionRequest, request: Request) -> Optional[str]:
-    # Memory ownership is a security boundary. Never trust caller-controlled
-    # OpenAI ``user`` extensions or X-User-Id; the gateway attaches the user
-    # resolved from a database API key/JWT to request.state instead.
+    """从网关已解析的平台用户读取记忆 user_id，不信任请求体中的 user。"""
+    # 记忆归属是安全边界。切勿信任调用方控制的 OpenAI ``user`` 扩展或 X-User-Id；
+    # 网关会把由数据库 API key/JWT 解析出的用户写到 request.state。
     del req
     return _clean_identity(getattr(request.state, "platform_user_id", None))
 
 
 def _resolve_request_allowed_tools(req: ChatCompletionRequest, available_names: set[str]) -> List[str]:
+    """按 tools/tool_choice 与 animal_id 解析本请求允许的工具。"""
     if req.tools is None:
         allowed = [name for name in DEFAULT_ALLOWED_TOOLS if name in available_names]
     else:
@@ -67,14 +69,17 @@ def _resolve_request_allowed_tools(req: ChatCompletionRequest, available_names: 
 
 
 def _gen_id() -> str:
+    """生成 chatcmpl 请求 id。"""
     return f"chatcmpl-{uuid.uuid4().hex[:24]}"
 
 
 def _now_ts() -> int:
+    """当前 Unix 时间戳。"""
     return int(time.time())
 
 
 def _extract_user_query(messages: List[ChatMessage]) -> str:
+    """从消息列表提取最近一条用户问题。"""
     for message in reversed(messages):
         if message.role == "user" and message.content:
             return message.content
@@ -82,6 +87,7 @@ def _extract_user_query(messages: List[ChatMessage]) -> str:
 
 
 def _build_system_context(messages: List[ChatMessage]) -> str:
+    """拼接 system 消息作为系统上下文。"""
     return "\n".join(
         message.content for message in messages
         if message.role == "system" and message.content
@@ -89,6 +95,7 @@ def _build_system_context(messages: List[ChatMessage]) -> str:
 
 
 def _build_conversation_history(messages: List[ChatMessage]) -> List[Dict[str, str]]:
+    """提取 user/assistant 对话历史。"""
     return [
         {"role": message.role, "content": message.content}
         for message in messages
@@ -97,6 +104,7 @@ def _build_conversation_history(messages: List[ChatMessage]) -> List[Dict[str, s
 
 
 def _build_pethealth_server_context(req: ChatCompletionRequest, request: Request) -> Optional[Dict[str, Any]]:
+    """在心率异常时构造 PetHealth_Server 上下文字典。"""
     context = req.pethealth_server
     if context is None or not context.heart_rate_abnormal:
         return None
@@ -126,7 +134,7 @@ async def _stream_moe_agent(
     pethealth_server: Optional[Dict[str, Any]] = None,
     user_memory: str = "",
 ) -> AsyncGenerator[str, None]:
-    """Adapt MoE events to OpenAI-compatible SSE chunks."""
+    """流式运行 MoE Agent 并产出 SSE 块。"""
     make_chunk = partial(openai_sse_chunk, request_id=request_id, created=_now_ts(), model=model)
     orchestrator = build_moe_orchestrator(
         registry=get_registry(), temperature=temperature, max_tokens=max_tokens,
@@ -173,6 +181,11 @@ async def _stream_moe_agent(
 def _collect_stream_audit(
     obj: Dict[str, Any], *, content: List[str], tools: List[str], counters: Dict[str, Any],
 ) -> None:
+    """从公开流事件累积最终文本、去重工具名及 RAG/Web 使用指标。
+
+    收到 ``answer_reset`` 时清空此前部分文本，确保 QA 审计只保存替代后的完整终答；
+    专家与工具事件都可补充检索计数，但不会记录原始隐藏提示词。
+    """
     delta = (obj.get("choices") or [{}])[0].get("delta") or {}
     status = obj.get("agent_status")
     detail = obj.get("agent_detail") or {}
@@ -201,7 +214,7 @@ def _collect_stream_audit(
 
 @router.post("/v1/chat/completions")
 async def chat_completions(req: ChatCompletionRequest, request: Request):
-    """Run ``agent-moe``; this endpoint does not create a conversation session."""
+    """OpenAI 兼容 chat completions；this endpoint does not create a conversation session。"""
     if should_delegate_agent_execution():
         return await proxy_json_to_worker(
             request, path="/v1/chat/completions",
@@ -231,6 +244,7 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
 
     if req.stream:
         async def event_generator():
+            """产出 chat completions 的 SSE 事件流。"""
             set_request_animal_id(
                 body_animal_id=req.animal_id, header_animal_id=request.headers.get("x-animal-id"),
             )
@@ -343,6 +357,7 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
 
 @router.get("/v1/models")
 async def list_models():
+    """列出可用模型。"""
     return {
         "object": "list",
         "data": [{"id": AGENT_MODEL_ID, "object": "model", "created": 0, "owned_by": "petmind"}],

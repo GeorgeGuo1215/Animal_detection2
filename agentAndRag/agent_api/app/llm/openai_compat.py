@@ -8,17 +8,21 @@ import httpx
 
 
 def env_value(name: str, default: Optional[str] = None) -> Optional[str]:
+    """读取环境变量；空字符串视为未设置并回退 default。"""
     value = os.getenv(name)
     return value if value not in (None, "") else default
 
 
 def httpx_trust_env() -> bool:
+    """是否让 httpx 读取系统代理等环境变量（HTTPX_TRUST_ENV）。"""
     value = (os.getenv("HTTPX_TRUST_ENV") or "1").strip().lower()
     return value not in ("0", "false", "no", "off")
 
 
 @dataclass(frozen=True)
 class OpenAISettings:
+    """OpenAI 兼容接口的 base_url、api_key 与 model。"""
+
     base_url: str
     api_key: str
     model: str
@@ -30,6 +34,7 @@ def resolve_settings(
     api_key: Optional[str] = None,
     model: Optional[str] = None,
 ) -> OpenAISettings:
+    """用显式参数或环境变量拼出 OpenAI 兼容配置。"""
     return OpenAISettings(
         base_url=(base_url or env_value("OPENAI_BASE_URL") or "https://api.deepseek.com").rstrip("/"),
         api_key=api_key or env_value("OPENAI_API_KEY") or env_value("DEEPSEEK_API_KEY") or "",
@@ -38,10 +43,12 @@ def resolve_settings(
 
 
 def completion_url(base_url: str) -> str:
+    """拼接 chat/completions 请求 URL。"""
     return f"{base_url.rstrip('/')}/chat/completions"
 
 
 def authorization_headers(api_key: str) -> Dict[str, str]:
+    """构造 Bearer 鉴权与 JSON Content-Type 头。"""
     return {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
 
@@ -55,6 +62,7 @@ def build_chat_payload(
     stream: bool = False,
     thinking: Optional[bool] = None,
 ) -> Dict[str, Any]:
+    """组装 OpenAI 兼容的 chat completions 请求体。"""
     payload: Dict[str, Any] = {
         "model": model,
         "messages": messages,
@@ -71,6 +79,7 @@ def build_chat_payload(
 
 
 def create_async_http_client() -> httpx.AsyncClient:
+    """创建带超时与连接池的 httpx 异步客户端。"""
     return httpx.AsyncClient(
         timeout=httpx.Timeout(connect=10, read=120, write=10, pool=30),
         limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
@@ -79,5 +88,6 @@ def create_async_http_client() -> httpx.AsyncClient:
 
 
 def require_api_key(api_key: str) -> None:
+    """API key 为空时抛出 RuntimeError。"""
     if not api_key:
         raise RuntimeError("Missing API key: set OPENAI_API_KEY (or DEEPSEEK_API_KEY).")

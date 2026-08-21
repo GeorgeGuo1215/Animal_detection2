@@ -1,4 +1,4 @@
-"""Shared fail-open memory operations used by production and test chat routes."""
+"""生产与测试聊天路由共用的失败开放（fail-open）记忆操作。"""
 from __future__ import annotations
 
 from typing import Any, Dict, Optional
@@ -16,6 +16,7 @@ async def ensure_memory_subject(
     source: str,
     metadata: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
+    """确保记忆服务中存在该用户主体；服务关闭或失败时 fail-open。"""
     client = get_memory_client()
     if client is None:
         return {"enabled": False, "ensured": False, "reason": "memory_disabled"}
@@ -50,6 +51,11 @@ async def load_user_memory(
     query: str,
     pet_id: Optional[str],
 ) -> tuple[str, Dict[str, Any]]:
+    """按认证用户、当前查询和可选宠物 ID 加载隔离的记忆上下文。
+
+    未启用、缺少 user_id 或服务失败时按配置 fail-open，返回空注入及原因元数据；
+    ``required`` 模式下不可用错误向上抛出。记忆正文只用于模型注入，不写入响应元数据。
+    """
     client = get_memory_client()
     if client is None:
         return "", {"enabled": False, "loaded": False, "reason": "memory_disabled"}
@@ -89,6 +95,11 @@ async def write_user_memory(
     session_id: Optional[str],
     turn_id: Optional[str],
 ) -> Dict[str, Any]:
+    """以稳定 turn_id 将完成的一轮问答幂等写入认证用户的记忆队列。
+
+    空用户、空终答或未启用时跳过；普通不可用按 fail-open 返回状态，``required`` 模式
+    则抛错。session_id 仅作为来源上下文，不改变用户级记忆归属。
+    """
     client = get_memory_client()
     if client is None or not user_id or not answer.strip():
         return {"stored": False, "reason": "disabled_or_incomplete"}

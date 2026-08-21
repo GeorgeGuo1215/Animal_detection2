@@ -20,10 +20,12 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 def new_id() -> str:
+    """生成 32 位十六进制主键 ID。"""
     return uuid.uuid4().hex
 
 
 def utcnow() -> datetime:
+    """返回当前 UTC 时间（带时区）。"""
     return datetime.now(timezone.utc)
 
 
@@ -271,7 +273,7 @@ class RunEvent(Base):
 
 
 class ExpertConsultation(Base, TimestampMixin):
-    """Durable, public-safe work product produced by one MoE expert."""
+    """一次 MoE 专家会诊的持久化、可对用户公开的工作产物。"""
 
     __tablename__ = "platform_expert_consultations"
     __table_args__ = (

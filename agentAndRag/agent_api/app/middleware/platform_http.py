@@ -10,14 +10,16 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 
 class PlatformRequestMiddleware(BaseHTTPMiddleware):
-    """Attach request IDs and enforce a bounded body before JSON parsing."""
+    """附加 request id，并在 JSON 解析前限制请求体大小。"""
 
     def __init__(self, app, *, max_body_bytes: int = 1_048_576) -> None:
+        """设置普通请求与快照恢复请求的体积上限。"""
         super().__init__(app)
         self.max_body_bytes = max_body_bytes
         self.snapshot_body_bytes = 8 * 1024 * 1024
 
     async def dispatch(self, request: Request, call_next):
+        """为平台 API 校验 Content-Length/body 大小，并回写 X-Request-Id 与耗时。"""
         request_id = (request.headers.get("x-request-id") or uuid.uuid4().hex)[:64]
         request.state.request_id = request_id
         if request.url.path.startswith("/api/v1/"):

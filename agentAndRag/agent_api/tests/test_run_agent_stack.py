@@ -8,6 +8,7 @@ from memory_service.scripts.init_local_db import schema_file_names
 
 
 def test_stack_enables_required_memory_and_keeps_base_environment_isolated():
+    """验证进程栈会启用必需的记忆服务，并隔离基础环境。"""
     base = {"OPENAI_MODEL": "test-model"}
     memory_env, agent_env = build_child_environment(
         base,
@@ -25,6 +26,7 @@ def test_stack_enables_required_memory_and_keeps_base_environment_isolated():
 
 
 def test_stack_commands_use_current_python_and_separate_processes():
+    """验证进程栈命令使用当前 Python 且分进程启动。"""
     args = argparse.Namespace(agent_host="0.0.0.0", agent_port=8002)
     memory, agent = _commands(args)
 
@@ -34,6 +36,7 @@ def test_stack_commands_use_current_python_and_separate_processes():
 
 
 def test_normal_schema_initialization_does_not_create_pethealth_fixture_tables():
+    """验证普通建表不会创建 PetHealth 联调夹具表。"""
     assert schema_file_names(include_fixture=False) == [
         "001_schema.sql",
         "002_memory_subjects_migration.sql",

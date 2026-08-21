@@ -1,4 +1,4 @@
-"""MoE medical-safety critic prompts."""
+"""MoE 医疗安全审核（Critic）提示词。"""
 
 CRITIC_SYS_OWNER = (
     "你是宠物健康智能体的『边界审核专家』，是医疗安全的最后守门人。"

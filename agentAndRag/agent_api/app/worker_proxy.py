@@ -27,29 +27,32 @@ _FORWARDED_RESPONSE_HEADERS = (
 
 
 def execution_role() -> str:
+    """读取 AGENT_EXECUTION_ROLE，默认 gateway。"""
     return (os.getenv("AGENT_EXECUTION_ROLE") or "gateway").strip().lower()
 
 
 def should_delegate_agent_execution() -> bool:
-    """Production gateways never execute an Agent locally."""
+    """生产环境 Gateway 不在本地执行 Agent，应转发给 Worker。"""
     return get_platform_settings().production and execution_role() != "worker"
 
 
 def worker_base_url() -> str:
+    """内部 Agent Worker 的基础 URL。"""
     return (os.getenv("AGENT_WORKER_URL") or "http://127.0.0.1:8102").rstrip("/")
 
 
 def worker_token() -> str:
-    # The dedicated value is preferred. JWT secret fallback keeps existing
-    # deployments bootable while still authenticating the loopback hop.
+    """内部 Worker 鉴权 Token；优先 AGENT_WORKER_TOKEN，否则回退 JWT secret 以兼容旧部署。"""
     return os.getenv("AGENT_WORKER_TOKEN") or get_platform_settings().jwt_secret
 
 
 def _new_worker_client(timeout: httpx.Timeout | float) -> httpx.AsyncClient:
+    """创建不读取系统代理的 httpx 异步客户端。"""
     return httpx.AsyncClient(timeout=timeout, trust_env=False)
 
 
 async def worker_readiness() -> tuple[bool, dict[str, Any]]:
+    """探测 Worker /ready，返回 (是否就绪, 响应体)。"""
     try:
         async with _new_worker_client(2.0) as client:
             response = await client.get(f"{worker_base_url()}/ready")
@@ -66,6 +69,7 @@ async def proxy_json_to_worker(
     payload: dict[str, Any],
     stream: bool,
 ) -> Response:
+    """将 JSON POST 转发到内部 Worker；stream=True 时透传原始字节流。"""
     headers = {
         "content-type": "application/json",
         "x-petmind-worker-token": worker_token(),
@@ -119,6 +123,7 @@ async def proxy_json_to_worker(
             await client.aclose()
 
     async def body_iterator():
+        """逐块转发上游响应并在结束时关闭连接。"""
         try:
             async for chunk in upstream.aiter_raw():
                 yield chunk

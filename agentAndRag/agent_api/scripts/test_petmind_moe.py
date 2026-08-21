@@ -41,6 +41,7 @@ MOE_STATUSES = frozenset({"routing", "expert_calling", "expert_complete", "revie
 
 
 def _load_dotenv() -> None:
+    """读取 agentAndRag/.env，不覆盖进程里已有的环境变量。"""
     env_path = _AGENTANDRAG / ".env"
     if not env_path.exists():
         return
@@ -55,6 +56,7 @@ def _load_dotenv() -> None:
 
 
 def _default_api_key() -> str:
+    """按 AGENT_API_KEY 或 keys.txt 解析默认 API 密钥。"""
     if os.getenv("AGENT_API_KEY"):
         return os.getenv("AGENT_API_KEY", "")
     keys_file = _AGENTANDRAG / "agent_api" / "keys.txt"
@@ -82,6 +84,7 @@ class ChatProbe:
 
     @property
     def pipeline(self) -> str:
+        """根据观测到的 agent_status 判断本次走的是 MoE 还是未知路径。"""
         if self.error:
             return "error"
         s = set(self.statuses)
@@ -92,6 +95,7 @@ class ChatProbe:
         return "unknown"
 
     def moe_evidence(self) -> Dict[str, Any]:
+        """汇总路由专家、工具与审核器等 MoE 证据字段。"""
         routing_details = [d for d in self.details if d.get("selected_experts") or d.get("weights")]
         expert_calls = [d for d in self.details if d.get("expert")]
         critic = [d for d in self.details if d.get("verdict")]
@@ -117,6 +121,7 @@ async def probe_chat(
     max_tokens: int = 500,
     stream_answer: bool = False,
 ) -> ChatProbe:
+    """向 /v1/chat/completions 发 SSE 请求，采集状态、工具与回答。"""
     probe = ChatProbe(model=model, question=question)
     payload: Dict[str, Any] = {
         "model": model,
@@ -180,6 +185,7 @@ async def probe_chat(
 
 
 def _print_probe(title: str, probe: ChatProbe) -> None:
+    """把一次探测结果打印成可读摘要。"""
     print(f"\n{'=' * 60}")
     print(f"  {title}")
     print(f"{'=' * 60}")
@@ -206,6 +212,7 @@ def _print_probe(title: str, probe: ChatProbe) -> None:
 
 
 async def _check_infra(client: httpx.AsyncClient, base: str) -> bool:
+    """检查 /health、/ready 与模型列表，确认服务已起来。"""
     ok = True
     for path in ("/health", "/ready"):
         try:
@@ -232,6 +239,7 @@ async def _check_infra(client: httpx.AsyncClient, base: str) -> bool:
 
 
 def parse_args() -> argparse.Namespace:
+    """解析探活脚本的命令行参数。"""
     p = argparse.ArgumentParser(description="PetMind HTTP 探活 + MoE 是否调用检测")
     p.add_argument("--base", default=os.getenv("AGENT_API_BASE", "http://127.0.0.1:8002"))
     p.add_argument("--api-key", default=None, help="默认读 AGENT_API_KEY 或 keys.txt")
@@ -246,6 +254,7 @@ def parse_args() -> argparse.Namespace:
 
 
 async def amain() -> int:
+    """异步主流程：探活基础设施并验证 agent-moe 是否真正走 MoE。"""
     _load_dotenv()
     args = parse_args()
     base = args.base.rstrip("/")
@@ -296,6 +305,7 @@ async def amain() -> int:
 
 
 def main() -> None:
+    """同步入口，转调异步主流程并以退出码结束。"""
     raise SystemExit(asyncio.run(amain()))
 
 

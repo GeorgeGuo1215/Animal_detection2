@@ -45,10 +45,12 @@ router = APIRouter(prefix="/api/v1", tags=["platform-auth"])
 
 
 def _aware(value):
+    """将 naive datetime 标为 UTC 感知。"""
     return value if value is None or value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
 def _set_refresh_cookie(response: Response, token: str) -> None:
+    """设置 refresh cookie。"""
     settings = get_platform_settings()
     response.set_cookie(
         "petmind_refresh",
@@ -62,6 +64,7 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
 
 
 def _clear_refresh_cookie(response: Response) -> None:
+    """清除 refresh cookie。"""
     settings = get_platform_settings()
     response.delete_cookie(
         "petmind_refresh",
@@ -73,7 +76,7 @@ def _clear_refresh_cookie(response: Response) -> None:
 
 
 def _invalid_refresh(detail: str) -> HTTPException:
-    """Build an auth error that also clears the browser refresh cookie."""
+    """抛出 refresh token 无效错误。"""
     response = Response()
     _clear_refresh_cookie(response)
     return HTTPException(
@@ -84,6 +87,7 @@ def _invalid_refresh(detail: str) -> HTTPException:
 
 
 async def _issue_session(session: AsyncSession, user: PlatformUser, response: Response, *, family_id: str | None = None):
+    """签发 access/refresh 会话。"""
     settings = get_platform_settings()
     raw_refresh = secure_token(48)
     record = RefreshToken(
@@ -111,6 +115,11 @@ async def accept_invitation(
     request: Request,
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """消费一次性管理员邀请，创建已验证账号并签发首个登录会话。
+
+    必须接受当前版本协议与隐私政策；邀请在事务中加锁并校验过期、撤销和重复注册。
+    成功后记录法律接受、发放初始套餐、设置轮换 Refresh Cookie，并确保记忆主体存在。
+    """
     if (
         not body.accept_terms
         or not body.accept_privacy
@@ -187,6 +196,11 @@ async def login(
     request: Request,
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """校验规范化邮箱、Argon2 密码与账号状态后签发 Access/Refresh 会话。
+
+    成功和失败均写审计日志；失败统一返回无差别凭证错误，避免泄露邮箱是否已注册。
+    Refresh Token 仅以哈希落库，原文通过 HttpOnly Cookie 返回。
+    """
     try:
         email = normalize_email(body.email)
     except ValueError:
@@ -215,6 +229,11 @@ async def refresh_session(
     response: Response,
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """校验并轮换 HttpOnly Refresh Token，返回新的短期 Access Token。
+
+    服务器允许极短的并发标签页宽限；超过宽限的已撤销 Token 视为重放，撤销整个
+    Token 家族并提升用户 token_version，使现有 Access Token 立即失效。
+    """
     raw = request.cookies.get("petmind_refresh", "")
     if not raw:
         raise HTTPException(status_code=401, detail="missing refresh token")
@@ -227,9 +246,8 @@ async def refresh_session(
         settings = get_platform_settings()
         replayed_after = (utcnow() - _aware(record.revoked_at)).total_seconds()
         if record.replaced_by_id and replayed_after <= settings.refresh_reuse_grace_seconds:
-            # A second browser tab can submit the just-rotated cookie before it
-            # observes the winning response. Do not destroy the whole session
-            # family for this short, server-timed concurrency window.
+            # 第二个浏览器标签可能在看到胜出响应前提交刚轮换的 cookie。
+            # 在这段由服务器计时的短暂并发窗口内，不要毁掉整个会话族。
             raise HTTPException(status_code=409, detail="refresh token already rotated")
         user = await session.get(PlatformUser, record.user_id)
         await session.execute(update(RefreshToken).where(
@@ -268,6 +286,7 @@ async def logout(
     response: Response,
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """登出并清除 cookie。"""
     raw = request.cookies.get("petmind_refresh", "")
     if raw:
         record = await session.scalar(select(RefreshToken).where(RefreshToken.token_hash == hash_secret(raw)))
@@ -284,6 +303,11 @@ async def forgot_password(
     body: ForgotPasswordRequest,
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """为有效账号创建限时一次性重置令牌并写入可替换的 Outbox 邮件事件。
+
+    无论邮箱格式、账号存在性或状态如何都返回相同成功结构，防止账号枚举；仅开发
+    配置明确开启时才在响应中附带 development_token。
+    """
     settings = get_platform_settings()
     try:
         email = normalize_email(body.email)
@@ -312,6 +336,11 @@ async def reset_password(
     body: ResetPasswordRequest,
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """消费未使用且未过期的重置令牌，更新 Argon2 密码并撤销旧登录态。
+
+    成功后标记令牌已使用、提升 token_version，并撤销该用户所有未撤销 Refresh Token，
+    从而阻止旧 Cookie 与 Access Token 继续访问。
+    """
     record = await session.scalar(select(PasswordResetToken).where(
         PasswordResetToken.token_hash == hash_secret(body.token)
     ).with_for_update())
@@ -339,6 +368,7 @@ async def me(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """返回当前用户资料。"""
     user = await session.get(PlatformUser, principal.user_id)
     return user_payload(user)
 
@@ -348,6 +378,7 @@ async def list_api_keys(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """列出当前用户的 API key。"""
     rows = list((await session.scalars(select(ApiKey).where(
         ApiKey.user_id == principal.user_id
     ).order_by(ApiKey.created_at.desc()))).all())
@@ -370,6 +401,7 @@ async def create_user_api_key(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """为当前用户创建 API key。"""
     idem = idempotency_key.strip()[:100] if idempotency_key else None
     if idem:
         existing = await session.scalar(select(ApiKey).where(ApiKey.user_id == principal.user_id, ApiKey.idempotency_key == idem))
@@ -397,6 +429,7 @@ async def revoke_user_api_key(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
+    """吊销当前用户的 API key。"""
     key = await session.scalar(select(ApiKey).where(ApiKey.id == key_id, ApiKey.user_id == principal.user_id))
     if key is None:
         raise HTTPException(status_code=404, detail="API key not found")

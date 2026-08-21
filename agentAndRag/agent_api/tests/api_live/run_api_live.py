@@ -62,6 +62,7 @@ DOG_ID = "dog_001"   # vitals 样本最丰富
 
 
 def _load_dotenv() -> None:
+    """从项目 .env 读取环境变量（不覆盖已有值）。"""
     env_path = _AGENTANDRAG / ".env"
     if not env_path.exists():
         return
@@ -80,6 +81,7 @@ def _load_dotenv() -> None:
 
 # --------------------------------------------------------------------------- DB ground truth
 def _db_species(animal_id: str) -> Optional[str]:
+    """从数据库读取该动物的物种。"""
     try:
         import pymysql
         from pymysql.cursors import DictCursor
@@ -121,6 +123,7 @@ class ChatResult:
     error: str = ""
 
     def answer_excerpt(self, n: int = 600) -> str:
+        """截取回答摘要便于对照。"""
         a = (self.answer or "").strip()
         return a[:n] + ("…" if len(a) > n else "")
 
@@ -139,6 +142,7 @@ async def call_chat(
     temperature: float = 0.3,
     api_key: str = "test-key",
 ) -> ChatResult:
+    """调用聊天接口并返回结构化结果。"""
     res = ChatResult(case_id=case_id, title=title, model=model, animal_id=animal_id, question=question)
     payload: Dict[str, Any] = {
         "model": model,
@@ -201,12 +205,14 @@ async def call_chat(
 
 # --------------------------------------------------------------------------- server lifecycle
 def _port_open(host: str, port: int) -> bool:
+    """探测指定端口是否已在监听。"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.settimeout(0.5)
         return s.connect_ex((host, port)) == 0
 
 
 def spawn_server(port: int, log_path: Path) -> subprocess.Popen:
+    """拉起待测 API 服务进程。"""
     env = dict(os.environ)
     env["AGENT_DISABLE_AUTH"] = "1"        # 测试聚焦功能，跳过鉴权
     env["AGENT_POOL_DEBUG"] = "1"          # 启用连接池 [POOL] 打印
@@ -230,6 +236,7 @@ def spawn_server(port: int, log_path: Path) -> subprocess.Popen:
 
 
 def wait_health(base: str, timeout_s: float = 300.0) -> bool:
+    """等待服务健康检查通过。"""
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         try:
@@ -249,6 +256,7 @@ def wait_health(base: str, timeout_s: float = 300.0) -> bool:
 
 
 def stop_server(proc: subprocess.Popen) -> None:
+    """停止先前拉起的服务进程。"""
     if proc.poll() is not None:
         return
     try:
@@ -361,6 +369,7 @@ def evaluate(res: ChatResult, case: Dict[str, Any]) -> Tuple[str, List[str]]:
 
 # --------------------------------------------------------------------------- concurrency
 async def concurrency_probe(client: httpx.AsyncClient, base: str, n: int, api_key: str) -> List[ChatResult]:
+    """并发探测服务在高压下的行为。"""
     q = "我家宠物有点拉肚子，需要注意什么？什么情况下要去医院？"
     tasks = [
         call_chat(client, base=base, case_id=f"conc_{i}", title=f"并发#{i}", model="agent-moe",
@@ -371,6 +380,7 @@ async def concurrency_probe(client: httpx.AsyncClient, base: str, n: int, api_ke
 
 
 def parse_pool_peak(log_path: Path) -> Dict[str, int]:
+    """从日志里解析连接池峰值。"""
     peaks = {"chat": 0, "stream": 0, "max_inflight": 0}
     try:
         text = log_path.read_text(encoding="utf-8", errors="replace")
@@ -385,6 +395,7 @@ def parse_pool_peak(log_path: Path) -> Dict[str, int]:
 
 # --------------------------------------------------------------------------- report
 def _md_tools(tools: List[str]) -> str:
+    """把工具名列表格式化成 Markdown。"""
     return ", ".join(f"`{t}`" for t in tools) if tools else "_（无）_"
 
 
@@ -393,6 +404,7 @@ def render_report(
     species_truth: Dict[str, Any], conc: List[ChatResult], pool: Dict[str, int],
     conc_n: int, base: str,
 ) -> str:
+    """把运行结果渲染成报告。"""
     out: List[str] = []
     out.append("# Live API 测试报告 — /v1/chat/completions")
     out.append("")
@@ -486,6 +498,7 @@ def render_report(
 
 # --------------------------------------------------------------------------- main
 async def _amain(args: argparse.Namespace) -> int:
+    """内部异步主流程。"""
     _load_dotenv()
     base = args.base.rstrip("/")
     host = "127.0.0.1"
@@ -573,6 +586,7 @@ async def _amain(args: argparse.Namespace) -> int:
 
 
 def parse_args() -> argparse.Namespace:
+    """解析命令行参数并返回配置。"""
     p = argparse.ArgumentParser(description="Live API 测试（/v1/chat/completions 全功能 + 并发 + 物种软过滤）")
     p.add_argument("--base", default="http://127.0.0.1:8137", help="后端地址（端口默认 8137 以避开 8000 开发服务）")
     p.add_argument("--no-spawn", action="store_true", help="不自动启动后端（复用 --base 上已运行的服务）")
@@ -586,6 +600,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """脚本入口，解析参数并执行主流程。"""
     sys.exit(asyncio.run(_amain(parse_args())))
 
 

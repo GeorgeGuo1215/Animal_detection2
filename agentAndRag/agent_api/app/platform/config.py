@@ -7,6 +7,10 @@ from pathlib import Path
 
 
 def _bool(name: str, default: bool) -> bool:
+    """读取环境变量并解析为布尔值。
+
+    未设置时返回 ``default``；``0`` / ``false`` / ``no`` / ``off``（大小写不敏感）视为 False。
+    """
     raw = os.getenv(name)
     if raw is None:
         return default
@@ -14,6 +18,7 @@ def _bool(name: str, default: bool) -> bool:
 
 
 def _int(name: str, default: int, minimum: int = 1) -> int:
+    """读取环境变量并解析为不小于 ``minimum`` 的整数；非法值回退到 ``default``。"""
     try:
         return max(minimum, int(os.getenv(name, "") or default))
     except ValueError:
@@ -21,6 +26,7 @@ def _int(name: str, default: int, minimum: int = 1) -> int:
 
 
 def _default_sqlite_url() -> str:
+    """返回开发环境默认的 SQLite 异步连接 URL。"""
     root = Path(__file__).resolve().parents[3]
     path = (root / "agent_api_logs" / "petmind_platform.db").as_posix()
     return f"sqlite+aiosqlite:///{path}"
@@ -57,9 +63,16 @@ class PlatformSettings:
 
     @property
     def production(self) -> bool:
+        """当前是否运行在 production 环境。"""
         return self.environment == "production"
 
     def validate(self) -> None:
+        """校验生产环境安全约束；平台未启用时直接返回。
+
+        Raises:
+            RuntimeError: 生产环境缺少 PostgreSQL、Redis、JWT/Webhook 密钥强度，
+                或仍使用开发期不安全配置时抛出。
+        """
         if not self.enabled:
             return
         if self.production:
@@ -91,6 +104,7 @@ class PlatformSettings:
 
 @lru_cache(maxsize=1)
 def get_platform_settings() -> PlatformSettings:
+    """从环境变量加载并缓存平台配置，加载后立即执行校验。"""
     environment = (os.getenv("AGENT_PLATFORM_ENV") or "development").strip().lower()
     settings = PlatformSettings(
         enabled=_bool("AGENT_PLATFORM_ENABLED", True),
@@ -129,4 +143,5 @@ def get_platform_settings() -> PlatformSettings:
 
 
 def reset_platform_settings_cache() -> None:
+    """清空 ``get_platform_settings`` 的 LRU 缓存，便于测试重新加载配置。"""
     get_platform_settings.cache_clear()

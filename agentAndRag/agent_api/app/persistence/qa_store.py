@@ -1,8 +1,4 @@
-"""SQLite-backed Q&A record storage for PetMind.
-
-Stores every question/answer pair with metadata (tools used, RAG hits,
-response time, etc.) for admin review and knowledge-gap analysis.
-"""
+"""PetMind 的 SQLite 问答记录存储。保存每对问答及工具、RAG、耗时等元数据，供管理复盘与知识缺口分析。"""
 from __future__ import annotations
 
 import asyncio
@@ -15,6 +11,7 @@ from typing import Any, Dict, List, Optional
 
 
 def _default_db_path() -> Path:
+    """默认问答库路径：仓库根下 agent_api_logs/petmind_qa.db。"""
     repo_root = Path(__file__).resolve().parents[3]
     return repo_root / "agent_api_logs" / "petmind_qa.db"
 
@@ -23,6 +20,7 @@ _DB_PATH: Optional[str] = None
 
 
 def _get_db_path() -> str:
+    """解析并缓存 QA_DB_PATH。"""
     global _DB_PATH
     if _DB_PATH is None:
         _DB_PATH = os.getenv("QA_DB_PATH", str(_default_db_path()))
@@ -30,6 +28,7 @@ def _get_db_path() -> str:
 
 
 def _connect() -> sqlite3.Connection:
+    """打开 SQLite 连接并启用 WAL。"""
     path = _get_db_path()
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path, timeout=10)
@@ -73,6 +72,7 @@ _CREATE_INDEXES = [
 
 
 def init_db() -> None:
+    """创建表、执行迁移与索引。"""
     conn = _connect()
     try:
         conn.execute(_CREATE_TABLE)
@@ -80,7 +80,7 @@ def init_db() -> None:
             try:
                 conn.execute(sql)
             except sqlite3.OperationalError:
-                pass  # column already exists
+                pass  # 列已存在
         for idx_sql in _CREATE_INDEXES:
             conn.execute(idx_sql)
         conn.commit()
@@ -102,6 +102,7 @@ def _save_record_sync(
     user_role: str = "",
     request_id: str = "",
 ) -> int:
+    """把终答、工具审计、RAG/Web 指标与请求元数据写入 SQLite 并返回行 ID。"""
     now = time.strftime("%Y-%m-%dT%H:%M:%S")
     date_key = time.strftime("%Y-%m-%d")
     conn = _connect()
@@ -126,7 +127,7 @@ def _save_record_sync(
 
 
 async def save_qa_record(**kwargs: Any) -> int:
-    """Async wrapper — runs the blocking SQLite insert in a thread."""
+    """异步包装：在线程中执行阻塞的 SQLite 插入。"""
     return await asyncio.to_thread(_save_record_sync, **kwargs)
 
 
@@ -137,6 +138,7 @@ def _query_history_sync(
     date_to: Optional[str] = None,
     keyword: Optional[str] = None,
 ) -> Dict[str, Any]:
+    """按日期和问答关键词过滤 SQLite 记录，倒序分页并反序列化工具列表。"""
     conditions: List[str] = []
     params: List[Any] = []
 
@@ -172,6 +174,7 @@ def _query_history_sync(
 
 
 async def query_qa_history(**kwargs: Any) -> Dict[str, Any]:
+    """异步查询问答历史。"""
     return await asyncio.to_thread(_query_history_sync, **kwargs)
 
 
@@ -179,6 +182,7 @@ def _get_stats_sync(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
 ) -> Dict[str, Any]:
+    """按可选日期范围汇总调用量、延迟、RAG/Web 使用、每日趋势与模型分布。"""
     conditions: List[str] = []
     params: List[Any] = []
     if date_from:
@@ -228,6 +232,7 @@ def _get_stats_sync(
 
 
 async def get_qa_stats(**kwargs: Any) -> Dict[str, Any]:
+    """异步获取问答统计。"""
     return await asyncio.to_thread(_get_stats_sync, **kwargs)
 
 
@@ -240,13 +245,7 @@ def _get_knowledge_gaps_sync(
     min_occurrences: int = 1,
     limit: int = 50,
 ) -> Dict[str, Any]:
-    """Find questions where RAG had no useful hits — potential knowledge-base gaps.
-
-    A gap is defined as:
-    - RAG returned zero hits, OR
-    - RAG returned hits but the best rerank score was below the relevance
-      threshold (content was retrieved but not actually relevant to the query).
-    """
+    """找出 RAG 无有效命中的问题，作为潜在知识库缺口。缺口定义为：命中数为 0，或虽有命中但最高 rerank 分低于相关性阈值。"""
     conditions = [f"(rag_hit_count = 0 OR (rag_hit_count > 0 AND rag_best_score < {_RAG_GAP_SCORE_THRESHOLD}))"]
     params: List[Any] = []
     if date_from:
@@ -280,11 +279,12 @@ def _get_knowledge_gaps_sync(
 
 
 async def get_knowledge_gaps(**kwargs: Any) -> Dict[str, Any]:
+    """异步查询知识缺口。"""
     return await asyncio.to_thread(_get_knowledge_gaps_sync, **kwargs)
 
 
 # ---------------------------------------------------------------------------
-# Feedback
+# 反馈
 # ---------------------------------------------------------------------------
 
 def _submit_feedback_sync(
@@ -292,10 +292,7 @@ def _submit_feedback_sync(
     rating: int,
     comment: str = "",
 ) -> bool:
-    """Update feedback columns for the record matching *request_id*.
-
-    Returns True on success, False if not found or already rated.
-    """
+    """按 request_id 写入反馈；成功返回 True，未找到或已评过分返回 False。"""
     if not request_id:
         return False
     conn = _connect()
@@ -320,6 +317,7 @@ def _submit_feedback_sync(
 
 
 async def submit_feedback(**kwargs: Any) -> bool:
+    """异步提交反馈。"""
     return await asyncio.to_thread(_submit_feedback_sync, **kwargs)
 
 
@@ -327,6 +325,7 @@ def _get_feedback_stats_sync(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
 ) -> Dict[str, Any]:
+    """按可选日期范围统计反馈覆盖率、均分、星级分布和最近 50 条评价。"""
     conditions: List[str] = []
     params: List[Any] = []
     if date_from:
@@ -375,4 +374,5 @@ def _get_feedback_stats_sync(
 
 
 async def get_feedback_stats(**kwargs: Any) -> Dict[str, Any]:
+    """异步获取反馈统计。"""
     return await asyncio.to_thread(_get_feedback_stats_sync, **kwargs)

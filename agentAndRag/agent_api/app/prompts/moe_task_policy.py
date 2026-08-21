@@ -1,4 +1,4 @@
-"""Prompt assembly for the unified MoE task-policy decision."""
+"""统一 MoE 任务策略决策的提示词组装。"""
 from __future__ import annotations
 
 import json
@@ -74,6 +74,7 @@ def build_task_policy_messages(
     breed: Optional[str] = None,
     prompt_injection: str = "",
 ) -> List[Dict[str, str]]:
+    """组装任务策略分类器的 system/user 消息。"""
     payload: Dict[str, Any] = {
         "current_query": query,
         "user_role": user_role,

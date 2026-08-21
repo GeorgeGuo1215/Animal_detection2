@@ -1,9 +1,4 @@
-"""Deterministic resolver for semantic evidence tasks.
-
-The LLM task-policy stage decides *why* evidence is needed.  This module only
-maps validated capabilities to registered tool names and assigns each task to
-one selected expert.  It intentionally performs no query keyword matching.
-"""
+"""语义证据任务的确定性解析器。LLM 任务策略阶段决定为何需要证据；本模块只把已校验的能力映射到注册工具名，并分配给一名入选专家，不做查询关键词匹配。"""
 from __future__ import annotations
 
 import os
@@ -32,6 +27,7 @@ CAPABILITY_DEFAULT_OWNER: Mapping[str, str] = {
 
 @dataclass(frozen=True)
 class EvidenceTask:
+    """一条证据任务：能力、负责人、必要性与查询。"""
     capability: str
     owner: str
     requirement: str
@@ -40,6 +36,7 @@ class EvidenceTask:
     query: str = ""
 
     def as_dict(self) -> Dict[str, Any]:
+        """转为可序列化字典。"""
         return {
             "capability": self.capability,
             "owner": self.owner,
@@ -52,6 +49,7 @@ class EvidenceTask:
 
 @dataclass(frozen=True)
 class RetrievalRequirement:
+    """某专家须执行的检索工具策略。"""
     required_tools: Tuple[str, ...]
     recommended_tools: Tuple[str, ...]
     require_web_on_rag_failure: bool
@@ -61,6 +59,7 @@ class RetrievalRequirement:
 
     @property
     def required(self) -> bool:
+        """是否存在必做检索工具。"""
         return bool(self.required_tools)
 
 
@@ -68,7 +67,7 @@ def assign_evidence_tasks(
     tasks: Iterable[EvidenceTask],
     selected_experts: Sequence[str],
 ) -> Tuple[EvidenceTask, ...]:
-    """Ensure every evidence task has exactly one active expert owner."""
+    """确保每条证据任务恰好有一名在场专家负责人。"""
     selected = [str(key) for key in selected_experts if str(key)]
     if not selected:
         return ()
@@ -94,14 +93,17 @@ def resolve_retrieval_requirement(
     expert_key: str,
     evidence_tasks: Sequence[EvidenceTask] = (),
 ) -> RetrievalRequirement:
-    """Map the tasks owned by one expert into an enforceable tool policy."""
+    """把分配给某专家的证据任务映射为必需/建议工具及逐任务查询。
+
+    同一工具的不同查询会全部保留，只去除完全相同的 tool/query 对；建议工具不会与
+    必需工具重复。RAG 任务还可携带弱本地证据时的 Web 补证标志与证据目标。
+    """
     required = []
     recommended = []
     reasons = []
     web_fallback = False
-    # Keep one query per evidence task.  Different tasks may map to the same
-    # tool and must not overwrite each other; exact duplicate calls are
-    # deduplicated later by ToolBroker using tool name + canonical arguments.
+    # 每个证据任务保留一条查询。不同任务可能映射到同一工具，不得互相覆盖；
+    # 完全重复的调用稍后由 ToolBroker 按工具名 + 规范化参数去重。
     tool_queries = []
     tool_query_goals = []
     for task in evidence_tasks:
@@ -134,7 +136,7 @@ def resolve_retrieval_requirement(
 
 
 def rag_requires_web_fallback(result: Dict[str, Any], *, ok: bool) -> bool:
-    """Whether a mandatory local evidence attempt needs an external fallback."""
+    """判断强制本地证据尝试是否需要外部回退。"""
     if not ok or not isinstance(result, dict):
         return True
     hits = result.get("hits")

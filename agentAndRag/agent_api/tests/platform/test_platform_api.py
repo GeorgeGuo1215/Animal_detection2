@@ -20,7 +20,9 @@ from agent_api.app.routers.routes_platform_core import router as core_router
 
 
 def test_auth_conversation_isolation_and_api_key(tmp_path, monkeypatch):
+    """验证鉴权下会话互相隔离，且 API Key 生效。"""
     async def scenario() -> None:
+        """本用例的异步执行体。"""
         await close_platform_database()
         monkeypatch.setenv("AGENT_PLATFORM_DB_URL", f"sqlite+aiosqlite:///{(tmp_path / 'platform.db').as_posix()}")
         monkeypatch.setenv("AGENT_PLATFORM_JWT_SECRET", "test-secret-with-at-least-thirty-two-bytes")
@@ -51,9 +53,11 @@ def test_auth_conversation_isolation_and_api_key(tmp_path, monkeypatch):
         app.include_router(admin_router)
         @app.get("/v1/models")
         async def models():
+            """测试替身：返回模型列表。"""
             return {"data": []}
         @app.get("/tools")
         async def tools():
+            """返回本替身的工具列表。"""
             return {"data": []}
         app.add_middleware(APIKeyAuthMiddleware)
         transport = httpx.ASGITransport(app=app)
@@ -117,7 +121,9 @@ def test_auth_conversation_isolation_and_api_key(tmp_path, monkeypatch):
 
 
 def test_refresh_rotation_rejects_replay(tmp_path, monkeypatch):
+    """验证刷新令牌轮换后拒绝重放。"""
     async def scenario() -> None:
+        """本用例的异步执行体。"""
         await close_platform_database()
         monkeypatch.setenv("AGENT_PLATFORM_DB_URL", f"sqlite+aiosqlite:///{(tmp_path / 'refresh.db').as_posix()}")
         monkeypatch.setenv("AGENT_PLATFORM_JWT_SECRET", "test-secret-with-at-least-thirty-two-bytes")
@@ -155,7 +161,9 @@ def test_refresh_rotation_rejects_replay(tmp_path, monkeypatch):
 
 
 def test_support_admin_cannot_escalate_invitation_role_or_plan(tmp_path, monkeypatch):
+    """验证客服管理员不能把邀请角色或套餐提权。"""
     async def scenario() -> None:
+        """本用例的异步执行体。"""
         await close_platform_database()
         monkeypatch.setenv(
             "AGENT_PLATFORM_DB_URL",
@@ -233,7 +241,9 @@ def test_support_admin_cannot_escalate_invitation_role_or_plan(tmp_path, monkeyp
 
 
 def test_expert_consultations_are_persisted_and_attached_to_the_assistant_message(tmp_path, monkeypatch):
+    """验证专家会诊会被持久化并挂到助手消息上。"""
     async def scenario() -> None:
+        """本用例的异步执行体。"""
         await close_platform_database()
         monkeypatch.setenv("AGENT_PLATFORM_DB_URL", f"sqlite+aiosqlite:///{(tmp_path / 'experts.db').as_posix()}")
         monkeypatch.setenv("AGENT_PLATFORM_JWT_SECRET", "test-secret-with-at-least-thirty-two-bytes")

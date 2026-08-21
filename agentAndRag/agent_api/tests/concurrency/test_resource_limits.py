@@ -17,12 +17,15 @@ from app.llm.llm_client_stream import AsyncOpenAIStreamClient  # noqa: E402
 
 
 def test_async_limiter_caps_concurrency() -> None:
+    """验证异步限流器能把并发数限制在上限内。"""
     async def _run() -> tuple[int, dict]:
+        """运行本用例的异步主体。"""
         limiter = AsyncResourceLimiter("test", 2)
         active = 0
         max_active = 0
 
         async def _worker() -> None:
+            """线程工作函数，用于并发限流测试。"""
             nonlocal active, max_active
             async with limiter.slot(timeout_s=1):
                 active += 1
@@ -41,12 +44,15 @@ def test_async_limiter_caps_concurrency() -> None:
 
 
 def test_async_limiter_timeout_and_waiter_cancellation_release_capacity() -> None:
+    """验证异步限流超时和等待取消都会释放名额。"""
     async def _run() -> None:
+        """运行本用例的异步主体。"""
         limiter = AsyncResourceLimiter("llm", 1)
         release = asyncio.Event()
         entered = asyncio.Event()
 
         async def _holder() -> None:
+            """占住限流名额直到被取消或释放。"""
             async with limiter.slot(timeout_s=1):
                 entered.set()
                 await release.wait()
@@ -76,17 +82,20 @@ def test_async_limiter_timeout_and_waiter_cancellation_release_capacity() -> Non
 
 
 async def _wait_for_slot(limiter: AsyncResourceLimiter) -> None:
+    """等待直到限流器给出名额。"""
     async with limiter.slot(timeout_s=1):
         pass
 
 
 def test_sync_limiter_caps_thread_concurrency() -> None:
+    """验证同步限流器能限制线程并发。"""
     limiter = SyncResourceLimiter("rag", 2)
     state_lock = threading.Lock()
     active = 0
     max_active = 0
 
     def _worker() -> None:
+        """线程工作函数，用于并发限流测试。"""
         nonlocal active, max_active
         with limiter.slot(timeout_s=1):
             with state_lock:
@@ -107,6 +116,7 @@ def test_sync_limiter_caps_thread_concurrency() -> None:
 
 
 def test_sync_limiter_times_out_without_leaking_waiter() -> None:
+    """验证同步限流超时不会泄漏等待者。"""
     limiter = SyncResourceLimiter("rag", 1)
     with limiter.slot(timeout_s=1):
         with pytest.raises(ResourceBusyError):
@@ -119,10 +129,13 @@ def test_sync_limiter_times_out_without_leaking_waiter() -> None:
 
 
 def test_async_and_sync_callers_share_one_counter() -> None:
+    """验证异步与同步调用方共用同一个限流计数器。"""
     async def _run() -> None:
+        """运行本用例的异步主体。"""
         limiter = AsyncResourceLimiter("llm", 1)
         async with limiter.slot(timeout_s=1):
             def _sync_contender() -> None:
+                """同步侧争抢同一限流计数器。"""
                 with pytest.raises(ResourceBusyError):
                     with limiter.sync_slot(timeout_s=0.01):
                         pass
@@ -135,24 +148,30 @@ def test_async_and_sync_callers_share_one_counter() -> None:
 
 
 def test_stream_close_releases_llm_slot(monkeypatch: pytest.MonkeyPatch) -> None:
+    """验证关闭流会释放 LLM 限流名额。"""
     import app.llm.llm_client_stream as stream_module
 
     class _FakeResponse:
         def raise_for_status(self) -> None:
+            """在测试替身里按状态码决定是否抛错。"""
             return None
 
         async def aiter_lines(self):
+            """异步逐行产出测试预置的 SSE 文本。"""
             yield 'data: {"choices":[{"delta":{"content":"first"}}]}'
 
     class _FakeStreamContext:
         async def __aenter__(self):
+            """异步进入上下文并返回自身。"""
             return _FakeResponse()
 
         async def __aexit__(self, exc_type, exc, tb):
+            """异步退出上下文。"""
             return False
 
     class _FakeClient:
         def stream(self, *args, **kwargs):
+            """测试用流式输出实现。"""
             return _FakeStreamContext()
 
     class _Limits:
@@ -163,6 +182,7 @@ def test_stream_close_releases_llm_slot(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(stream_module, "get_resource_limits", lambda: limits)
 
     async def _run() -> None:
+        """运行本用例的异步主体。"""
         client = AsyncOpenAIStreamClient.__new__(AsyncOpenAIStreamClient)
         client.base_url = "https://example.test"
         client.api_key = "test"

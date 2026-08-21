@@ -9,6 +9,7 @@ from .pool import get_pool
 
 
 def _serialize_cell(v: Any) -> Any:
+    """将日期、Decimal、bytes 等单元格值转为 JSON 可序列化类型。"""
     if v is None:
         return None
     if isinstance(v, datetime):
@@ -23,12 +24,13 @@ def _serialize_cell(v: Any) -> Any:
 
 
 def execute_readonly(sql: str, params: List[Any], cfg: MysqlConfig) -> Tuple[List[Dict[str, Any]], int]:
-    # Borrow a pooled connection instead of opening one per query.
+    """从连接池借用连接执行只读 SELECT，并序列化行数据。"""
+    # 借用池化连接，避免每次查询新建连接。
     with get_pool(cfg).connection() as conn:
         with conn.cursor() as cur:
             cur.execute(sql, params)
             rows = list(cur.fetchall())
-            # Serialize non-JSON-serializable values for LLM / JSON
+            # 序列化 LLM / JSON 无法直接处理的值
             out: List[Dict[str, Any]] = []
             for row in rows:
                 clean = {k: _serialize_cell(v) for k, v in row.items()}

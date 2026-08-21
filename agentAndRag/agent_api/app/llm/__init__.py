@@ -1,1 +1,1 @@
-"""LLM HTTP clients (sync/async/stream)."""
+"""LLM HTTP 客户端（同步 / 异步 / 流式）。"""

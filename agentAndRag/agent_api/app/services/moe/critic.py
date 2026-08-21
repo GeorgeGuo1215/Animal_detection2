@@ -33,6 +33,7 @@ _VET_FALLBACK_CONSTRAINT = VET_FALLBACK_CONSTRAINT
 
 @dataclass
 class CriticResult:
+    """Critic 审核结果：裁决、问题、硬约束与原因。"""
     verdict: str = "pass"
     issues: List[str] = field(default_factory=list)
     constraints: List[str] = field(default_factory=list)
@@ -40,6 +41,7 @@ class CriticResult:
 
     @property
     def blocked(self) -> bool:
+        """是否为一票否决（block）。"""
         return self.verdict == "block"
 
 
@@ -55,6 +57,11 @@ async def review(
     user_memory: Optional[str] = None,
     recorder: Optional[MoETrace] = None,
 ) -> CriticResult:
+    """对全部专家草案执行一次医疗安全、物种与证据边界审核。
+
+    Critic 只返回结构化 verdict/issues，不改写专家事实；模型异常、格式错误或高风险
+    禁忌触发时采用保守阻断/修订结果，供 Aggregator 决定是否输出终端安全兜底。
+    """
     opinions_brief = [
         {
             "expert": o.get("name_zh") or o.get("expert"),

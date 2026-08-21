@@ -6,6 +6,7 @@ from agent_api.app.platform.config import get_platform_settings, reset_platform_
 
 
 def test_production_requires_postgres_and_redis(monkeypatch):
+    """验证生产环境必须配置 Postgres 和 Redis。"""
     monkeypatch.setenv("AGENT_PLATFORM_ENV", "production")
     monkeypatch.setenv("AGENT_PLATFORM_DB_URL", "sqlite+aiosqlite:///unsafe.db")
     monkeypatch.setenv("AGENT_PLATFORM_JWT_SECRET", "x" * 40)
@@ -29,6 +30,7 @@ def test_production_requires_postgres_and_redis(monkeypatch):
     ],
 )
 def test_production_rejects_insecure_service_boundaries(monkeypatch, name, value, message):
+    """验证生产环境拒绝不安全的服务边界配置。"""
     secure = {
         "AGENT_PLATFORM_ENV": "production",
         "AGENT_PLATFORM_DB_URL": "postgresql+asyncpg://user:pass@127.0.0.1/db",

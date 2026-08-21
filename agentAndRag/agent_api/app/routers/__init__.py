@@ -1,1 +1,1 @@
-"""HTTP routers (OpenAI-compatible API, chat UI)."""
+"""HTTP 路由（OpenAI 兼容 API、聊天 UI）。"""

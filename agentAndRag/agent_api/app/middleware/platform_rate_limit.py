@@ -12,6 +12,7 @@ from ..platform.config import get_platform_settings
 
 
 async def _rate_identity_and_plan(request: Request) -> tuple[str, int, int]:
+    """根据 Token/套餐解析限流身份及每分钟配额、突发量。"""
     settings = get_platform_settings()
     host = request.client.host if request.client else "unknown"
     authorization = request.headers.get("authorization", "")
@@ -85,15 +86,17 @@ return {allowed and 1 or 0, math.floor(tokens), math.ceil(math.max(0, requested 
 
 
 class PlatformRateLimitMiddleware(BaseHTTPMiddleware):
-    """Redis-backed global token bucket; development may fall back locally."""
+    """基于 Redis 的全局令牌桶；开发环境可回退到进程内计数。"""
 
     def __init__(self, app) -> None:
+        """初始化 Redis 客户端占位与本地回退桶。"""
         super().__init__(app)
         self._redis = None
         self._local: dict[str, tuple[float, float]] = {}
         self._fixed_local: dict[str, tuple[int, float]] = {}
 
     async def _fixed_window(self, key: str, limit: int, seconds: int) -> tuple[bool, int]:
+        """固定窗口计数；优先 Redis，生产环境 Redis 失败则报错。"""
         settings = get_platform_settings()
         if settings.redis_url:
             try:
@@ -118,6 +121,7 @@ class PlatformRateLimitMiddleware(BaseHTTPMiddleware):
         return count <= limit, max(1, int(expires - now))
 
     async def _check(self, key: str, per_minute: int, burst: int) -> tuple[bool, int, int]:
+        """令牌桶检查，返回 (是否允许, 剩余令牌, 重试秒数)。"""
         settings = get_platform_settings()
         rate = per_minute / 60.0
         if settings.redis_url:
@@ -142,6 +146,7 @@ class PlatformRateLimitMiddleware(BaseHTTPMiddleware):
         return allowed, int(tokens), retry
 
     async def dispatch(self, request: Request, call_next):
+        """对 /api/v1/ 与 /v1/ 做套餐限流及敏感路由固定窗口保护。"""
         if request.method == "OPTIONS" or not request.url.path.startswith(("/api/v1/", "/v1/")):
             return await call_next(request)
         identity, per_minute, burst = await _rate_identity_and_plan(request)
@@ -154,7 +159,7 @@ class PlatformRateLimitMiddleware(BaseHTTPMiddleware):
         elif request.method == "DELETE" and route.startswith("/api/v1/me/memories/"):
             sensitive = (5, 60, 30)
         elif request.method == "DELETE" and route == "/api/v1/me/memories":
-            # A user may clear each of the three visible layers in one visit.
+            # 用户一次访问可能清空三个可见记忆层。
             sensitive = (6, 3600, 20)
         if sensitive:
             limit, seconds, ip_limit = sensitive

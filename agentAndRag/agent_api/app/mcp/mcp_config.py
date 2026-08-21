@@ -11,6 +11,8 @@ from typing import Any, Dict, List, Optional
 
 @dataclass(frozen=True)
 class McpServerConfig:
+    """单个 MCP 服务器的传输、命令、环境与开关配置。"""
+
     name: str
     transport: str = "stdio"
     command: Optional[str] = None
@@ -22,15 +24,18 @@ class McpServerConfig:
 
 
 def _repo_root() -> Path:
-    # agent_api/app/mcp/mcp_config.py -> agentAndRag repo root
+    """定位 agentAndRag 仓库根目录。"""
+    # agent_api/app/mcp/mcp_config.py -> agentAndRag 仓库根
     return Path(__file__).resolve().parents[3]
 
 
 def _default_config_path() -> Path:
+    """默认 MCP 服务器配置文件路径。"""
     return _repo_root() / "agent_api" / "mcp_servers.json"
 
 
 def _load_json_text() -> Optional[str]:
+    """从 MCP_SERVER_JSON 或配置文件读取 JSON 文本。"""
     inline = os.getenv("MCP_SERVER_JSON")
     if inline and inline.strip():
         return inline
@@ -43,6 +48,7 @@ def _load_json_text() -> Optional[str]:
 
 
 def _coerce_servers(obj: Any) -> List[Dict[str, Any]]:
+    """将 JSON 对象规范为服务器配置字典列表。"""
     if isinstance(obj, dict) and "servers" in obj:
         obj = obj["servers"]
     if isinstance(obj, list):
@@ -52,18 +58,17 @@ def _coerce_servers(obj: Any) -> List[Dict[str, Any]]:
 
 def _resolve_stdio_command(command: Optional[str]) -> str:
     """
-    Pick a Python executable for MCP stdio servers.
+    为 MCP stdio 服务器选定 Python 可执行文件。
 
-    - If `command` is missing, empty, or points to a non-existent file (e.g. Linux path in JSON on Windows),
-      fall back to ``sys.executable`` (current uvicorn / conda env).
-    - If `command` is ``python`` / ``python3``, resolve via PATH; otherwise keep a valid file path.
+    - `command` 缺失、为空或指向不存在的文件（例如 JSON 里是 Linux 路径而当前是 Windows）时，回退到 ``sys.executable``（当前 uvicorn / conda 环境）。
+    - `command` 为 ``python`` / ``python3`` 时走 PATH 解析；否则保留有效文件路径。
     """
     if not command or not str(command).strip():
         return sys.executable
     raw = str(command).strip().strip('"').strip("'")
     if os.path.isfile(raw):
         return raw
-    # Broken abs path from another OS / machine
+    # 来自其他操作系统/机器的无效绝对路径
     if raw.startswith("/") or (len(raw) > 2 and raw[1] == ":" and not os.path.isfile(raw)):
         return sys.executable
     w = shutil.which(raw.split()[0]) if raw else None
@@ -73,6 +78,7 @@ def _resolve_stdio_command(command: Optional[str]) -> str:
 
 
 def load_mcp_servers() -> List[McpServerConfig]:
+    """加载已启用的 MCP 服务器配置列表；解析失败则返回空列表。"""
     text = _load_json_text()
     if not text:
         return []

@@ -1,4 +1,4 @@
-"""User settings, feedback, activation redemption and legal acceptance.
+"""用户设置、反馈、激活码兑换与法律文档同意记录。
 
 Revision ID: 20260820_0003
 Revises: 20260816_0002
@@ -15,6 +15,7 @@ depends_on = None
 
 
 def upgrade() -> None:
+    """创建偏好、常用语、反馈、激活码及其兑换、法律同意等表（表已存在则跳过）。"""
     bind = op.get_bind()
     existing = set(sa.inspect(bind).get_table_names())
     if "platform_user_preferences" not in existing:
@@ -109,6 +110,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """按依赖逆序删除本迁移创建的表（表不存在则跳过）。"""
     bind = op.get_bind()
     existing = set(sa.inspect(bind).get_table_names())
     for table in (

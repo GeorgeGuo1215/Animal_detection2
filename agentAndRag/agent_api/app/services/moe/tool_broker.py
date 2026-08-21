@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 def _log_rag_drain_failure(task: "asyncio.Task[None]") -> None:
+    """记录 RAG 队列排空任务失败。"""
     if task.cancelled():
         return
     exc = task.exception()
@@ -27,12 +28,14 @@ def _log_rag_drain_failure(task: "asyncio.Task[None]") -> None:
 
 @dataclass(frozen=True)
 class ToolRequest:
+    """一次工具调用请求。"""
     expert: str
     tool_name: str
     arguments: Dict[str, Any]
     request_id: str = ""
 
     def with_request_id(self) -> "ToolRequest":
+        """若无 request_id 则补生成。"""
         if self.request_id:
             return self
         return ToolRequest(
@@ -45,6 +48,7 @@ class ToolRequest:
 
 @dataclass(frozen=True)
 class ToolResult:
+    """一次工具调用结果。"""
     request_id: str
     expert: str
     tool_name: str
@@ -58,6 +62,7 @@ class ToolResult:
 
 @dataclass
 class _QueuedRagCall:
+    """排队中的 RAG 调用（可多专家共享）。"""
     key: str
     representative: ToolRequest
     future: "asyncio.Future[Tuple[Any, bool, str, float]]"
@@ -66,7 +71,7 @@ class _QueuedRagCall:
 
 
 class ToolBroker:
-    """Request-scoped tool executor shared by independent expert sessions."""
+    """请求级工具执行器，供独立专家会话共享。"""
 
     def __init__(
         self,
@@ -75,6 +80,7 @@ class ToolBroker:
         allowed_tools: Optional[Iterable[str]],
         rag_call_timeout_s: Optional[float] = None,
     ) -> None:
+        """绑定注册表、允许工具与 RAG 超时。"""
         self.registry = registry
         self.allowed_tools = None if allowed_tools is None else frozenset(allowed_tools)
         configured_timeout = (
@@ -89,6 +95,7 @@ class ToolBroker:
         self._rag_drain_task: Optional["asyncio.Task[None]"] = None
 
     def is_allowed(self, tool_name: str) -> bool:
+        """判断工具是否允许且已注册。"""
         if self.allowed_tools is not None and tool_name not in self.allowed_tools:
             return False
         return self.registry.get(tool_name) is not None
@@ -99,6 +106,11 @@ class ToolBroker:
         *,
         timeouts: Optional[Dict[str, float]] = None,
     ) -> Dict[str, ToolResult]:
+        """批量执行工具请求，并按“工具名 + 规范化参数”共享完全相同的调用。
+
+        非 RAG 工具可并发执行；RAG 调用进入请求级串行队列以保护模型资源。每个原始
+        request_id 都会得到独立 ToolResult，并保留未允许、非英文查询、超时和繁忙错误。
+        """
         normalized = [request.with_request_id() for request in requests]
         grouped: Dict[str, List[ToolRequest]] = {}
         immediate: Dict[str, ToolResult] = {}
@@ -138,6 +150,11 @@ class ToolBroker:
             grouped.setdefault(key, []).append(request)
 
         async def _execute_direct(group: List[ToolRequest]) -> List[ToolResult]:
+            """调用一组完全相同的非 RAG 请求一次，并复制结果给各 request_id。
+
+            组超时取订阅者预算最大值；超时、资源繁忙和普通异常均转成 ToolResult，
+            不让单个工具异常取消同批其他任务。
+            """
             representative = group[0]
             started = time.perf_counter()
             group_timeout: Optional[float] = None
@@ -183,6 +200,7 @@ class ToolBroker:
             ]
 
         async def _await_rag(group: List[ToolRequest], key: str) -> List[ToolResult]:
+            """订阅或创建指定去重键的 RAG Future，并按请求超时独立等待结果。"""
             loop = asyncio.get_running_loop()
             queued = self._rag_pending.get(key)
             if queued is None:
@@ -247,11 +265,17 @@ class ToolBroker:
         return output
 
     def _ensure_rag_drain(self) -> None:
+        """确保 RAG 排空任务在运行。"""
         if self._rag_drain_task is None or self._rag_drain_task.done():
             self._rag_drain_task = asyncio.create_task(self._drain_rag_queue())
             self._rag_drain_task.add_done_callback(_log_rag_drain_failure)
 
     async def _drain_rag_queue(self) -> None:
+        """在单一排空锁内串行调用 RAG，并完成所有共享订阅者的 Future。
+
+        无论成功、超时、资源繁忙或异常，都会移除 pending 键并向等待者交付结构化结果，
+        防止队列残留导致后续同查询永久等待。
+        """
         async with self._rag_drain_lock:
             while self._rag_queue:
                 queued = self._rag_queue.popleft()

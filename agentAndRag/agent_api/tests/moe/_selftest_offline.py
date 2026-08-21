@@ -22,6 +22,7 @@ from report_writer import render
 
 
 def _resp(content: str):
+    """构造测试用的假 LLM 响应。"""
     return {"choices": [{"message": {"content": content}}],
             "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}}
 
@@ -30,9 +31,11 @@ class FakeLLM:
     model = "fake-model"
 
     def __init__(self, *, on_topic=True):
+        """初始化该测试替身。"""
         self.on_topic = on_topic
 
     async def chat(self, *, messages, temperature=0.2, max_tokens=768, response_format=None):
+        """测试用假 LLM 聊天实现。"""
         sys_text = messages[0]["content"]
         if "路由器" in sys_text:
             if self.on_topic:
@@ -54,14 +57,17 @@ class FakeLLM:
 
 
 def _fake_rag(**kwargs):
+    """返回预置的假 RAG 命中。"""
     return {"hits": [{"score": 0.82, "source_path": "books/cat.pdf", "text": "soft stool management ..."}]}
 
 
 def _fake_web_search(**kwargs):
+    """返回预置的假网页检索结果。"""
     return {"results": [{"title": "Cat soft stool causes", "url": "https://example.com/x"}]}
 
 
 def _make_registry():
+    """构造带假工具的注册表。"""
     reg = ToolRegistry()
     reg.register(ToolSpec(name="rag.search", description="fake", input_schema={"type": "object"}, handler=_fake_rag))
     reg.register(ToolSpec(
@@ -72,6 +78,7 @@ def _make_registry():
 
 
 async def _run_on_topic():
+    """跑一条在领域内的问题。"""
     orch = MoEOrchestrator(
         registry=_make_registry(),
         llm=FakeLLM(on_topic=True),
@@ -101,6 +108,7 @@ async def _run_on_topic():
 
 
 async def _run_off_topic():
+    """跑一条领域外应拒答的问题。"""
     orch = MoEOrchestrator(
         registry=_make_registry(),
         llm=FakeLLM(on_topic=False),
@@ -115,6 +123,7 @@ async def _run_off_topic():
 
 
 async def main():
+    """脚本入口，解析参数并执行主流程。"""
     await _run_on_topic()
     await _run_off_topic()
     print("ALL_OK")

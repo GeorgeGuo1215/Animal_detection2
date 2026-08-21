@@ -1,4 +1,4 @@
-"""Production web-platform building blocks for the PetMind veterinary Agent."""
+"""PetMind 兽医 Agent 生产级 Web 平台的基础组件。"""
 
 from .config import PlatformSettings, get_platform_settings
 from .database import close_platform_database, init_platform_database

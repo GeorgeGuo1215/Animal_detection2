@@ -36,7 +36,7 @@ PUBLIC_PHASES = {
 
 
 def _public_tool_summary(record: dict[str, Any]) -> dict[str, Any]:
-    """Return a compact, prompt-free tool transcript safe for the web UI."""
+    """将工具调用记录压缩为不含 prompt 的摘要，供 Web UI 安全展示。"""
     tool_name = str(record.get("tool_name") or "")
     result = record.get("result") if isinstance(record.get("result"), dict) else {}
     summary: dict[str, Any] = {
@@ -73,7 +73,7 @@ def _public_tool_summary(record: dict[str, Any]) -> dict[str, Any]:
 
 
 def _public_expert_trace(opinion: dict[str, Any]) -> dict[str, Any]:
-    """Expose expert work products, never the system prompt or hidden model trace."""
+    """对外暴露专家工作产物，不包含系统 prompt 或隐藏模型轨迹。"""
     return {
         "expert": str(opinion.get("expert") or ""),
         "name": str(opinion.get("name_zh") or "专家"),
@@ -93,6 +93,7 @@ def _public_expert_trace(opinion: dict[str, Any]) -> dict[str, Any]:
 
 
 async def append_run_event(run_id: str, event_type: str, payload: dict[str, Any]) -> int:
+    """追加一条 Run 事件并返回新的序号。"""
     async with platform_session() as session:
         last = await session.scalar(select(func.max(RunEvent.sequence)).where(RunEvent.run_id == run_id))
         sequence = int(last or 0) + 1
@@ -102,12 +103,17 @@ async def append_run_event(run_id: str, event_type: str, payload: dict[str, Any]
 
 
 async def _run_cancel_requested(run_id: str) -> bool:
+    """查询该 Run 是否已被请求取消；记录不存在时视为已取消。"""
     async with platform_session() as session:
         run = await session.get(AgentRun, run_id)
         return run is None or run.cancel_requested
 
 
 async def enqueue_run(run_id: str) -> None:
+    """将 Run 推入 Redis 队列；无 Redis 时在进程内创建后台任务执行。
+
+    生产环境 Redis 失败会向上抛出，开发环境则回退到本地 ``execute_run``。
+    """
     settings = get_platform_settings()
     if settings.redis_url:
         try:
@@ -124,6 +130,10 @@ async def enqueue_run(run_id: str) -> None:
 
 
 async def execute_run(run_id: str) -> None:
+    """执行一次排队中的 Agent Run：流式会诊、落库答复、结算积分并写记忆。
+
+    仅认领 ``queued`` / ``retry`` 状态。取消、失败或终答生成异常会更新 Run 状态并释放预留积分。
+    """
     async with platform_session() as session:
         run = await session.get(AgentRun, run_id)
         if run is None or run.status not in {"queued", "retry"}:
@@ -268,8 +278,7 @@ async def execute_run(run_id: str) -> None:
                     turn_id=run_id,
                 )
         except Exception as exc:  # noqa: BLE001
-            # The answer is already durable. Memory synchronization must not
-            # retroactively turn a successful consultation into a failed run.
+            # 回答已持久化。记忆同步失败不得把成功会诊事后改成失败。
             memory_synced = False
             logger.exception("memory sync failed after completed run run_id=%s", run_id)
             await append_run_event(run_id, "warning", {
@@ -310,6 +319,7 @@ async def execute_run(run_id: str) -> None:
 
 
 async def run_event_stream(run_id: str, *, after_sequence: int = 0) -> AsyncIterator[str]:
+    """以 SSE 文本帧推送指定序号之后的 Run 事件，直到进入终态。"""
     sequence = max(0, after_sequence)
     while True:
         async with platform_session() as session:
@@ -329,6 +339,7 @@ async def run_event_stream(run_id: str, *, after_sequence: int = 0) -> AsyncIter
 
 
 async def wait_for_run(run_id: str, timeout_seconds: int) -> AgentRun | None:
+    """轮询直到 Run 进入终态或超时；超时返回 ``None``，记录不存在则立即返回。"""
     deadline = asyncio.get_running_loop().time() + timeout_seconds
     while asyncio.get_running_loop().time() < deadline:
         async with platform_session() as session:
@@ -340,18 +351,21 @@ async def wait_for_run(run_id: str, timeout_seconds: int) -> AgentRun | None:
 
 
 async def worker_forever() -> None:
+    """生产 Worker：从 Redis 阻塞弹出 Run 并执行，启动时回收未完成任务。
+
+    需要配置 ``AGENT_PLATFORM_REDIS_URL``。失败的 Run 会写入死信队列。
+    """
     settings = get_platform_settings()
     if not settings.redis_url:
         raise RuntimeError("AGENT_PLATFORM_REDIS_URL is required for the production worker")
     from redis.asyncio import Redis
 
-    # BLPOP intentionally waits while the queue is empty. Explicitly disable
-    # socket read timeouts so redis-py 8 does not treat a normal empty poll as
-    # a worker failure.
+    # BLPOP 在空队列时会一直等待。显式关闭 socket 读超时，
+    # 避免 redis-py 8 把正常的空轮询当成 Worker 失败。
     redis = Redis.from_url(settings.redis_url, decode_responses=True, socket_timeout=None, health_check_interval=30)
     try:
-        # Recover persisted work after API/Redis/worker restarts. Duplicate IDs
-        # are harmless because execute_run claims only queued/retry states.
+        # 在 API/Redis/Worker 重启后回收已持久化的任务。
+        # 重复 ID 无害，因为 execute_run 只会认领 queued/retry 状态。
         async with platform_session() as session:
             recoverable = list((await session.scalars(select(AgentRun).where(
                 AgentRun.status.in_(["queued", "running", "retry"])
