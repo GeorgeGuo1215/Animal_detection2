@@ -271,7 +271,7 @@ def test_weak_required_rag_adds_one_expanded_rag_and_bilingual_web_wave():
     assert "category" not in rag_calls[1]
     assert {item["query"] for item in web_calls} == {
         "canine drug contraindication",
-        "核对犬用药禁忌",
+        "兽医 犬用药禁忌",
     }
     assert result["required_tools"] == ["rag.search", "mcp.web_search.web_search"]
     assert result["pending_tools"] == []
@@ -300,13 +300,43 @@ def test_high_score_but_semantically_unsupported_rag_adds_web_fallback():
     assert "category" in rag_calls[0] and "category" not in rag_calls[1]
     assert {item["query"] for item in web_calls} == {
         query,
-        "核对糖皮质激素切换非甾体抗炎药的洗脱要求",
+        "犬 兽医 糖皮质激素切换非甾体抗炎药的洗脱要求",
     }
     assert len(llm.sufficiency_batches) == 2
     assert [item["status"] for item in result["evidence_sufficiency"]] == [
         "unsupported", "unsupported", "unsupported", "unsupported",
     ]
     assert all(item["method"] == "semantic_llm" for item in result["evidence_sufficiency"])
+
+
+def test_web_fallback_never_submits_task_reason_as_chinese_query():
+    """验证药物补查使用简短兽医查询，而不是把中文任务说明整句交给 Web。"""
+    calls = []
+    reason = (
+        "用户明确要求查询曲马多具体剂量，且未指明疾病，"
+        "需检索权威药物参考以提供准确剂量范围。"
+    )
+    asyncio.run(run_expert(
+        expert=EXPERTS["pharmacy"], query="查一下具体曲马多药物剂量", weight=1.0,
+        registry=_registry(calls, sufficient=False), llm=SequenceLLM([{}, _final()]),
+        species_en="canine", species_zh="犬",
+        retrieval_requirement=_retrieval(
+            required=("rag.search",), web_fallback=True,
+            reason=reason, queries=(("rag.search", "canine tramadol dosage"),),
+        ),
+    ))
+
+    web_queries = [
+        arguments["query"]
+        for name, arguments in calls
+        if name == "mcp.web_search.web_search"
+    ]
+    assert set(web_queries) == {
+        "canine tramadol dosage",
+        "犬 兽医 曲马多具体剂量",
+    }
+    assert reason not in web_queries
+    assert all("用户明确要求" not in query and "需检索" not in query for query in web_queries)
 
 
 def test_high_score_and_semantically_supported_rag_does_not_add_web():
@@ -357,7 +387,7 @@ def test_multiple_high_score_rag_tasks_are_batched_per_bounded_wave():
         for name, arguments in calls
         if name == "mcp.web_search.web_search"
     }
-    assert {second, "核对犬药物切换和胃肠道监测"}.issubset(web_queries)
+    assert {second, "兽医 犬药物切换和胃肠道监测"}.issubset(web_queries)
     assert [item["status"] for item in result["evidence_sufficiency"]] == [
         "supported", "partial", "partial", "partial", "unsupported",
     ]
@@ -382,7 +412,7 @@ def test_invalid_sufficiency_response_conservatively_adds_web():
     assert "category" in rag_calls[0] and "category" not in rag_calls[1]
     assert {item["query"] for item in web_calls} == {
         "feline urinary obstruction triage",
-        "核对猫尿道梗阻分诊证据",
+        "兽医 猫尿道梗阻分诊证据",
     }
     assert [item["status"] for item in result["evidence_sufficiency"]] == [
         "unknown", "unknown", "unknown", "unknown",

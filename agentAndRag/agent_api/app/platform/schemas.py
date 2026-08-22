@@ -111,6 +111,14 @@ class ConversationUpdateRequest(StrictModel):
     status: Literal["active", "archived"] | None = None
 
 
+class ConversationForkRequest(StrictModel):
+    message_id: str = Field(min_length=16, max_length=64)
+
+
+class MessageFeedbackRequest(StrictModel):
+    rating: Literal["up", "down"] | None
+
+
 class RunCreateRequest(StrictModel):
     message: str = Field(min_length=1, max_length=30_000)
     client_message_id: str = Field(min_length=8, max_length=100)
@@ -118,6 +126,7 @@ class RunCreateRequest(StrictModel):
     user_role: Literal["pet_owner", "veterinarian"] = "veterinarian"
     temperature: float = Field(default=0.3, ge=0.0, le=1.0)
     max_tokens: int = Field(default=2500, ge=64, le=4000)
+    rewrite_message_id: str | None = Field(default=None, min_length=16, max_length=64)
 
 
 class OrderCreateRequest(StrictModel):

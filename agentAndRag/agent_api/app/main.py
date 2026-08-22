@@ -2,18 +2,17 @@ from __future__ import annotations
 
 import os
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 
 from .concurrency import configure_resource_limits, get_resource_limits
-from .llm.llm_client import aclose_shared_async_client
-from .llm.llm_client_stream import aclose_shared_async_stream_client
-from .lifecycle_tasks.session_cleanup import (
+from .integrations.llm.client import aclose_shared_async_client
+from .features.chat_moe.cleanup import (
     start_session_cleanup_task,
     stop_session_cleanup_task,
 )
@@ -22,21 +21,25 @@ from .middleware.platform_http import PlatformRequestMiddleware
 from .middleware.platform_rate_limit import PlatformRateLimitMiddleware
 from .middleware.rate_limit import RateLimitMiddleware
 from .memory import close_memory_client, memory_status, start_memory_client
-from .persistence.qa_store import (
-    get_feedback_stats, get_knowledge_gaps, get_qa_stats,
-    init_db as _init_qa_db, query_qa_history, submit_feedback,
-)
-from .routers.routes_chat_ui import chat_moe_router
+from .features.qa_audit.repository import init_db as _init_qa_db
+from .features.qa_audit.router import router as qa_audit_router
+from .features.chat_moe.router import chat_moe_router
 from .routers.routes_openai import router as openai_router
 from .routers.routes_platform_admin import router as platform_admin_router
 from .routers.routes_platform_auth import router as platform_auth_router
 from .routers.routes_platform_core import router as platform_core_router
+from .routers.routes_platform_conversation_actions import router as platform_conversation_actions_router
 from .routers.routes_platform_settings import router as platform_settings_router
 from .tools.tool_registry import get_registry
-from .tools.tools_builtin import register_builtin_tools, register_debug_tools
+from .tools.builtin import register_builtin_tools, register_debug_tools
 from .tools.tools_mcp import register_mcp_tools_async
 from .runtime_warmup import warmup_rag_runtime
-from .worker_proxy import should_delegate_agent_execution, worker_base_url, worker_readiness
+from .worker_proxy import (
+    close_worker_client,
+    should_delegate_agent_execution,
+    worker_base_url,
+    worker_readiness,
+)
 
 from .platform import close_platform_database, get_platform_settings, init_platform_database
 from .platform.cleanup import start_platform_cleanup_task, stop_platform_cleanup_task
@@ -57,8 +60,10 @@ app.include_router(openai_router)
 app.include_router(chat_moe_router)
 app.include_router(platform_auth_router)
 app.include_router(platform_core_router)
+app.include_router(platform_conversation_actions_router)
 app.include_router(platform_settings_router)
 app.include_router(platform_admin_router)
+app.include_router(qa_audit_router)
 
 app.add_middleware(APIKeyAuthMiddleware)
 
@@ -83,8 +88,6 @@ def _platform_error(request: Request, *, status_code: int, code: str, message: s
             "details": details,
         },
     )
-
-
 @app.exception_handler(RequestValidationError)
 async def _validation_error(request: Request, exc: RequestValidationError):
     """平台路径上的请求校验失败转为统一错误格式。"""
@@ -221,10 +224,10 @@ async def _shutdown() -> None:
     await close_memory_client()
     # 释放共享 LLM httpx 连接池。
     await aclose_shared_async_client()
-    await aclose_shared_async_stream_client()
+    await close_worker_client()
     # 关闭 sql.search / vitals.summary 使用的池化 MySQL 连接。
     try:
-        from .sql_search.pool import close_pool
+        from .integrations.petmind_mysql.connection_pool import close_pool
 
         close_pool()
     except Exception:  # noqa: BLE001
@@ -262,92 +265,4 @@ async def ready() -> JSONResponse:
     )
 
 
-# ---------------------------------------------------------------------------
-# 问答管理接口 — 需要管理员 Token
-# ---------------------------------------------------------------------------
-
-_QA_ADMIN_TOKEN = os.getenv("QA_ADMIN_TOKEN", "")
-
-
-async def _require_admin(request: Request) -> None:
-    """校验 X-Admin-Token；不受 AGENT_DISABLE_AUTH 影响。"""
-    if not _QA_ADMIN_TOKEN:
-        raise HTTPException(status_code=403, detail="QA admin token not configured on server")
-    token = request.headers.get("X-Admin-Token", "").strip()
-    if token != _QA_ADMIN_TOKEN:
-        raise HTTPException(status_code=403, detail="Invalid or missing admin token")
-
-
-@app.get("/qa/history", dependencies=[Depends(_require_admin)])
-async def qa_history(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    date_from: Optional[str] = Query(None, description="YYYY-MM-DD"),
-    date_to: Optional[str] = Query(None, description="YYYY-MM-DD"),
-    keyword: Optional[str] = Query(None),
-) -> Dict[str, Any]:
-    """分页查询问答历史。"""
-    data = await query_qa_history(
-        page=page, page_size=page_size,
-        date_from=date_from, date_to=date_to, keyword=keyword,
-    )
-    return {"ok": True, **data}
-
-
-@app.get("/qa/stats", dependencies=[Depends(_require_admin)])
-async def qa_stats(
-    date_from: Optional[str] = Query(None, description="YYYY-MM-DD"),
-    date_to: Optional[str] = Query(None, description="YYYY-MM-DD"),
-) -> Dict[str, Any]:
-    """查询问答统计。"""
-    data = await get_qa_stats(date_from=date_from, date_to=date_to)
-    return {"ok": True, **data}
-
-
-@app.get("/qa/knowledge-gaps", dependencies=[Depends(_require_admin)])
-async def qa_knowledge_gaps(
-    date_from: Optional[str] = Query(None, description="YYYY-MM-DD"),
-    date_to: Optional[str] = Query(None, description="YYYY-MM-DD"),
-    min_occurrences: int = Query(1, ge=1),
-    limit: int = Query(50, ge=1, le=200),
-) -> Dict[str, Any]:
-    """查询潜在知识库缺口问题。"""
-    data = await get_knowledge_gaps(
-        date_from=date_from, date_to=date_to,
-        min_occurrences=min_occurrences, limit=limit,
-    )
-    return {"ok": True, **data}
-
-
-# ---------------------------------------------------------------------------
-# 反馈接口
-# ---------------------------------------------------------------------------
-
-@app.post("/qa/feedback")
-async def qa_feedback(request: Request) -> Dict[str, Any]:
-    """公开接口：为某条回答提交评分反馈。"""
-    try:
-        body = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON body")
-    request_id = (body.get("request_id") or "").strip()
-    rating = body.get("rating")
-    comment = (body.get("comment") or "").strip()
-    if not request_id:
-        raise HTTPException(status_code=400, detail="request_id is required")
-    if not isinstance(rating, int) or rating < 1 or rating > 5:
-        raise HTTPException(status_code=400, detail="rating must be an integer between 1 and 5")
-    ok = await submit_feedback(request_id=request_id, rating=rating, comment=comment)
-    if not ok:
-        raise HTTPException(status_code=404, detail="Record not found or already rated")
-    return {"ok": True}
-
-
-@app.get("/qa/feedback-stats", dependencies=[Depends(_require_admin)])
-async def qa_feedback_stats(
-    date_from: Optional[str] = Query(None, description="YYYY-MM-DD"),
-    date_to: Optional[str] = Query(None, description="YYYY-MM-DD"),
-) -> Dict[str, Any]:
-    """查询反馈统计。"""
-    data = await get_feedback_stats(date_from=date_from, date_to=date_to)
-    return {"ok": True, **data}
+__all__ = ["app"]

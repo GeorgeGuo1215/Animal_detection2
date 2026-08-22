@@ -17,7 +17,7 @@ import sys
 
 import pymysql
 
-# 与 app/sql_search/config.py 默认一致（本地 petmind，空密码）
+# 与 app/integrations/petmind_mysql/config.py 默认一致（本地 petmind，空密码）
 DB = dict(host="127.0.0.1", port=3306, user="root", password="", database="petmind", charset="utf8mb4")
 
 # 猫静息参考：HR 140-180、RR 20-30、体温 38.1-39.2

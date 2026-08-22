@@ -1,4 +1,4 @@
-"""持久化每次 Agent Run 中可对外展示的 MoE 专家会诊记录。
+"""新增：持久化每次 Agent Run 中可对外展示的 MoE 专家会诊记录。
 
 Revision ID: 20260816_0002
 Revises: 20260814_0001

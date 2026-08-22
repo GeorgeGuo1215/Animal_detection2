@@ -1,1 +1,1 @@
-"""LLM HTTP 客户端（同步 / 异步 / 流式）。"""
+"""兼容包；新代码使用 ``app.integrations.llm``。"""

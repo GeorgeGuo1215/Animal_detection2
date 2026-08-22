@@ -113,8 +113,9 @@ test('first message remains visible while a new conversation starts running', as
   if (mobile) await page.getByRole('button', { name: '打开侧边栏' }).click()
   await expect(page.locator('.sidebar:visible .history-main').filter({ hasText: '这是新会话的第一条病例信息' })).toBeVisible()
   if (mobile) await page.locator('.sidebar:visible').getByRole('button', { name: '收起侧边栏' }).click()
-  await expect(page.getByText('等待会诊资源')).toBeVisible()
+  await expect(page.getByText('等待会诊资源', { exact: true })).toBeVisible()
   await expect(page.getByText('已收到病例。')).toBeVisible()
+  await page.locator('.message.assistant .expert-consultation-heading').click()
   await expect(page.getByText('先排查尿道梗阻。')).toBeVisible()
   await expect(page.getByText(/仅展示任务结果，不展示系统提示词/)).toBeVisible()
 })
@@ -142,7 +143,7 @@ test('switching conversations shows a loading marker instead of stale messages',
   await expect(page.getByText('病例 B 的内容')).toBeVisible()
 })
 
-test('generation phase stays between the expert panel and streaming answer', async ({ page }) => {
+test('collapsed agent and expert cards stay before the streaming answer', async ({ page }) => {
   const user = { id: 'user-1', email: 'vet@petmind.local', display_name: '林医生', role: 'VET', status: 'active' }
   const conversation = { id: 'case-layout', title: '布局测试', status: 'active', created_at: '2026-08-14T08:00:00Z', last_active_at: '2026-08-14T08:00:00Z' }
   await mockAuthenticated(page, user)
@@ -161,14 +162,15 @@ test('generation phase stays between the expert panel and streaming answer', asy
   await page.getByRole('button', { name: '发送' }).click()
   const answer = page.locator('.message.assistant')
   await expect(answer.locator('.expert-consultation')).toBeVisible()
-  await expect(answer.locator('.phase-card.in-answer')).toBeVisible()
+  await expect(answer.getByText('Agent 处理流程')).toBeVisible()
+  await expect(answer.locator('.expert-consultation-heading strong')).toHaveText('专家会诊')
   await expect(answer.getByText('正在形成回答')).toBeVisible()
   expect(await answer.evaluate(node => {
-    const expert = node.querySelector('.expert-consultation')!
-    const phase = node.querySelector('.phase-card.in-answer')!
+    const process = node.querySelector('.agent-process-flow')!
+    const expert = node.querySelector('.expert-panel')!
     const body = node.querySelector('.message-body')!
-    return Boolean((expert.compareDocumentPosition(phase) & Node.DOCUMENT_POSITION_FOLLOWING)
-      && (phase.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING))
+    return Boolean((process.compareDocumentPosition(expert) & Node.DOCUMENT_POSITION_FOLLOWING)
+      && (expert.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING))
   })).toBe(true)
 })
 
@@ -227,6 +229,138 @@ test('conversation history can be exported and deleted', async ({ page }) => {
   await page.getByRole('menuitem', { name: '删除对话' }).click()
   await expect(page.locator('button[aria-label="管理对话：猫咪复诊记录"]:visible')).toHaveCount(0)
   expect(deleted).toBe(true)
+})
+
+test('message actions copy content and persist assistant feedback and forks', async ({ page }) => {
+  const user = { id: 'user-1', email: 'vet@petmind.local', display_name: '林医生', role: 'VET', status: 'active' }
+  const conversation = { id: 'case-actions', title: '消息操作测试', status: 'active', created_at: '2026-08-23T08:00:00Z', last_active_at: '2026-08-23T08:30:00Z' }
+  const forked = { id: 'case-actions-fork', title: '消息操作测试 · 分支', status: 'active', created_at: '2026-08-23T09:00:00Z', last_active_at: '2026-08-23T09:00:00Z', source_conversation_id: 'case-actions', forked_from_message_id: 'message-assistant', copied_messages: 2 }
+  let feedback: 'up' | 'down' | null = null
+  let forkedRequest = false
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+  await mockAuthenticated(page, user)
+  await page.route('**/api/v1/conversations', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [conversation] }) }))
+  await page.route('**/api/v1/conversations/case-actions/messages', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [
+    { id: 'message-user', role: 'user', content: '猫咪频繁蹲猫砂盆。', status: 'complete', created_at: '2026-08-23T08:00:00Z' },
+    { id: 'message-assistant', run_id: 'run-actions', role: 'assistant', content: '首先排除尿道梗阻。', status: 'complete', created_at: '2026-08-23T08:01:00Z', feedback_rating: feedback, expert_consultations: [], trace_nodes: [] },
+  ] }) }))
+  await page.route('**/api/v1/messages/message-assistant/feedback', async route => {
+    const body = route.request().postDataJSON() as {rating: 'up' | 'down' | null}
+    feedback = body.rating
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ message_id: 'message-assistant', rating: feedback, updated_at: feedback ? '2026-08-23T09:01:00Z' : null }) })
+  })
+  await page.route('**/api/v1/conversations/case-actions/forks', route => {
+    forkedRequest = true
+    expect(route.request().headers()['idempotency-key']).toBeTruthy()
+    return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(forked) })
+  })
+  await page.route('**/api/v1/conversations/case-actions-fork/messages', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [
+    { id: 'fork-user', role: 'user', content: '猫咪频繁蹲猫砂盆。', status: 'complete', created_at: '2026-08-23T08:00:00Z' },
+    { id: 'fork-assistant', run_id: 'run-actions', role: 'assistant', content: '首先排除尿道梗阻。', status: 'complete', created_at: '2026-08-23T08:01:00Z', feedback_rating: null, expert_consultations: [], trace_nodes: [] },
+  ] }) }))
+  await page.goto('/chat/case-actions')
+  const userMessage = page.locator('.message.user')
+  await userMessage.getByRole('button', { name: '复制消息' }).click()
+  await expect(userMessage.getByRole('button', { name: '已复制' })).toBeVisible()
+  await expect(userMessage).toHaveCSS('margin-left', /.+/)
+  const assistant = page.locator('.message.assistant')
+  await expect(assistant.getByText('首先排除尿道梗阻。')).toBeVisible()
+  await assistant.getByRole('button', { name: '复制消息' }).click()
+  await expect(assistant.getByRole('button', { name: '已复制' })).toBeVisible()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('首先排除尿道梗阻。')
+
+  const like = assistant.getByRole('button', { name: '赞同回答', exact: true })
+  await like.click()
+  await expect(like).toHaveAttribute('aria-pressed', 'true')
+  expect(feedback).toBe('up')
+  await like.click()
+  await expect(like).toHaveAttribute('aria-pressed', 'false')
+  expect(feedback).toBeNull()
+  const dislike = assistant.getByRole('button', { name: '不赞同回答' })
+  await dislike.click()
+  await expect(dislike).toHaveAttribute('aria-pressed', 'true')
+  expect(feedback).toBe('down')
+
+  await assistant.getByRole('button', { name: '从此消息创建分支' }).click()
+  await expect(page).toHaveURL(/\/chat\/case-actions-fork$/)
+  await expect(page.getByText('首先排除尿道梗阻。')).toBeVisible()
+  expect(forkedRequest).toBe(true)
+  await expect(page.getByRole('button', { name: '删除当前对话' })).toHaveCount(0)
+})
+
+test('editing a user message truncates later UI and persists the replacement branch', async ({ page }) => {
+  const user = { id: 'user-1', email: 'vet@petmind.local', display_name: '林医生', role: 'VET', status: 'active' }
+  const conversation = { id: 'case-rewrite', title: '消息编辑测试', status: 'active', created_at: '2026-08-23T08:00:00Z', last_active_at: '2026-08-23T08:30:00Z' }
+  let items = [
+    { id: 'message-user-first', role: 'user', content: '猫咪频繁蹲猫砂盆。', status: 'complete', created_at: '2026-08-23T08:00:00Z' },
+    { id: 'message-assistant-first', run_id: 'run-first', role: 'assistant', content: '旧回答：首先排除尿道梗阻。', status: 'complete', created_at: '2026-08-23T08:01:00Z', expert_consultations: [], trace_nodes: [] },
+    { id: 'message-user-later', role: 'user', content: '它目前还能排一点尿。', status: 'complete', created_at: '2026-08-23T08:02:00Z' },
+    { id: 'message-assistant-later', run_id: 'run-later', role: 'assistant', content: '旧回答：继续观察。', status: 'complete', created_at: '2026-08-23T08:03:00Z', expert_consultations: [], trace_nodes: [] },
+  ]
+  let submitted: Record<string, unknown> | null = null
+  await mockAuthenticated(page, user)
+  await page.route('**/api/v1/conversations', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [conversation] }) }))
+  await page.route('**/api/v1/conversations/case-rewrite/messages', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ items }),
+  }))
+  await page.route('**/api/v1/conversations/case-rewrite/runs', route => {
+    submitted = route.request().postDataJSON() as Record<string, unknown>
+    items = [{
+      id: 'message-user-replacement',
+      role: 'user',
+      content: String(submitted.message),
+      status: 'complete',
+      created_at: '2026-08-23T08:00:00Z',
+    }, {
+      id: 'message-assistant-replacement',
+      run_id: 'run-rewrite',
+      role: 'assistant',
+      content: '新回答：按尿道梗阻急症分诊。',
+      status: 'complete',
+      created_at: '2026-08-23T08:01:00Z',
+      expert_consultations: [],
+      trace_nodes: [],
+    }]
+    return route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      headers: { 'X-PetMind-Run-Id': 'run-rewrite' },
+      body: 'id: 1\nevent: status\ndata: {"phase":"generating"}\n\nid: 2\nevent: delta\ndata: {"content":"新回答：按尿道梗阻急症分诊。"}\n\nid: 3\nevent: completed\ndata: {}\n\n',
+    })
+  })
+
+  await page.goto('/chat/case-rewrite')
+  const firstUser = page.locator('.message.user').first()
+  const userBubble = firstUser.locator('.user-message-bubble')
+  const actions = firstUser.locator('.message-actions')
+  await expect(actions).toHaveCSS('justify-content', 'flex-end')
+  expect(await firstUser.evaluate(node => {
+    const bubble = node.querySelector('.user-message-bubble')
+    const lastAction = node.querySelector('.message-actions button:last-of-type')
+    if (!bubble || !lastAction) return false
+    return Math.abs(bubble.getBoundingClientRect().right - lastAction.getBoundingClientRect().right) < 8
+  })).toBe(true)
+
+  await firstUser.getByRole('button', { name: '编辑消息' }).click()
+  const editor = firstUser.getByRole('textbox', { name: '编辑用户消息' })
+  await expect(editor).toBeVisible()
+  await expect(page.getByRole('textbox', { name: '输入病例' })).toHaveValue('')
+  await editor.fill('猫频繁蹲盆且只能排出几滴尿，如何排急症？')
+  await firstUser.getByRole('button', { name: '发送', exact: true }).click()
+
+  await expect(page.getByText('旧回答：首先排除尿道梗阻。')).toHaveCount(0)
+  await expect(page.getByText('它目前还能排一点尿。')).toHaveCount(0)
+  await expect(page.getByText('旧回答：继续观察。')).toHaveCount(0)
+  await expect(page.getByText('猫频繁蹲盆且只能排出几滴尿，如何排急症？')).toBeVisible()
+  await expect(page.getByText('新回答：按尿道梗阻急症分诊。')).toBeVisible()
+  expect(submitted).toMatchObject({
+    message: '猫频繁蹲盆且只能排出几滴尿，如何排急症？',
+    rewrite_message_id: 'message-user-first',
+    delivery: 'sse',
+  })
+  await expect(userBubble).toHaveCount(1)
 })
 
 test('API key revocation confirms, persists and replaces the action with status', async ({ page }) => {
@@ -290,6 +424,7 @@ test('historical expert opinions stay attached before their assistant answer', a
   await page.goto('/chat/case-experts')
   const answer = page.locator('.message.assistant')
   await expect(answer.getByText('专家会诊')).toBeVisible()
+  await answer.locator('.expert-consultation-heading').click()
   await expect(answer.getByText('优先排查尿道梗阻')).toBeVisible()
   await expect(answer.getByText('请先判断是否存在完全尿闭。')).toBeVisible()
   expect(await answer.evaluate(node => {

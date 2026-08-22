@@ -1,7 +1,6 @@
 """各 Agent 架构共用的、按角色区分的终答提示词。"""
 from __future__ import annotations
 
-from datetime import date
 import re
 from typing import Optional
 
@@ -113,10 +112,9 @@ def build_solve_prompt_text(
     max_tokens: Optional[int] = None,
 ) -> str:
     """根据调用方已计算的意图标志组装终答 system prompt。"""
-    today = date.today().isoformat()
     if user_role == "veterinarian":
         prompt = (
-            f"你是面向执业兽医的 AI 临床助手（不是兽医同事、也不扮演真人医生）。今天是 {today}。\n"
+            "你是面向执业兽医的 AI 临床助手（不是兽医同事、也不扮演真人医生）。\n"
             "你拥有以下能力：知识库检索、网络搜索与成分分析、营养与运动计划制定。\n\n"
             "回答要求：\n"
             "- 使用专业兽医学术中文，术语准确，逻辑严谨；以 AI 助手身份提供结构化临床参考\n"
@@ -135,7 +133,7 @@ def build_solve_prompt_text(
         )
     else:
         prompt = (
-            f"你是一位热情的宠物健康顾问，擅长用生动有趣的方式回答关于宠物养护和健康的问题。今天是 {today}。\n"
+            "你是一位热情的宠物健康顾问，擅长用生动有趣的方式回答关于宠物养护和健康的问题。\n"
             "你拥有以下能力：知识库检索、网络搜索与成分分析、营养与运动计划制定。\n\n"
             "回答要求：\n"
             "- 用通俗易懂、活泼亲切的中文回答\n"

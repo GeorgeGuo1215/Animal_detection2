@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 
 from sqlalchemy import select
 
@@ -106,6 +107,29 @@ def test_conversation_snapshot_overwrite_restore(tmp_path, monkeypatch):
             assert restored.title == "原始会诊"
             assert len(list((await session.scalars(select(ExpertConsultation))).all())) == 1
             assert len(list((await session.scalars(select(RunEvent))).all())) == 1
+
+        legacy_snapshot = copy.deepcopy(snapshot)
+        for row in legacy_snapshot["records"]["platform_conversations"]:
+            row.pop("source_conversation_id")
+            row.pop("forked_from_message_id")
+        for row in legacy_snapshot["records"]["platform_messages"]:
+            row.pop("feedback_rating")
+            row.pop("feedback_updated_at")
+        legacy_payload = {
+            key: value for key, value in legacy_snapshot.items() if key != "checksum"
+        }
+        legacy_snapshot["checksum"] = user_backup.checksum(legacy_payload)
+        async with platform_session() as session:
+            await user_backup.restore_records(
+                session, user_id=user_id, snapshot=legacy_snapshot
+            )
+            await session.commit()
+            restored = await session.scalar(select(Conversation).where(
+                Conversation.user_id == user_id
+            ))
+            assert restored.source_conversation_id is None
+            restored_messages = list((await session.scalars(select(Message))).all())
+            assert all(message.feedback_rating is None for message in restored_messages)
 
         broken = dict(snapshot)
         broken["checksum"] = "f" * 64

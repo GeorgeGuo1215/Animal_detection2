@@ -11,10 +11,11 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from ..concurrency import ResourceBusyError
-from ..context.request_context import filter_tools_without_animal, set_request_animal_id
+from ..tools.request_scope import bind_tool_request_scope, filter_tools_without_animal
 from ..memory import load_user_memory, write_user_memory
-from ..persistence.qa_store import save_qa_record
-from ..persistence.trace_store import new_trace_id, write_trace
+from ..features.qa_audit.repository import save_qa_record
+from ..integrations.llm.config import load_generation_settings
+from ..observability.jsonl_trace import new_trace_id, write_trace
 from ..schemas.openai_schemas import (
     ChatCompletionChoice, ChatCompletionRequest, ChatCompletionResponse, ChatMessage, UsageInfo,
 )
@@ -162,6 +163,8 @@ async def _stream_moe_agent(
                     "prompt_tokens": call.prompt_tokens,
                     "completion_tokens": call.completion_tokens,
                     "total_tokens": call.total_tokens, "meta": call.meta,
+                    "prompt_cache_hit_tokens": call.prompt_cache_hit_tokens,
+                    "prompt_cache_miss_tokens": call.prompt_cache_miss_tokens,
                 } for call in recorder.llm_calls],
             })
     except ResourceBusyError as exc:
@@ -236,18 +239,19 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
         system_context = "\n\n".join(filter(None, (system_context, memory_injection)))
     memory_session_id = _clean_identity(req.memory_session_id)
     memory_turn_id = _clean_identity(req.memory_turn_id) or request_id
-    set_request_animal_id(body_animal_id=req.animal_id, header_animal_id=request.headers.get("x-animal-id"))
-    available_names = {tool.name for tool in get_registry().list_tools()}
-    allowed_tools = _resolve_request_allowed_tools(req, available_names)
+    scope_kwargs = {
+        "body_animal_id": req.animal_id,
+        "header_animal_id": request.headers.get("x-animal-id"),
+    }
+    with bind_tool_request_scope(**scope_kwargs):
+        available_names = {tool.name for tool in get_registry().list_tools()}
+        allowed_tools = _resolve_request_allowed_tools(req, available_names)
     user_role = req.user_role or "pet_owner"
     source_ip = request.client.host if request.client else ""
 
     if req.stream:
         async def event_generator():
             """产出 chat completions 的 SSE 事件流。"""
-            set_request_animal_id(
-                body_animal_id=req.animal_id, header_animal_id=request.headers.get("x-animal-id"),
-            )
             started = time.monotonic()
             content: List[str] = []
             tools: List[str] = []
@@ -257,25 +261,31 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
                 status="memory_loaded" if memory_load_detail.get("loaded") else "memory_skipped",
                 detail=memory_load_detail,
             )
-            source = _stream_moe_agent(
-                request_id=request_id, model=AGENT_MODEL_ID, query=query,
-                system_context=system_context, conversation_history=conversation_history,
-                temperature=req.temperature or 0.3, max_tokens=req.max_tokens,
-                allowed_tools=allowed_tools, user_role=user_role,
-                debug_timing=bool(req.debug_timing), pethealth_server=pethealth_context,
-                user_memory=memory_injection,
-            )
-            async for chunk in source:
-                if chunk == SSE_DONE:
-                    continue
-                yield chunk
-                if chunk.startswith("data: "):
-                    try:
-                        _collect_stream_audit(
-                            json.loads(chunk[6:]), content=content, tools=tools, counters=counters,
-                        )
-                    except Exception:
-                        pass
+            with bind_tool_request_scope(**scope_kwargs):
+                source = _stream_moe_agent(
+                    request_id=request_id, model=AGENT_MODEL_ID, query=query,
+                    system_context=system_context, conversation_history=conversation_history,
+                    temperature=(
+                        req.temperature
+                        if req.temperature is not None
+                        else load_generation_settings().request_temperature
+                    ),
+                    max_tokens=req.max_tokens,
+                    allowed_tools=allowed_tools, user_role=user_role,
+                    debug_timing=bool(req.debug_timing), pethealth_server=pethealth_context,
+                    user_memory=memory_injection,
+                )
+                async for chunk in source:
+                    if chunk == SSE_DONE:
+                        continue
+                    yield chunk
+                    if chunk.startswith("data: "):
+                        try:
+                            _collect_stream_audit(
+                                json.loads(chunk[6:]), content=content, tools=tools, counters=counters,
+                            )
+                        except Exception:
+                            pass
 
             answer = "".join(content)
             memory_write_detail = await write_user_memory(
@@ -307,23 +317,30 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
         return StreamingResponse(event_generator(), media_type="text/event-stream", headers=SSE_RESPONSE_HEADERS)
 
     started = time.monotonic()
-    orchestrator = build_moe_orchestrator(
-        registry=get_registry(), temperature=req.temperature or 0.3,
-        max_tokens=req.max_tokens, user_role=user_role, allowed_tools=allowed_tools,
-        pethealth_server=pethealth_context,
-    )
     moe_trace = MoETrace(question=query, user_role=user_role)
-    try:
-        answer, moe_trace = await orchestrator.run(
-            query=query, system_context=system_context,
-            conversation_history=conversation_history, user_memory=memory_injection, recorder=moe_trace,
+    with bind_tool_request_scope(**scope_kwargs):
+        orchestrator = build_moe_orchestrator(
+            registry=get_registry(),
+            temperature=(
+                req.temperature
+                if req.temperature is not None
+                else load_generation_settings().request_temperature
+            ),
+            max_tokens=req.max_tokens, user_role=user_role, allowed_tools=allowed_tools,
+            pethealth_server=pethealth_context,
         )
-    except ResourceBusyError as exc:
-        raise HTTPException(
-            status_code=503,
-            detail=exc.as_dict(),
-            headers={"Retry-After": str(max(1, int(exc.timeout_s)))},
-        ) from exc
+        try:
+            answer, moe_trace = await orchestrator.run(
+                query=query, system_context=system_context,
+                conversation_history=conversation_history, user_memory=memory_injection,
+                recorder=moe_trace,
+            )
+        except ResourceBusyError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=exc.as_dict(),
+                headers={"Retry-After": str(max(1, int(exc.timeout_s)))},
+            ) from exc
     memory_write_detail = await write_user_memory(
         user_id=memory_user_id, query=query, answer=answer or "", pet_id=memory_pet_id,
         session_id=memory_session_id, turn_id=memory_turn_id,

@@ -46,16 +46,63 @@ def worker_token() -> str:
     return os.getenv("AGENT_WORKER_TOKEN") or get_platform_settings().jwt_secret
 
 
-def _new_worker_client(timeout: httpx.Timeout | float) -> httpx.AsyncClient:
-    """创建不读取系统代理的 httpx 异步客户端。"""
-    return httpx.AsyncClient(timeout=timeout, trust_env=False)
+def _env_float(name: str, default: float) -> float:
+    """读取正浮点运行参数。"""
+    try:
+        return max(0.1, float(os.getenv(name, "") or default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_int(name: str, default: int) -> int:
+    """读取正整数运行参数。"""
+    try:
+        return max(1, int(os.getenv(name, "") or default))
+    except (TypeError, ValueError):
+        return default
+
+
+_WORKER_CLIENT: httpx.AsyncClient | None = None
+
+
+def get_worker_client() -> httpx.AsyncClient:
+    """返回 Gateway 到 Worker 的共享连接池，避免每次请求重新握手。"""
+    global _WORKER_CLIENT  # noqa: PLW0603
+    if _WORKER_CLIENT is None:
+        max_connections = _env_int("AGENT_WORKER_MAX_CONNECTIONS", 100)
+        _WORKER_CLIENT = httpx.AsyncClient(
+            timeout=httpx.Timeout(
+                timeout=None,
+                connect=_env_float("AGENT_WORKER_CONNECT_TIMEOUT_SEC", 5.0),
+            ),
+            limits=httpx.Limits(
+                max_connections=max_connections,
+                max_keepalive_connections=min(
+                    max_connections,
+                    _env_int("AGENT_WORKER_MAX_KEEPALIVE_CONNECTIONS", 20),
+                ),
+            ),
+            trust_env=False,
+        )
+    return _WORKER_CLIENT
+
+
+async def close_worker_client() -> None:
+    """关闭并清空 Gateway 到 Worker 的共享连接池。"""
+    global _WORKER_CLIENT  # noqa: PLW0603
+    client = _WORKER_CLIENT
+    _WORKER_CLIENT = None
+    if client is not None:
+        await client.aclose()
 
 
 async def worker_readiness() -> tuple[bool, dict[str, Any]]:
     """探测 Worker /ready，返回 (是否就绪, 响应体)。"""
     try:
-        async with _new_worker_client(2.0) as client:
-            response = await client.get(f"{worker_base_url()}/ready")
+        response = await get_worker_client().get(
+            f"{worker_base_url()}/ready",
+            timeout=_env_float("AGENT_WORKER_READY_TIMEOUT_SEC", 2.0),
+        )
         payload = response.json() if response.content else {}
         return response.status_code == 200 and bool(payload.get("ready")), payload
     except (httpx.HTTPError, ValueError) as exc:
@@ -82,7 +129,7 @@ async def proxy_json_to_worker(
     if platform_user_id:
         headers["x-user-id"] = platform_user_id
 
-    client = _new_worker_client(httpx.Timeout(timeout=None, connect=5.0))
+    client = get_worker_client()
     try:
         upstream_request = client.build_request(
             "POST",
@@ -92,7 +139,6 @@ async def proxy_json_to_worker(
         )
         upstream = await client.send(upstream_request, stream=stream)
     except httpx.HTTPError as exc:
-        await client.aclose()
         raise HTTPException(
             status_code=503,
             detail={
@@ -120,7 +166,6 @@ async def proxy_json_to_worker(
             )
         finally:
             await upstream.aclose()
-            await client.aclose()
 
     async def body_iterator():
         """逐块转发上游响应并在结束时关闭连接。"""
@@ -129,7 +174,6 @@ async def proxy_json_to_worker(
                 yield chunk
         finally:
             await upstream.aclose()
-            await client.aclose()
 
     return StreamingResponse(
         body_iterator(),

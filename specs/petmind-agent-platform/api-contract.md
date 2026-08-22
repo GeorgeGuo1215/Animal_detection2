@@ -33,12 +33,17 @@ Access JWT 通过 `Authorization: Bearer` 发送；Refresh Token 只使用 HttpO
 - `POST|GET /api/v1/conversations`
 - `GET|PATCH|DELETE /api/v1/conversations/{id}`
 - `GET /api/v1/conversations/{id}/messages`
+- `POST /api/v1/conversations/{id}/forks`：复制指定消息及之前的上下文，返回新会话。
+- `PUT /api/v1/messages/{message_id}/feedback`：保存 `up|down|null`，`null` 表示取消评价。
 - `GET /api/v1/conversations/search?q=`
 - `POST /api/v1/conversations/{id}/runs`
 - `GET|DELETE /api/v1/runs/{id}`
 - `GET /api/v1/runs/{id}/events`
 
 创建 Run 的 `delivery` 为 `sse|sync|async`。SSE事件包含 `id/event/data`，事件 ID 单调递增并支持 `Last-Event-ID`。
+分支、赞踩与删除只接受 JWT 用户会话；服务端按消息所属会话校验用户归属，跨用户资源统一返回 404。分支请求要求 `Idempotency-Key`，并保存来源会话与分支点。
+
+编辑既有用户消息仍调用 `POST /api/v1/conversations/{id}/runs`，请求增加可选 `rewrite_message_id`。服务端要求目标为当前用户会话内的完整 user 消息；会话或受影响分支有 `queued|running|retry` Run 时返回 409。成功后，目标消息及其后的旧分支不再由消息列表、搜索、fork 或模型历史返回，替换消息获得新的 ID 并创建新 Run；旧 Run、用量和专家证据保留用于审计。重放同一 `Idempotency-Key` 必须返回同一新 Run。
 
 ## 套餐、订单和后台
 

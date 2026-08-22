@@ -22,6 +22,8 @@ def extract_usage(resp: Dict[str, Any]) -> Dict[str, int]:
         "prompt_tokens": int(usage.get("prompt_tokens") or 0),
         "completion_tokens": int(usage.get("completion_tokens") or 0),
         "total_tokens": int(usage.get("total_tokens") or 0),
+        "prompt_cache_hit_tokens": int(usage.get("prompt_cache_hit_tokens") or 0),
+        "prompt_cache_miss_tokens": int(usage.get("prompt_cache_miss_tokens") or 0),
     }
 
 
@@ -37,6 +39,8 @@ class LLMCallRecord:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
+    prompt_cache_hit_tokens: int = 0
+    prompt_cache_miss_tokens: int = 0
     meta: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -118,6 +122,8 @@ class MoETrace:
                 prompt_tokens=int(usage.get("prompt_tokens") or 0),
                 completion_tokens=int(usage.get("completion_tokens") or 0),
                 total_tokens=int(usage.get("total_tokens") or 0),
+                prompt_cache_hit_tokens=int(usage.get("prompt_cache_hit_tokens") or 0),
+                prompt_cache_miss_tokens=int(usage.get("prompt_cache_miss_tokens") or 0),
                 meta=dict(meta or {}),
             )
         )
@@ -190,3 +196,17 @@ class MoETrace:
     def total_completion_tokens(self) -> int:
         """累计 completion_tokens。"""
         return sum(c.completion_tokens for c in self.llm_calls)
+
+    def total_prompt_cache_hit_tokens(self) -> int:
+        """累计由模型供应商输入缓存命中的 token。"""
+        return sum(c.prompt_cache_hit_tokens for c in self.llm_calls)
+
+    def total_prompt_cache_miss_tokens(self) -> int:
+        """累计未命中模型供应商输入缓存的 token。"""
+        return sum(c.prompt_cache_miss_tokens for c in self.llm_calls)
+
+    def prompt_cache_hit_rate(self) -> float:
+        """返回 0~1 的输入缓存命中率；供应商未返回指标时为 0。"""
+        hit = self.total_prompt_cache_hit_tokens()
+        miss = self.total_prompt_cache_miss_tokens()
+        return hit / (hit + miss) if hit + miss else 0.0

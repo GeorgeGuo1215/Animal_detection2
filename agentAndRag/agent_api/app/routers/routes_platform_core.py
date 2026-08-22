@@ -5,7 +5,7 @@ from datetime import timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..platform.config import get_platform_settings
@@ -24,10 +24,10 @@ from ..platform.models import (
     Subscription,
     utcnow,
 )
-from ..platform.run_service import enqueue_run, run_event_stream, wait_for_run
+from ..platform.runs import enqueue_run, run_event_stream, wait_for_run
 from ..platform.schemas import ConversationCreateRequest, ConversationUpdateRequest, OrderCreateRequest, RunCreateRequest, TestPaymentWebhook
 from ..platform.security import verify_webhook_signature
-from ..platform.services import reserve_credits, settle_credits
+from ..platform.services import audit, reserve_credits, settle_credits
 
 router = APIRouter(prefix="/api/v1", tags=["platform"])
 
@@ -41,6 +41,8 @@ def _conversation_payload(item: Conversation) -> dict:
         "created_at": item.created_at,
         "updated_at": item.updated_at,
         "last_active_at": item.last_active_at,
+        "source_conversation_id": item.source_conversation_id,
+        "forked_from_message_id": item.forked_from_message_id,
     }
 
 
@@ -61,13 +63,18 @@ def _run_payload(item: AgentRun) -> dict:
     }
 
 
-async def _owned_conversation(session: AsyncSession, user_id: str, conversation_id: str) -> Conversation:
+async def _owned_conversation(
+    session: AsyncSession, user_id: str, conversation_id: str, *, lock: bool = False,
+) -> Conversation:
     """校验会话归属当前用户。"""
-    conversation = await session.scalar(select(Conversation).where(
+    statement = select(Conversation).where(
         Conversation.id == conversation_id,
         Conversation.user_id == user_id,
         Conversation.deleted_at.is_(None),
-    ))
+    )
+    if lock:
+        statement = statement.with_for_update()
+    conversation = await session.scalar(statement)
     if conversation is None:
         raise HTTPException(status_code=404, detail="conversation not found")
     return conversation
@@ -132,7 +139,12 @@ async def search_conversations(
     """
     pattern = f"%{q}%"
     statement = select(Conversation, Message).join(
-        Message, Message.conversation_id == Conversation.id, isouter=True
+        Message,
+        and_(
+            Message.conversation_id == Conversation.id,
+            Message.status != "superseded",
+        ),
+        isouter=True,
     ).where(
         Conversation.user_id == principal.user_id,
         Conversation.deleted_at.is_(None),
@@ -183,6 +195,7 @@ async def update_conversation(
 @router.delete("/conversations/{conversation_id}", status_code=204)
 async def delete_conversation(
     conversation_id: str,
+    request: Request,
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
@@ -193,6 +206,15 @@ async def delete_conversation(
     # memory remains independently managed by /me/memories.
     item.deleted_at = utcnow()
     item.status = "deleted"
+    await audit(
+        session,
+        action="conversation.deleted",
+        resource_type="conversation",
+        actor_user_id=principal.user_id,
+        resource_id=item.id,
+        request_id=getattr(request.state, "request_id", None),
+        ip_address=request.client.host if request.client else None,
+    )
     await session.commit()
     return Response(status_code=204)
 
@@ -207,7 +229,8 @@ async def list_messages(
     """列出消息。"""
     await _owned_conversation(session, principal.user_id, conversation_id)
     rows = list((await session.scalars(select(Message).where(
-        Message.conversation_id == conversation_id
+        Message.conversation_id == conversation_id,
+        Message.status != "superseded",
     ).order_by(Message.created_at.asc()).limit(limit))).all())
     consultations = await consultations_by_run(session, (item.run_id for item in rows))
     trace_nodes = await trace_nodes_by_run(session, (item.run_id for item in rows))
@@ -220,6 +243,8 @@ async def list_messages(
         "created_at": item.created_at,
         "expert_consultations": consultations.get(item.run_id or "", []),
         "trace_nodes": trace_nodes.get(item.run_id or "", []),
+        "feedback_rating": item.feedback_rating,
+        "feedback_updated_at": item.feedback_updated_at,
     } for item in rows]}
 
 
@@ -239,7 +264,11 @@ async def create_run(
     积分，再投递 Redis/本地队列。``delivery`` 支持 SSE、限时同步和 202 异步；队列
     投递失败会把 Run 置为失败并释放预占积分。
     """
-    await _owned_conversation(session, principal.user_id, conversation_id)
+    # Serialize writes within one conversation so a concurrent append cannot
+    # slip past a rewrite boundary. Different conversations remain independent.
+    conversation = await _owned_conversation(
+        session, principal.user_id, conversation_id, lock=True,
+    )
     active_subscription = await session.scalar(select(Subscription).where(
         Subscription.user_id == principal.user_id,
         Subscription.status == "active",
@@ -255,15 +284,85 @@ async def create_run(
     if existing is not None:
         run = existing
     else:
-        user_message = Message(
-            conversation_id=conversation_id,
-            client_message_id=body.client_message_id,
-            role="user",
-            content=body.message,
-            status="complete",
-        )
-        session.add(user_message)
-        await session.flush()
+        superseded_messages = 0
+        preserved_runs = 0
+        if body.rewrite_message_id:
+            ordered_messages = list((await session.scalars(
+                select(Message).where(Message.conversation_id == conversation_id)
+                .order_by(Message.created_at.asc(), Message.id.asc())
+            )).all())
+            target_index = next(
+                (index for index, item in enumerate(ordered_messages)
+                 if item.id == body.rewrite_message_id),
+                -1,
+            )
+            if target_index < 0:
+                raise HTTPException(status_code=404, detail="message not found")
+            user_message = ordered_messages[target_index]
+            if user_message.role != "user" or user_message.status != "complete":
+                raise HTTPException(status_code=400, detail="only complete user messages can be rewritten")
+            later_messages = ordered_messages[target_index + 1:]
+            affected_messages = [user_message, *later_messages]
+            affected_ids = [item.id for item in affected_messages]
+            affected_runs = list((await session.scalars(select(AgentRun).where(
+                AgentRun.conversation_id == conversation_id,
+                or_(
+                    AgentRun.user_message_id.in_(affected_ids),
+                    AgentRun.assistant_message_id.in_(affected_ids),
+                ),
+            ))).all())
+            if any(item.status in {"queued", "running", "retry"} for item in affected_runs):
+                raise HTTPException(status_code=409, detail="conversation has an active run")
+            first_user_id = next(
+                (item.id for item in ordered_messages
+                 if item.role == "user" and item.status == "complete"),
+                None,
+            )
+            # Keep prior runs, usage and evidence immutable for audit/billing. The
+            # visible timeline gets a replacement user message while the edited
+            # branch is excluded from history, search, forking and future context.
+            preserved_runs = len(affected_runs)
+            for item in affected_messages:
+                item.status = "superseded"
+            superseded_messages = len(affected_messages)
+            replacement = Message(
+                conversation_id=conversation_id,
+                client_message_id=body.client_message_id,
+                role="user",
+                content=body.message,
+                status="complete",
+                created_at=user_message.created_at,
+            )
+            session.add(replacement)
+            await session.flush()
+            if first_user_id == user_message.id:
+                conversation.title = body.message[:60]
+            await audit(
+                session,
+                action="message.rewritten",
+                resource_type="message",
+                actor_user_id=principal.user_id,
+                resource_id=user_message.id,
+                request_id=getattr(request.state, "request_id", None),
+                ip_address=request.client.host if request.client else None,
+                detail={
+                    "conversation_id": conversation_id,
+                    "superseded_messages": superseded_messages,
+                    "preserved_runs": preserved_runs,
+                    "replacement_message_id": replacement.id,
+                },
+            )
+            user_message = replacement
+        else:
+            user_message = Message(
+                conversation_id=conversation_id,
+                client_message_id=body.client_message_id,
+                role="user",
+                content=body.message,
+                status="complete",
+            )
+            session.add(user_message)
+            await session.flush()
         reserved = max(10, 10 + body.max_tokens // 250)
         run = AgentRun(
             user_id=principal.user_id,
@@ -283,7 +382,6 @@ async def create_run(
         except ValueError as exc:
             await session.rollback()
             raise HTTPException(status_code=402, detail="insufficient credits") from exc
-        conversation = await session.get(Conversation, conversation_id)
         conversation.last_active_at = utcnow()
         await session.commit()
         try:

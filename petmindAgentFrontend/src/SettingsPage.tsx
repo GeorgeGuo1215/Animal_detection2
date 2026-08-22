@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown'
 import rehypeSanitize from 'rehype-sanitize'
 import { api } from './api'
 import { useAuth } from './auth'
+import { writeClipboard } from './clipboard'
 
 type Preference = { theme: 'light' | 'dark' | 'system'; locale: string; default_expand_experts: boolean; memory_recall_enabled: boolean; memory_write_enabled: boolean }
 type Phrase = { id: string; title: string; content: string; sort_order: number }
@@ -21,7 +22,7 @@ function applyTheme(theme: Preference['theme']) {
 function AnimatedCopy({ text, label = '复制 API Key' }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false)
   async function copy() {
-    await navigator.clipboard.writeText(text)
+    await writeClipboard(text)
     setCopied(true)
     window.setTimeout(() => setCopied(false), 1600)
   }

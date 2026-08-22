@@ -6,7 +6,8 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from ...llm.llm_client import AsyncOpenAIClient, extract_text
+from ...integrations.llm.config import load_generation_settings
+from ...integrations.llm.client import AsyncOpenAIClient, extract_text
 from ...prompts.intent_contracts import (
     DEFAULT_INTENT_ID,
     INTENT_SPECS,
@@ -296,10 +297,11 @@ async def decide_task_policy(
     response: Dict[str, Any] = {}
     output = ""
     try:
+        generation = load_generation_settings()
         response = await llm.chat(
             messages=messages,
             temperature=0.0,
-            max_tokens=1200,
+            max_tokens=generation.task_policy_max_tokens,
             response_format={"type": "json_object"},
             thinking=False,
         )

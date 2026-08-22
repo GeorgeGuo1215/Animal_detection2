@@ -73,12 +73,13 @@ def _llm_calls_section(trace: MoETrace) -> str:
     if not trace.llm_calls:
         return "_（无 LLM 调用）_"
     out: List[str] = []
-    out.append("| # | 阶段 | 模型 | 耗时(ms) | prompt_tok | completion_tok | total_tok |")
-    out.append("| --- | --- | --- | --- | --- | --- | --- |")
+    out.append("| # | 阶段 | 模型 | 耗时(ms) | prompt_tok | cache_hit | cache_miss | completion_tok | total_tok |")
+    out.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
     for c in trace.llm_calls:
         out.append(
             f"| {c.seq} | {_esc_cell(c.stage)} | {_esc_cell(c.model)} | {c.latency_ms} | "
-            f"{c.prompt_tokens} | {c.completion_tokens} | {c.total_tokens} |"
+            f"{c.prompt_tokens} | {c.prompt_cache_hit_tokens} | {c.prompt_cache_miss_tokens} | "
+            f"{c.completion_tokens} | {c.total_tokens} |"
         )
     out.append("")
     out.append("### 各次调用输入/输出明细")
@@ -196,6 +197,7 @@ def _summary_section(trace: MoETrace) -> str:
         f"| 总工具调用次数 | {len(getattr(trace, 'tool_calls', []))} |",
         f"| 总耗时(ms) | {trace.total_ms} |",
         f"| 总 token | {trace.total_tokens()} (prompt {trace.total_prompt_tokens()} / completion {trace.total_completion_tokens()}) |",
+        f"| Prompt Cache | hit {trace.total_prompt_cache_hit_tokens()} / miss {trace.total_prompt_cache_miss_tokens()} / rate {trace.prompt_cache_hit_rate():.2%} |",
         f"| 触发拒答 | {trace.out_of_scope} |",
         f"| 触发安全兜底(block) | {trace.blocked} |",
     ]

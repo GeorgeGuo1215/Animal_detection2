@@ -15,6 +15,9 @@ export interface Conversation {
   created_at: string
   last_active_at: string
   snippet?: string
+  source_conversation_id?: string | null
+  forked_from_message_id?: string | null
+  copied_messages?: number
 }
 
 export interface Message {
@@ -26,6 +29,8 @@ export interface Message {
   created_at: string
   expert_consultations?: ExpertTrace[]
   trace_nodes?: TraceNode[]
+  feedback_rating?: 'up' | 'down' | null
+  feedback_updated_at?: string | null
 }
 
 export interface TraceNode {

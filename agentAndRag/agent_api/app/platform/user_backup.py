@@ -88,11 +88,17 @@ async def export_records(session: AsyncSession, *, user_id: str) -> dict[str, An
 
 
 def _restore_values(model, raw: dict[str, Any]) -> dict[str, Any]:
-    """校验快照列集合并还原 datetime 字段，供 ORM 构造使用。"""
+    """校验快照列并还原 datetime；兼容旧快照缺少新增的可空列。"""
     allowed = {column.name: column for column in model.__table__.columns}
-    if set(raw) != set(allowed):
+    unknown = set(raw) - set(allowed)
+    if unknown:
         raise ValueError(f"invalid columns for {model.__tablename__}")
     values = dict(raw)
+    for name in set(allowed) - set(values):
+        column = allowed[name]
+        if not column.nullable:
+            raise ValueError(f"missing required column {name} for {model.__tablename__}")
+        values[name] = None
     for name, column in allowed.items():
         if isinstance(column.type, DateTime) and isinstance(values[name], str):
             values[name] = datetime.fromisoformat(values[name])

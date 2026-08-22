@@ -145,11 +145,8 @@ def test_worker_proxy_forwards_identity_and_stream_bytes(monkeypatch):
         transport = httpx.MockTransport(handler)
         monkeypatch.setenv("AGENT_WORKER_URL", "http://worker.internal:8102")
         monkeypatch.setenv("AGENT_WORKER_TOKEN", "internal-secret")
-        monkeypatch.setattr(
-            worker_proxy,
-            "_new_worker_client",
-            lambda timeout: httpx.AsyncClient(transport=transport, timeout=timeout),
-        )
+        client = httpx.AsyncClient(transport=transport)
+        monkeypatch.setattr(worker_proxy, "get_worker_client", lambda: client)
         request = _request("/v1/chat/completions")
         request.state.platform_user_id = "user-42"
         response = await worker_proxy.proxy_json_to_worker(
@@ -169,6 +166,7 @@ def test_worker_proxy_forwards_identity_and_stream_bytes(monkeypatch):
             "user": "user-42",
             "payload": {"stream": True, "messages": []},
         }
+        await client.aclose()
 
     asyncio.run(scenario())
 
@@ -186,13 +184,8 @@ def test_caller_cannot_spoof_memory_identity_or_forwarded_user_header(monkeypatc
 
         monkeypatch.setenv("AGENT_WORKER_URL", "http://worker.internal:8102")
         monkeypatch.setenv("AGENT_WORKER_TOKEN", "internal-secret")
-        monkeypatch.setattr(
-            worker_proxy,
-            "_new_worker_client",
-            lambda timeout: httpx.AsyncClient(
-                transport=httpx.MockTransport(handler), timeout=timeout
-            ),
-        )
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        monkeypatch.setattr(worker_proxy, "get_worker_client", lambda: client)
         request = _request(
             "/v1/chat/completions",
             headers=[(b"x-user-id", b"victim-user")],
@@ -212,5 +205,6 @@ def test_caller_cannot_spoof_memory_identity_or_forwarded_user_header(monkeypatc
         )
         assert response.status_code == 200
         assert seen["user"] is None
+        await client.aclose()
 
     asyncio.run(scenario())

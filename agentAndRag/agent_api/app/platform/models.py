@@ -223,6 +223,8 @@ class Conversation(Base, TimestampMixin):
     last_active_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     idempotency_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    source_conversation_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    forked_from_message_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
 
 class Message(Base):
@@ -236,6 +238,8 @@ class Message(Base):
     content: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(20), default="complete")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    feedback_rating: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    feedback_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class AgentRun(Base, TimestampMixin):

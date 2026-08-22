@@ -9,17 +9,16 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from .concurrency import configure_resource_limits, get_resource_limits
-from .llm.llm_client import aclose_shared_async_client
-from .llm.llm_client_stream import aclose_shared_async_stream_client
+from .integrations.llm.client import aclose_shared_async_client
 from .memory import close_memory_client, memory_status, start_memory_client
-from .persistence.qa_store import init_db as init_qa_db
+from .features.qa_audit.repository import init_db as init_qa_db
 from .platform.database import close_platform_database, init_platform_database
-from .platform.run_service import worker_forever
-from .routers.routes_chat_ui import chat_moe_router
+from .platform.runs import worker_forever
+from .features.chat_moe.router import chat_moe_router
 from .routers.routes_openai import router as openai_router
 from .runtime_warmup import warmup_rag_runtime
 from .tools.tool_registry import get_registry
-from .tools.tools_builtin import register_builtin_tools, register_debug_tools
+from .tools.builtin import register_builtin_tools, register_debug_tools
 from .tools.tools_mcp import register_mcp_tools_async
 from .worker_proxy import worker_token
 
@@ -31,6 +30,14 @@ app.include_router(chat_moe_router)
 _READY = False
 _WARMUP_INFO: dict[str, Any] = {"status": "pending"}
 _QUEUE_TASK: asyncio.Task[None] | None = None
+
+
+def _shutdown_timeout_s() -> float:
+    """读取 Worker 子系统关闭等待上限。"""
+    try:
+        return max(1.0, float(os.getenv("AGENT_SHUTDOWN_TIMEOUT_SEC", "10")))
+    except (TypeError, ValueError):
+        return 10.0
 
 
 @app.middleware("http")
@@ -82,6 +89,7 @@ async def startup() -> None:
 async def shutdown() -> None:
     """停止队列消费者并关闭记忆、LLM 与平台数据库连接。"""
     global _READY
+    timeout_s = _shutdown_timeout_s()
     _READY = False
     if _QUEUE_TASK is not None and not _QUEUE_TASK.done():
         _QUEUE_TASK.cancel()
@@ -89,14 +97,16 @@ async def shutdown() -> None:
         try:
             await asyncio.wait_for(
                 asyncio.gather(_QUEUE_TASK, return_exceptions=True),
-                timeout=10.0,
+                timeout=timeout_s,
             )
         except TimeoutError:
-            print("[worker] Queue consumer did not stop within 10s; continuing shutdown.", flush=True)
-    await asyncio.wait_for(close_memory_client(), timeout=10.0)
-    await asyncio.wait_for(aclose_shared_async_client(), timeout=10.0)
-    await asyncio.wait_for(aclose_shared_async_stream_client(), timeout=10.0)
-    await asyncio.wait_for(close_platform_database(), timeout=10.0)
+            print(
+                f"[worker] Queue consumer did not stop within {timeout_s:g}s; continuing shutdown.",
+                flush=True,
+            )
+    await asyncio.wait_for(close_memory_client(), timeout=timeout_s)
+    await asyncio.wait_for(aclose_shared_async_client(), timeout=timeout_s)
+    await asyncio.wait_for(close_platform_database(), timeout=timeout_s)
 
 
 @app.get("/health")

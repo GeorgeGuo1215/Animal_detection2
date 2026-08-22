@@ -1,6 +1,6 @@
 # PetMind 兽医 Agent 生产平台维护文档
 
-> 最后全量核对：2026-08-20（Asia/Shanghai）
+> 最后全量核对：2026-08-23（Asia/Shanghai）
 >
 > Docker Nginx 部署复核：2026-08-18（Asia/Shanghai）
 >
@@ -42,6 +42,10 @@
 22. 会话删除与记忆删除已解耦：用户删除时仅从历史列表隐藏，数据库保留会话、消息、Run、事件与专家意见，也不触发 Memory 删除；近期、长期与画像记忆只能在记忆管理中明确删除或分类清空。
 23. 管理员可导出并覆盖恢复单个用户的完整会话与全部记忆层；大快照使用 gzip、版本与 SHA-256 校验。
 24. Aggregator 流中断会自动非流式重试并通过持久 `reset` 事件替换半截答复，数据库不保存重复或不完整终答。
+25. Agent API 已按垂直能力收拢：Chat-MoE、QA 审计、LLM、PetMind MySQL、平台 Run 与专家运行时各自拥有明确目录；旧导入路径仅保留模块别名兼容层。
+26. LLM 流式/非流式调用共用一个异步 HTTP 连接池；应用并发槽位负责在途任务上限，httpx 连接池只负责 TCP/Keep-Alive 容量。
+27. `animal_id` 使用可嵌套并可靠复位的工具请求作用域，不以全局变量或 HTTP 中间件代替；异常、取消及 SSE 断开不会把动物身份泄漏到下一请求。
+28. 用户消息气泡外提供复制和再次编写，助手消息提供复制、赞同/不赞同和从指定消息创建分支；赞踩状态、更新时间、来源会话及分支点均写入 Agent PostgreSQL，并执行用户归属校验和审计记录。
 
 首期明确不做：
 
@@ -111,15 +115,24 @@ Animal_detection2/
     |-- agent-rag.service                 # Linux systemd 模板
     |-- agent_api/
     |   |-- alembic/                      # platform_* 迁移
-    |   |-- app/main.py                   # FastAPI 生命周期和中间件
-    |   |-- app/platform/                 # 模型、配置、安全、服务、队列、清理
+    |   |-- app/main.py                   # FastAPI 装配、生命周期和中间件
+    |   |-- app/features/chat_moe/        # 诊断台路由、Schema、SQLite 会话与清理
+    |   |-- app/features/qa_audit/        # QA 审计存储、统计与反馈路由
+    |   |-- app/integrations/llm/         # 统一 LLM 客户端、SSE 解析与连接池配置
+    |   |-- app/integrations/petmind_mysql/ # MySQL 只读适配器与动物数据仓储
+    |   |-- app/observability/            # JSONL Trace 等可观测性组件
+    |   |-- app/platform/                 # 模型、配置、安全、服务与清理
+    |   |   `-- runs/                     # Run 执行、队列/SSE 与公开 Trace 脱敏
     |   |-- app/routers/routes_platform_* # /api/v1 路由
     |   |-- app/routers/routes_openai.py  # /v1 兼容路由
     |   |-- app/prompts/                  # 全量生产提示词
-    |   |-- app/services/moe/             # Router/Experts/Broker/Critic/Aggregator
+    |   |-- app/services/moe/             # Router/Broker/Critic/证据充分性
+    |   |   |-- orchestration/            # 请求编排与终答证据安全
+    |   |   `-- expert_runtime/           # 专家 Session、配置与单轮意见
     |   |   `-- retrieval_policy.py       # 专家检索要求、RAG→Web 回退判定
     |   |-- app/memory/                   # Agent 到 Memory 的共享集成层
-    |   |-- app/tools/                    # RAG/MCP/SQL ToolRegistry
+    |   |-- app/tools/                    # ToolRegistry、请求作用域与工具契约
+    |   |   `-- builtin/                  # RAG、PetMind 数据和调试工具分组
     |   |-- scripts/run_agent_stack.py    # 三进程 Supervisor
     |   |-- scripts/run_platform_worker.py
     |   |-- scripts/bootstrap_platform_admin.py
@@ -149,12 +162,16 @@ Animal_detection2/
 - `POST|GET /api/v1/conversations`
 - `GET|PATCH|DELETE /api/v1/conversations/{id}`
 - `GET /api/v1/conversations/{id}/messages`
+- `POST /api/v1/conversations/{id}/forks`
+- `PUT /api/v1/messages/{message_id}/feedback`
 - `GET /api/v1/conversations/search?q=`
 - `POST /api/v1/conversations/{id}/runs`
 - `GET|DELETE /api/v1/runs/{id}`
 - `GET /api/v1/runs/{id}/events`
 
 Run 的 `delivery` 支持 `sse|sync|async`。所有方式先持久化用户消息和 Run、预占积分，再入 Redis 队列。断开浏览器不会自动取消任务；显式 DELETE 才发起取消。
+
+用户消息可在原消息框内编辑。前端在同一个 Run 创建接口中传入 `rewrite_message_id`；服务端锁定所属会话、拒绝跨用户或仍在运行的分支，将编辑点及其后的旧分支移出可见历史、搜索和后续模型上下文，再持久化替换消息并重新生成。旧 Run、专家证据和用量记录保持不可变，`message.rewritten` 审计记录替换消息与受影响范围。
 
 ### 5.3 套餐、订单和后台
 
@@ -237,6 +254,7 @@ sequenceDiagram
 6. Worker 启动时重新入队 `queued/running/retry`，状态领取规则防止重复执行。
 7. 失败 Run 进入 `petmind:platform:runs:dead` 便于运维检查。
 8. SSE 仅暴露理解、路由、会诊、安全复核和整理答复等脱敏阶段。
+9. 历史消息编辑必须校验消息与会话归属；运行中返回 409，同一 `Idempotency-Key` 只生成一个替换 Run。
 
 网页刷新恢复依赖 sessionStorage 中的 `run_id/lastEvent`。恢复过程中会轮询 Run 状态；一旦完成、失败或取消，会清理恢复状态和临时错误，再从 PostgreSQL 拉取最终消息。
 
@@ -294,6 +312,10 @@ MoE 顺序：统一任务策略 → 确定性门控 → 可选 PetHealth vitals 
 - RAG/Web：一般医学证据。
 
 旧回答中的“可能患病”不能在下一轮升级为既往确诊。医学证据不能直接证明当前患者患病。记忆中的文本按不可信数据处理，当前输入、真实工具与安全规则优先。
+
+为提高 DeepSeek 输入前缀缓存复用率，D1～D8、专家 persona、输出契约和通用安全规则保持在稳定提示词前缀；通用 system prompt 不注入每天变化的日期。只有 Task Policy 生成 `current_web` 证据任务时，才在动态 user payload 末尾附加 `as_of_date`。MoE Trace 与平台 `UsageRecord.details` 保存 `prompt_cache_hit_tokens`、`prompt_cache_miss_tokens` 和命中率，供成本与回归分析使用。
+
+2026-08-23 的真实 DeepSeek A/B（D1～D8 各一题）结果：旧版/优化版结构覆盖均为 100%，准确率 82.5→91.25，可靠性 74.38→86.25，平均终答耗时 10.24s→9.91s。跨日期探针中，旧版 system 日期变化使原本 2688-token 的命中降为 0；稳定前缀重复调用命中 2560 tokens。报告位于忽略目录 `agent_api/tests/moe/reports/prompt_cache_ab_20260823/`，可用 `run_prompt_cache_ab_live.py` 复测。
 
 ## 9. PetHealth 被动心率告警
 
@@ -493,6 +515,26 @@ AGENT_TRUST_PROXY_HEADERS=1
 AGENT_FORWARDED_ALLOW_IPS=127.0.0.1
 ```
 
+LLM 与内部 Worker 的容量/超时可独立调整：
+
+```dotenv
+AGENT_LLM_CONNECT_TIMEOUT_SEC=10
+AGENT_LLM_READ_TIMEOUT_SEC=120
+AGENT_LLM_POOL_TIMEOUT_SEC=30
+AGENT_LLM_MAX_CONNECTIONS=20
+AGENT_LLM_MAX_KEEPALIVE_CONNECTIONS=10
+MOE_TASK_POLICY_MAX_TOKENS=1200
+MOE_CRITIC_MAX_TOKENS=400
+MOE_EXPERT_TEMPERATURE=0.2
+AGENT_WORKER_CONNECT_TIMEOUT_SEC=5
+AGENT_WORKER_READY_TIMEOUT_SEC=2
+AGENT_WORKER_MAX_CONNECTIONS=100
+AGENT_WORKER_MAX_KEEPALIVE_CONNECTIONS=20
+AGENT_SHUTDOWN_TIMEOUT_SEC=10
+```
+
+LLM/Worker 连接池的连接数不等于推理并发数：前者决定连接复用与排队容量，后者仍由 `AGENT_LLM_MAX_CONCURRENCY` 等资源槽位限制。连接池容量应不小于允许的在途调用数，但增加连接池不会增加单 GPU 推理吞吐。
+
 LLM/WebSearch 密钥从 `.env` 或服务环境读取，禁止写入源码、systemd unit 或提交记录。Memory LLM 可使用 DeepSeek，但处理历史记忆属于外部数据传输，必须由部署方明确授权。
 
 ## 16. 生产部署
@@ -516,16 +558,16 @@ systemd 模板当前指向 `/home/sam/Animal_detection2/agentAndRag`、Python �
 
 ## 17. 验证基线
 
-2026-08-20 最新自动化回归（真实 DeepSeek 生命周期测试见下方独立记录）：
+2026-08-23 最新自动化回归（真实 DeepSeek 生命周期测试见下方独立记录）：
 
 | 范围 | 结果 |
 | --- | --- |
-| Agent API + Memory + RAG 全量 pytest | 438 passed |
-| Alembic 空库升级/全量回滚/再次升级 | passed（revision `20260820_0003`） |
-| 前端 Vitest | 4 passed |
+| Agent API + Memory + RAG 全量 pytest | 468 passed |
+| Alembic 空库升级/全量回滚/再次升级 | passed（revision `20260823_0004`） |
+| 前端 Vitest | 10 passed |
 | 前端 ESLint | passed（0 error，0 warning） |
 | 前端 TypeScript + Vite 生产构建 | passed |
-| Playwright 桌面/移动端 | 24 passed，2 skipped |
+| Playwright 桌面/移动端 | 26 passed，2 skipped |
 | Agent `/ready` | ready=true，memory=ok，MCP enabled |
 | Memory `/health` | database=ok，2 workers |
 | 真实 DeepSeek + Memory + WebSearch | passed |

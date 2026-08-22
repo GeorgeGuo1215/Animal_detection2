@@ -13,7 +13,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from ...llm.llm_client import AsyncOpenAIClient, extract_text
+from ...integrations.llm.config import load_generation_settings
+from ...integrations.llm.client import AsyncOpenAIClient, extract_text
 from ...prompts.moe_critic import (
     CRITIC_SYS_OWNER,
     CRITIC_SYS_VET,
@@ -94,10 +95,11 @@ async def review(
 
     t0 = time.perf_counter()
     try:
+        generation = load_generation_settings()
         resp = await llm.chat(
             messages=messages,
-            temperature=0.1,
-            max_tokens=400,
+            temperature=generation.critic_temperature,
+            max_tokens=generation.critic_max_tokens,
             response_format={"type": "json_object"},
             thinking=False,
         )

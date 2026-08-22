@@ -11,10 +11,11 @@
   --terracotta: #a9563f;
   --terracotta-dark: #843e2e;
   --sage: #6c7965;
+  --danger: #9b4937;
   --shadow: 0 18px 50px rgba(79, 52, 32, .10);
 }
 
-:root[data-theme="dark"] { color-scheme: dark; --paper: #2c2622; --paper-deep: #39302a; --ink: #f4e8da; --muted: #c5b5a6; --line: rgba(241,217,193,.17); --terracotta: #d18467; --terracotta-dark: #e8a184; --sage: #9db09a; --shadow: 0 18px 50px rgba(0,0,0,.28); background: #241f1c; color: var(--ink); }
+:root[data-theme="dark"] { color-scheme: dark; --paper: #2c2622; --paper-deep: #39302a; --ink: #f4e8da; --muted: #c5b5a6; --line: rgba(241,217,193,.17); --terracotta: #d18467; --terracotta-dark: #e8a184; --sage: #9db09a; --danger: #e18c74; --shadow: 0 18px 50px rgba(0,0,0,.28); background: #241f1c; color: var(--ink); }
 @media (prefers-color-scheme: dark) { :root[data-theme="system"] { color-scheme: dark; --paper: #2c2622; --paper-deep: #39302a; --ink: #f4e8da; --muted: #c5b5a6; --line: rgba(241,217,193,.17); --terracotta: #d18467; --terracotta-dark: #e8a184; --sage: #9db09a; --shadow: 0 18px 50px rgba(0,0,0,.28); background: #241f1c; color: var(--ink); } }
 
 * { box-sizing: border-box }
@@ -194,7 +195,8 @@ input:focus, textarea:focus, select:focus { border-color: var(--terracotta); box
 .suggestions button:hover { border-color: var(--terracotta); }
 .messages { width: min(850px, calc(100% - 44px)); margin: 0 auto; padding: 40px 0 120px; }
 .message { margin-bottom: 35px; position: relative; }
-.message.user { margin-left: clamp(25px, 15%, 130px); background: #eee1d0; padding: 15px 18px; border: 1px solid rgba(105,78,57,.13); border-radius: 15px 5px 15px 15px; }
+.message.user { margin-left: clamp(25px, 15%, 130px); }
+.user-message-bubble { background: #eee1d0; padding: 15px 18px; border: 1px solid rgba(105,78,57,.13); border-radius: 15px 5px 15px 15px; }
 .message.assistant { padding: 4px 6px 24px; border-bottom: 1px dashed var(--line); }
 .message-label { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; margin-bottom: 12px; display: flex; gap: 7px; align-items: center; }
 .message-label svg { width: 16px; color: var(--terracotta); }
@@ -226,6 +228,15 @@ input:focus, textarea:focus, select:focus { border-color: var(--terracotta); box
 .copy { display: flex; gap: 5px; align-items: center; border: 0; background: transparent; color: var(--muted); font-size: 11px; padding: 6px 0; cursor: pointer; min-width: 58px; transition: color .2s, transform .2s; }
 .copy svg { width: 14px; }
 .copy.copied, .icon-copy.copied { color: var(--sage); animation: copied-pop .34s ease-out; }
+.message-actions{display:flex;align-items:center;gap:4px;min-height:34px;margin-top:8px;color:var(--muted)}
+.message.user .message-actions{justify-content:flex-end;margin:3px 4px 0 0}
+.message.user .message-actions .action-notice{order:-1;text-align:right}
+.message-rewrite textarea{min-height:88px;padding:8px 0;border:0;border-radius:0;background:transparent;box-shadow:none;resize:vertical;line-height:1.7}.message-rewrite>div{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}.message-rewrite button{padding:7px 14px;border:1px solid var(--line);border-radius:8px;background:transparent;cursor:pointer;font-size:12px}.message-rewrite button.primary{border:0}.user-message-bubble.editing{border-color:color-mix(in srgb,var(--terracotta) 45%,var(--line));box-shadow:0 0 0 3px color-mix(in srgb,var(--terracotta) 8%,transparent)}
+.message-actions>button{width:30px;height:30px;display:grid;place-items:center;border:0;border-radius:8px;background:transparent;color:inherit;cursor:pointer;transition:background .18s,color .18s,transform .18s}
+.message-actions>button:hover:not(:disabled){background:color-mix(in srgb,var(--paper-deep) 76%,transparent);color:var(--ink);transform:translateY(-1px)}
+.message-actions>button.selected{background:color-mix(in srgb,var(--sage) 17%,transparent);color:var(--sage)}
+.message-actions>button:disabled{cursor:wait;opacity:.55}.message-actions svg{width:15px;height:15px}.message-actions .spin{animation:spin .8s linear infinite}
+.action-notice{min-width:80px;margin-left:5px;font-size:11px;color:var(--sage)}.action-notice.error{color:var(--danger)}
 @keyframes copied-pop { 0% { transform: scale(.86); opacity: .45; } 65% { transform: scale(1.08); } 100% { transform: scale(1); opacity: 1; } }
 .expert-consultation { --consultation-surface: #f1ebe1; display: grid; gap: 10px; margin: 6px 0 24px; }
 .message.assistant .expert-consultation { margin: 10px 0 18px; width: 100%; }
@@ -386,7 +397,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--terracotta); box
 :root[data-theme="dark"] .user-popover,
 :root[data-theme="dark"] .chat-mode-popover,
 :root[data-theme="dark"] .conversation-details { background:#2b2b2b;border-color:#484848;color:#ececec }
-:root[data-theme="dark"] .message.user { background:#303030;border-color:#484848;color:#f2f2f2 }
+:root[data-theme="dark"] .user-message-bubble { background:#303030;border-color:#484848;color:#f2f2f2 }
 :root[data-theme="dark"] .message-body code:not(pre code),
 :root[data-theme="dark"] .agent-process-flow > summary,
 :root[data-theme="dark"] .credit-metrics>div,

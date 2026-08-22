@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Mapping, Optional
 
-from ...llm.llm_client import AsyncOpenAIClient, extract_text
+from ...integrations.llm.client import AsyncOpenAIClient, extract_text
 from ...prompts.moe_evidence_sufficiency import build_evidence_sufficiency_messages
 from ..structured_output import safe_json_loads
 from .trace import MoETrace, extract_usage

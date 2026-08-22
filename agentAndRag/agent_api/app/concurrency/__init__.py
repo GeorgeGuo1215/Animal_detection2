@@ -1,4 +1,4 @@
-"""进程级 LLM / RAG / MCP 并发槽位限流。"""
+"""进程级 LLM / RAG / MCP 并发槽位限流。用于agent的调度并发"""
 
 from .resource_limits import (
     AsyncResourceLimiter,

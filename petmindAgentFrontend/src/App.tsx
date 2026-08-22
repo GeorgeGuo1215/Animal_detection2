@@ -11,9 +11,11 @@ import {
 import { api, client, newId, resumeRun, setAccessToken, streamRun } from './api'
 import { agentProcessSummary, phaseLabels, traceNodeTitle } from './agentProcess'
 import { useAuth } from './auth'
+import { writeClipboard } from './clipboard'
 import { STREAM_RENDER_INTERVAL_MS, takeStreamRenderChunk } from './streamingMarkdown'
 import type { Conversation, ExpertTrace, Message, Plan, RunEvent, TraceNode } from './types'
 import { ActivationPage, FeedbackPage, LegalPage, SettingsPage } from './SettingsPage'
+import { MessageActions } from './MessageActions'
 
 const logoUrl = '/brand/petmind-logo-cropped.png'
 
@@ -26,7 +28,7 @@ function CopyButton({ text, className = 'copy', label = '复制' }: { text: stri
   const timer = useRef<number | null>(null)
   useEffect(() => () => { if (timer.current) window.clearTimeout(timer.current) }, [])
   async function copy() {
-    await navigator.clipboard.writeText(text)
+    await writeClipboard(text)
     setCopied(true)
     if (timer.current) window.clearTimeout(timer.current)
     timer.current = window.setTimeout(() => setCopied(false), 1800)
@@ -97,10 +99,15 @@ function UserMenu() {
 }
 
 const CONVERSATION_UPSERT_EVENT = 'petmind:conversation-upsert'
+const CONVERSATION_DELETE_EVENT = 'petmind:conversation-delete'
 type ConversationUpdate = Partial<Conversation> & Pick<Conversation, 'id'>
 
 function announceConversation(update: ConversationUpdate) {
   window.dispatchEvent(new CustomEvent<ConversationUpdate>(CONVERSATION_UPSERT_EVENT, { detail: update }))
+}
+
+function announceConversationDeleted(id: string) {
+  window.dispatchEvent(new CustomEvent<string>(CONVERSATION_DELETE_EVENT, { detail: id }))
 }
 
 function Sidebar({ current, collapsed = false, onCollapsedChange, onSelect, onNew, onDeleted }: { current?: string; collapsed?: boolean; onCollapsedChange(collapsed: boolean): void; onSelect(id: string): void; onNew(): void; onDeleted(id: string): void }) {
@@ -139,7 +146,7 @@ function Sidebar({ current, collapsed = false, onCollapsedChange, onSelect, onNe
   async function deleteConversation(item: Conversation) {
     if (!window.confirm(`确定删除“${item.title}”吗？删除后将无法在对话列表中恢复。`)) return
     try {
-      setActionError(''); await client.remove(item.id); deletedIds.current.add(item.id); setItems(previous => previous.filter(row => row.id !== item.id)); setActionOpen(''); onDeleted(item.id)
+      setActionError(''); await client.remove(item.id); announceConversationDeleted(item.id); onDeleted(item.id)
     } catch (error) { setActionError(error instanceof Error ? error.message : '删除失败') }
   }
   useEffect(() => { load().catch(() => undefined) }, [])
@@ -164,6 +171,17 @@ function Sidebar({ current, collapsed = false, onCollapsedChange, onSelect, onNe
     }
     window.addEventListener(CONVERSATION_UPSERT_EVENT, upsert)
     return () => window.removeEventListener(CONVERSATION_UPSERT_EVENT, upsert)
+  }, [])
+  useEffect(() => {
+    function removeDeleted(event: Event) {
+      const id = (event as CustomEvent<string>).detail
+      if (!id) return
+      deletedIds.current.add(id)
+      setItems(previous => previous.filter(item => item.id !== id))
+      setActionOpen(previous => previous === id ? '' : previous)
+    }
+    window.addEventListener(CONVERSATION_DELETE_EVENT, removeDeleted)
+    return () => window.removeEventListener(CONVERSATION_DELETE_EVENT, removeDeleted)
   }, [])
   return <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}><header><Brand compact /><button type="button" aria-label={collapsed ? '展开侧边栏' : '收起侧边栏'} aria-expanded={!collapsed} onClick={() => onCollapsedChange(!collapsed)}>{collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}</button></header><button className="new-chat" aria-label="新建会诊" title={collapsed ? '新建会诊' : undefined} onClick={onNew}><MessageSquarePlus /> <span>新建会诊</span></button><div className="search-box"><Search /><input aria-label="搜索对话" placeholder="搜索病例与回答" value={query} onChange={e => setQuery(e.target.value)} /></div><div className="history"><small>最近会诊</small>{actionError && <div className="history-error">{actionError}</div>}{items.map(item => <div className={`history-row ${current === item.id ? 'active' : ''}`} key={item.id}><button className="history-main" onClick={() => onSelect(item.id)}><span>{item.title}</span><time>{new Date(item.last_active_at).toLocaleDateString()}</time></button><div className="history-actions"><button type="button" aria-label={`管理对话：${item.title}`} aria-expanded={actionOpen === item.id} onClick={() => setActionOpen(actionOpen === item.id ? '' : item.id)}><MoreHorizontal /></button>{actionOpen === item.id && <div className="history-menu" role="menu"><button type="button" role="menuitem" onClick={() => exportConversation(item)}><Download />导出 Markdown</button><button type="button" role="menuitem" className="danger" onClick={() => deleteConversation(item)}><Trash2 />删除对话</button></div>}</div></div>)}</div><UserMenu /></aside>
 }
@@ -292,7 +310,7 @@ function ChatModeSelector({ role, onRoleChange }: { role: AudienceRole; onRoleCh
 }
 
 function ChatPage() {
-  const navigate = useNavigate(); const { conversationId } = useParams(); const { openMobileSidebar } = useWorkspace(); const [messages, setMessages] = useState<Message[]>([]); const [messagesLoading, setMessagesLoading] = useState(false); const [input, setInput] = useState(''); const [phase, setPhase] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [detailsOpen, setDetailsOpen] = useState(false)
+  const navigate = useNavigate(); const { conversationId } = useParams(); const { openMobileSidebar } = useWorkspace(); const [messages, setMessages] = useState<Message[]>([]); const [messagesLoading, setMessagesLoading] = useState(false); const [input, setInput] = useState(''); const [editingMessageId, setEditingMessageId] = useState(''); const [editingContent, setEditingContent] = useState(''); const [phase, setPhase] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [detailsOpen, setDetailsOpen] = useState(false)
   const [audienceRole, setAudienceRole] = useState<AudienceRole>(() => localStorage.getItem('petmind-audience-role') === 'pet_owner' ? 'pet_owner' : 'veterinarian')
   const [commonPhrases, setCommonPhrases] = useState<Array<{id: string; title: string; content: string}>>([])
   const controller = useRef<AbortController | null>(null); const activeRun = useRef(''); const activeConversation = useRef(conversationId || ''); const pendingConversationNavigation = useRef(''); const lastEvent = useRef(0); const draftAnswer = useRef(''); const pendingAnswer = useRef(''); const draftFlushTimer = useRef<number | null>(null); const activeExperts = useRef<ExpertTrace[]>([]); const activeTrace = useRef<TraceNode[]>([])
@@ -390,6 +408,9 @@ function ChatPage() {
     setMessagesLoading(true)
     void (async () => {
       try {
+        // Function declarations are intentionally hoisted: both helpers share
+        // the mutable run refs used by this route-keyed recovery effect.
+        // eslint-disable-next-line react-hooks/immutability
         await refreshMessages(conversationId)
         if (!recoveryController.signal.aborted) setMessagesLoading(false)
         if (!saved || recoveryController.signal.aborted) return
@@ -399,6 +420,7 @@ function ChatPage() {
         // A full reload has no in-memory draft. Replay all durable events so
         // expert cards and answer deltas are reconstructed together.
         lastEvent.current = 0; setBusy(true); setPhase('queued'); draftAnswer.current = ''; pendingAnswer.current = ''
+        // eslint-disable-next-line react-hooks/immutability
         await recoverRun(state.runId, recoveryController.signal)
       } catch (loadError) {
         if (!recoveryController.signal.aborted) { setMessagesLoading(false); setError(loadError instanceof Error ? loadError.message : '会话加载失败') }
@@ -479,8 +501,8 @@ function ChatPage() {
       })
     }
   }
-  async function send() {
-    const text = input.trim(); if (!text || busy) return
+  async function submitMessage(text: string, rewriteMessageId?: string) {
+    if (!text || busy) return
     let id = conversationId
     let created: Conversation | null = null
     if (!id) { created = await client.createConversation(); id = created.id; activeConversation.current = id; pendingConversationNavigation.current = id; navigate(`/chat/${id}`, { replace: true }) }
@@ -492,22 +514,44 @@ function ChatPage() {
       last_active_at: new Date().toISOString(),
     })
     activeExperts.current = []
-    setMessages(previous => [...previous,
-      { id: newId(), role: 'user', content: text, status: 'complete', created_at: new Date().toISOString() },
-      { id: 'streaming', run_id: null, role: 'assistant', content: '', status: 'streaming', created_at: new Date().toISOString(), expert_consultations: [], trace_nodes: [] },
-    ]); setInput(''); setBusy(true); setError(''); setPhase('queued'); cancelDraftFlush(); draftAnswer.current = ''; pendingAnswer.current = ''; activeExperts.current = []; activeTrace.current = []; lastEvent.current = 0
+    setMessages(previous => {
+      const streaming: Message = { id: 'streaming', run_id: null, role: 'assistant', content: '', status: 'streaming', created_at: new Date().toISOString(), expert_consultations: [], trace_nodes: [] }
+      if (!rewriteMessageId) return [...previous, { id: newId(), role: 'user', content: text, status: 'complete', created_at: new Date().toISOString() }, streaming]
+      const index = previous.findIndex(message => message.id === rewriteMessageId)
+      if (index < 0) return previous
+      return [...previous.slice(0, index), { ...previous[index], content: text }, streaming]
+    }); setInput(''); setEditingMessageId(''); setEditingContent(''); setBusy(true); setError(''); setPhase('queued'); cancelDraftFlush(); draftAnswer.current = ''; pendingAnswer.current = ''; activeExperts.current = []; activeTrace.current = []; lastEvent.current = 0
     controller.current = new AbortController()
     try {
-      await streamRun(id!, text, audienceRole, handleEvent, controller.current.signal, runId => { activeRun.current = runId; sessionStorage.setItem(`petmind-run:${id}`, JSON.stringify({ runId, lastEvent: lastEvent.current })) })
+      await streamRun(id!, text, audienceRole, handleEvent, controller.current.signal, runId => { activeRun.current = runId; sessionStorage.setItem(`petmind-run:${id}`, JSON.stringify({ runId, lastEvent: lastEvent.current })) }, rewriteMessageId)
     } catch (e) {
       if (controller.current?.signal.aborted) return
       if (activeRun.current) {
         await recoverRun(activeRun.current, controller.current!.signal); return
       }
       setError(e instanceof Error ? e.message : '连接中断'); setBusy(false)
+      if (rewriteMessageId && id) await refreshMessages(id).catch(() => undefined)
     }
   }
+  async function send() { await submitMessage(input.trim()) }
   async function stop() { if (activeRun.current) await api(`/api/v1/runs/${activeRun.current}`, { method: 'DELETE' }).catch(() => undefined); if (activeConversation.current) sessionStorage.removeItem(`petmind-run:${activeConversation.current}`); controller.current?.abort(); setBusy(false); setPhase('') }
+  async function updateMessageFeedback(messageId: string, rating: 'up' | 'down' | null) {
+    const result = await client.setMessageFeedback(messageId, rating)
+    setMessages(previous => previous.map(message => message.id === messageId
+      ? { ...message, feedback_rating: result.rating, feedback_updated_at: result.updated_at }
+      : message))
+  }
+  async function forkFromMessage(messageId: string) {
+    if (!conversationId) throw new Error('请先开始一个会诊')
+    const forked = await client.forkConversation(conversationId, messageId)
+    announceConversation(forked)
+    navigate(`/chat/${forked.id}`)
+  }
+  function beginRewrite(message: Message) {
+    if (busy) return
+    setEditingMessageId(message.id)
+    setEditingContent(message.content)
+  }
   return <section className="chat-main">
     <header className="chat-top">
       <button className="mobile-menu" aria-label="打开侧边栏" onClick={openMobileSidebar}><Menu /></button>
@@ -517,10 +561,8 @@ function ChatPage() {
     <div className="message-scroll">
       {messagesLoading ? <div className="conversation-loading" role="status" aria-label="正在加载对话"><span className="phase-spinner" /><div><strong>正在加载对话</strong><small>正在读取消息与专家会诊记录…</small></div></div> : messages.length === 0 ? <div className="empty-chat"><img src={logoUrl} alt="" width="148" height="135" loading="eager" /><p className="eyebrow">PETMIND CLINICAL DESK</p><h1>今天需要一起梳理<br />哪个病例？</h1><p>请提供物种、年龄、主诉、症状时间线和已有检查。系统会组织资料检索与专家复核。</p><div className="suggestions">{['猫频繁进出猫砂盆，如何排急症？', '犬持续咳嗽的鉴别诊断路径', '帮我解读这组肝功能指标'].map(q => <button key={q} onClick={() => setInput(q)}>{q}</button>)}</div></div> : <div className="messages">
         {messages.map(message => <article key={message.id} className={`message ${message.role}`}>
-          <div className="message-label">{message.role === 'user' ? '我的问题' : <><Stethoscope />PetMind 会诊意见</>}</div>
-          {message.role === 'assistant' && <ExpertConsultation experts={message.expert_consultations || []} traceNodes={message.trace_nodes || []} phase={message.status === 'streaming' ? phase : ''} active={message.status === 'streaming'} />}
-          {message.content && <div className={`message-body ${message.role === 'assistant' && message.status === 'streaming' ? 'streaming-markdown is-streaming' : ''}`}>{message.role === 'assistant' ? <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{message.content}</ReactMarkdown> : message.content}</div>}
-          {message.role === 'assistant' && message.status !== 'streaming' && message.content && <CopyButton text={`AI 生成 · 仅供兽医临床决策支持\n\n${message.content}`} />}
+          {message.role === 'user' ? <div className={`user-message-bubble ${editingMessageId === message.id ? 'editing' : ''}`}><div className="message-label">我的问题</div>{editingMessageId === message.id ? <div className="message-rewrite"><textarea autoFocus aria-label="编辑用户消息" value={editingContent} onChange={event => setEditingContent(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void submitMessage(editingContent.trim(), message.id) } }} /><div><button type="button" onClick={() => { setEditingMessageId(''); setEditingContent('') }}>取消</button><button type="button" className="primary" disabled={!editingContent.trim()} onClick={() => submitMessage(editingContent.trim(), message.id)}>发送</button></div></div> : message.content && <div className="message-body">{message.content}</div>}</div> : <><div className="message-label"><Stethoscope />PetMind 会诊意见</div><ExpertConsultation experts={message.expert_consultations || []} traceNodes={message.trace_nodes || []} phase={message.status === 'streaming' ? phase : ''} active={message.status === 'streaming'} />{message.content && <div className={`message-body ${message.status === 'streaming' ? 'streaming-markdown is-streaming' : ''}`}><ReactMarkdown rehypePlugins={[rehypeSanitize]}>{message.content}</ReactMarkdown></div>}</>}
+          {editingMessageId !== message.id && message.status !== 'streaming' && message.content && message.id !== 'streaming' && <MessageActions message={message} onFeedback={rating => updateMessageFeedback(message.id, rating)} onFork={() => forkFromMessage(message.id)} onRewrite={() => beginRewrite(message)} />}
         </article>)}
         {error && <div className="form-error">{error}</div>}
       </div>}

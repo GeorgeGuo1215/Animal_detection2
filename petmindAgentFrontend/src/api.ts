@@ -78,6 +78,8 @@ export const client = {
   rename: (id: string, title: string) => api<Conversation>(`/api/v1/conversations/${id}`, { method: 'PATCH', body: JSON.stringify({ title }) }),
   archive: (id: string) => api<Conversation>(`/api/v1/conversations/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'archived' }) }),
   remove: (id: string) => api<void>(`/api/v1/conversations/${id}`, { method: 'DELETE' }),
+  forkConversation: (id: string, messageId: string) => api<Conversation>(`/api/v1/conversations/${id}/forks`, { method: 'POST', body: JSON.stringify({ message_id: messageId }) }),
+  setMessageFeedback: (messageId: string, rating: 'up' | 'down' | null) => api<{message_id: string; rating: 'up' | 'down' | null; updated_at: string | null}>(`/api/v1/messages/${messageId}/feedback`, { method: 'PUT', body: JSON.stringify({ rating }) }),
 }
 
 export function parseSseBlock(block: string): RunEvent | null {
@@ -109,7 +111,7 @@ async function consumeSse(response: Response, onEvent: (event: RunEvent) => void
   }
 }
 
-export async function streamRun(conversationId: string, message: string, userRole: 'pet_owner' | 'veterinarian', onEvent: (event: RunEvent) => void, signal: AbortSignal, onRunId: (id: string) => void) {
+export async function streamRun(conversationId: string, message: string, userRole: 'pet_owner' | 'veterinarian', onEvent: (event: RunEvent) => void, signal: AbortSignal, onRunId: (id: string) => void, rewriteMessageId?: string) {
   const clientMessageId = newId()
   const response = await fetch(`${API_ROOT}/api/v1/conversations/${conversationId}/runs`, {
     method: 'POST', credentials: 'include', signal,
@@ -117,7 +119,7 @@ export async function streamRun(conversationId: string, message: string, userRol
       'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`,
       'Idempotency-Key': clientMessageId, 'Last-Event-ID': '0',
     },
-    body: JSON.stringify({ message, client_message_id: clientMessageId, delivery: 'sse', user_role: userRole }),
+    body: JSON.stringify({ message, client_message_id: clientMessageId, delivery: 'sse', user_role: userRole, ...(rewriteMessageId ? { rewrite_message_id: rewriteMessageId } : {}) }),
   })
   const runId = response.headers.get('X-PetMind-Run-Id') || ''
   if (runId) onRunId(runId)

@@ -23,7 +23,7 @@ def _require_mcp() -> None:
 
 
 def _run_sync(coro: Any) -> Any:
-    """同步包装协程：无运行中事件循环时直接 asyncio.run，否则在独立线程中跑新循环。"""
+    """同步包装协程：无运行中事件循环时直接 asyncio.run，否则在独立线程中跑新循环。同步→异步的桥，代价是阻塞和跨循环限制"""
     try:
         asyncio.get_running_loop()
     except RuntimeError:
