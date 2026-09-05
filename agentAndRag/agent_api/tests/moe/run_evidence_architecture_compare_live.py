@@ -52,19 +52,19 @@ def _load_dotenv() -> None:
 _load_dotenv()
 os.environ.setdefault("HTTPX_TRUST_ENV", "0")
 
-from app.llm.llm_client import AsyncOpenAIClient, extract_text  # noqa: E402
-from app.prompts.intent_contracts import (  # noqa: E402
+from agent_api.app.integrations.llm.client import AsyncOpenAIClient, extract_text  # noqa: E402
+from agent_api.app.prompts.intent_contracts import (  # noqa: E402
     intent_output_contract,
     intent_required_sections,
     normalize_variant,
 )
-from app.services.moe import MoEOrchestrator, MoETrace, OrchestratorConfig  # noqa: E402
-from app.services.moe.task_policy import decide_task_policy  # noqa: E402
-from app.services.moe.trace import extract_usage  # noqa: E402
-from app.services.structured_output import safe_json_loads  # noqa: E402
-from app.tools.tool_registry import ToolRegistry  # noqa: E402
-from app.tools.tools_builtin import register_builtin_tools  # noqa: E402
-from app.tools.tools_mcp import register_mcp_tools_async  # noqa: E402
+from agent_api.app.services.moe import MoEOrchestrator, MoETrace, OrchestratorConfig  # noqa: E402
+from agent_api.app.services.moe.task_policy import decide_task_policy  # noqa: E402
+from agent_api.app.services.moe.trace import extract_usage  # noqa: E402
+from agent_api.app.services.structured_output import safe_json_loads  # noqa: E402
+from agent_api.app.tools.tool_registry import ToolRegistry  # noqa: E402
+from agent_api.app.tools.builtin import register_builtin_tools  # noqa: E402
+from agent_api.app.tools.tools_mcp import register_mcp_tools_async  # noqa: E402
 
 
 RAG = "rag.search"

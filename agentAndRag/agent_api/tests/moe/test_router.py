@@ -1,4 +1,4 @@
-from app.services.moe.router import RouterConfig, resolve_router_decision
+from agent_api.app.services.moe.router import RouterConfig, resolve_router_decision
 
 
 def test_emergency_floor_adds_clinical_but_not_unrelated_pharmacy():

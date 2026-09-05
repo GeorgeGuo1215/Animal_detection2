@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict
-from pathlib import Path
-from typing import Iterable, List, Optional
+from typing import List, Optional
 
 from tqdm import tqdm
 
@@ -10,7 +8,7 @@ from .config import RagConfig
 from .embeddings import Embedder
 from .text_utils import chunk_text, cleanup_mmd_text, iter_mmd_files, read_text_lossy
 from .vector_store import NumpyVectorStore, StoreConfig
-from .vector_index import chunk_to_meta
+from .metadata import chunk_to_meta
 
 
 def build_or_update_index(

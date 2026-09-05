@@ -7,11 +7,11 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from app.persistence.session_manager import SessionManager
-from app.prompts.moe_task_policy import TASK_POLICY_SYSTEM_PROMPT
-from app.routers import routes_chat_ui
-from app.memory.identity import chat_moe_memory_user_id, normalize_test_username
-from app.schemas.chat_moe import ChatMoeCompletionRequest, ChatMoeSessionRequest
+from agent_api.app.features.chat_moe.session_store import SessionManager
+from agent_api.app.prompts.moe_task_policy import TASK_POLICY_SYSTEM_PROMPT
+from agent_api.app.features.chat_moe import router as routes_chat_ui
+from agent_api.app.features.chat_moe.identity import chat_moe_memory_user_id, normalize_test_username
+from agent_api.app.features.chat_moe.schemas import ChatMoeCompletionRequest, ChatMoeSessionRequest
 
 
 class _Registry:
@@ -240,7 +240,7 @@ def test_chat_moe_reports_loaded_context_metadata(tmp_path, monkeypatch):
 
 def test_openapi_documents_stateful_test_and_stateless_production_boundaries():
     """验证 OpenAPI 文档区分有状态测试与无状态生产边界。"""
-    from app.main import app
+    from agent_api.app.main import app
 
     schema = app.openapi()
     chat_moe = schema["paths"]["/chat-moe/completions"]["post"]

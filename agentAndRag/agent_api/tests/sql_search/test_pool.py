@@ -13,8 +13,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 
 import pytest
 
-from app.sql_search.config import MysqlConfig
-from app.sql_search.pool import MysqlPool
+from agent_api.app.integrations.petmind_mysql.config import MysqlConfig
+from agent_api.app.integrations.petmind_mysql.connection_pool import MysqlPool
 
 
 _ids = itertools.count(1)

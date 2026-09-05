@@ -54,9 +54,8 @@ async def persist_expert_consultation(run_id: str, trace: dict[str, Any]) -> Non
     if not expert_key:
         return
     async with platform_session() as session:
-        run = await session.get(AgentRun, run_id)
-        if run is None:
-            return
+        from .runs.ownership import lock_run
+        run = await lock_run(session, run_id)
         item = await session.scalar(select(ExpertConsultation).where(
             ExpertConsultation.run_id == run_id,
             ExpertConsultation.expert_key == expert_key,

@@ -7,13 +7,13 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from app.prompts.moe_task_policy import TASK_POLICY_SYSTEM_PROMPT
-from app.services.moe.critic import CriticResult, review
-from app.services.moe.experts import EXPERTS, ExpertAgentSession
-from app.services.moe.orchestrator import MoEOrchestrator, OrchestratorConfig
-from app.services.moe.router import RouterDecision
-from app.services.moe.task_policy import decide_task_policy
-from app.tools.tool_registry import ToolRegistry
+from agent_api.app.prompts.moe_task_policy import TASK_POLICY_SYSTEM_PROMPT
+from agent_api.app.services.moe.critic import CriticResult, review
+from agent_api.app.services.moe.expert_runtime.service import EXPERTS, ExpertAgentSession
+from agent_api.app.services.moe.orchestration.service import MoEOrchestrator, OrchestratorConfig
+from agent_api.app.services.moe.router import RouterDecision
+from agent_api.app.services.moe.task_policy import decide_task_policy
+from agent_api.app.tools.tool_registry import ToolRegistry
 
 
 def _policy_response() -> dict:

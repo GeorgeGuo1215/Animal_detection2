@@ -8,7 +8,7 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from app.services.moe.experts import (
+from agent_api.app.services.moe.expert_runtime.service import (
     EXPERTS,
     _BEHAVIOR_RAG_CATEGORIES,
     _CLINICAL_RAG_CATEGORIES,
@@ -16,7 +16,7 @@ from app.services.moe.experts import (
     _PHARMACY_RAG_CATEGORIES,
     run_expert,
 )
-from app.services.moe.retrieval_policy import RetrievalRequirement
+from agent_api.app.services.moe.retrieval_policy import RetrievalRequirement
 
 
 class FakeRegistry:
@@ -26,7 +26,7 @@ class FakeRegistry:
 
     def list_tools(self):
         """列出测试替身所暴露的工具。"""
-        from app.tools.tool_registry import ToolSpec
+        from agent_api.app.tools.tool_registry import ToolSpec
 
         async def _rag(**kwargs):
             """返回测试用的假 RAG 检索结果。"""

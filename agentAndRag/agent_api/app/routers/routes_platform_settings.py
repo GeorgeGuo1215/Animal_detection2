@@ -192,6 +192,7 @@ async def create_feedback(
         **body.model_dump(),
     )
     session.add(item)
+    await session.flush()
     await audit(session, action="feedback.submitted", resource_type="feedback", actor_user_id=user.id, resource_id=item.id, ip_address=request.client.host if request.client else None)
     await session.commit()
     return {"id": item.id, "status": item.status, "created_at": item.created_at}

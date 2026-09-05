@@ -22,7 +22,7 @@ _REPO_ROOT = _AGENT_ROOT.parent  # agentAndRag
 sys.path.insert(0, str(_AGENT_ROOT))
 sys.path.insert(0, str(_REPO_ROOT))
 
-from app.tools.rag_tools import rag_search_tool  # noqa: E402
+from agent_api.app.tools.rag_tools import rag_search_tool  # noqa: E402
 from RAG.simple_rag.category_index import resolve_category_index_dirs  # noqa: E402
 
 TAXONOMY = _REPO_ROOT / "RAG" / "data" / "category_taxonomy.json"

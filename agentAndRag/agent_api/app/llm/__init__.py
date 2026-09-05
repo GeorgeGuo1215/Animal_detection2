@@ -1,1 +1,1 @@
-"""兼容包；新代码使用 ``app.integrations.llm``。"""
+"""兼容包；新代码使用 ``agent_api.app.integrations.llm``。"""

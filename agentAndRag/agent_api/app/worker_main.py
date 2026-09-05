@@ -13,7 +13,7 @@ from .integrations.llm.client import aclose_shared_async_client
 from .memory import close_memory_client, memory_status, start_memory_client
 from .features.qa_audit.repository import init_db as init_qa_db
 from .platform.database import close_platform_database, init_platform_database
-from .platform.runs import worker_forever
+from .platform.runs import close_run_queue_redis, worker_forever
 from .features.chat_moe.router import chat_moe_router
 from .routers.routes_openai import router as openai_router
 from .runtime_warmup import warmup_rag_runtime
@@ -89,6 +89,8 @@ async def startup() -> None:
 async def shutdown() -> None:
     """停止队列消费者并关闭记忆、LLM 与平台数据库连接。"""
     global _READY
+    from .observability.jsonl_trace import close_trace_writer
+    await close_trace_writer()
     timeout_s = _shutdown_timeout_s()
     _READY = False
     if _QUEUE_TASK is not None and not _QUEUE_TASK.done():
@@ -99,11 +101,12 @@ async def shutdown() -> None:
                 asyncio.gather(_QUEUE_TASK, return_exceptions=True),
                 timeout=timeout_s,
             )
-        except TimeoutError:
+        except (TimeoutError, asyncio.TimeoutError):
             print(
                 f"[worker] Queue consumer did not stop within {timeout_s:g}s; continuing shutdown.",
                 flush=True,
             )
+    await asyncio.wait_for(close_run_queue_redis(), timeout=timeout_s)
     await asyncio.wait_for(close_memory_client(), timeout=timeout_s)
     await asyncio.wait_for(aclose_shared_async_client(), timeout=timeout_s)
     await asyncio.wait_for(close_platform_database(), timeout=timeout_s)

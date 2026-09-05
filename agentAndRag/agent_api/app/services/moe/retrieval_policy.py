@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import math
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Mapping, Sequence, Tuple
 
@@ -149,8 +150,30 @@ def resolve_retrieval_requirement(
     )
 
 
+def _hit_relevance(hit: Dict[str, Any]) -> float:
+    """取命中的相关性分数。
+
+    ``rag.search`` 默认启用 CrossEncoder 重排，此时 ``score`` 已被替换为 sigmoid 后的
+    重排分（0～1），``score_rerank`` 与之相同；显式读取它可避免未来 ``score`` 语义
+    变化时阈值悄悄失效。未重排时回退到稠密余弦 ``score``。
+    """
+    for key in ("score_rerank", "score"):
+        value = hit.get(key)
+        if value is None:
+            continue
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            continue
+    return 0.0
+
+
 def rag_requires_web_fallback(result: Dict[str, Any], *, ok: bool) -> bool:
-    """判断强制本地证据尝试是否需要外部回退。"""
+    """判断强制本地证据尝试是否需要外部回退。
+
+    ``RAG_RELEVANCE_THRESHOLD``（默认 0.90）按重排分尺度理解；关闭 rerank 或改用
+    dense 和 RRF 使用各自的显式校准阈值；未配置时请求补充证据。
+    """
     if not ok or not isinstance(result, dict):
         return True
     hits = result.get("hits")
@@ -160,12 +183,19 @@ def rag_requires_web_fallback(result: Dict[str, Any], *, ok: bool) -> bool:
         min_hits = max(1, int(os.getenv("RAG_WEB_FALLBACK_MIN_HITS", "2") or 2))
     except (TypeError, ValueError):
         min_hits = 2
+    # Dense cosine and rank-fusion scores are not reranker probabilities.
+    # Without an explicitly calibrated mode-specific threshold, request more evidence.
+    kind = result.get("score_kind", "rerank")
+    threshold_name = {"dense": "RAG_DENSE_RELEVANCE_THRESHOLD", "rrf": "RAG_RRF_RELEVANCE_THRESHOLD"}.get(kind, "RAG_RELEVANCE_THRESHOLD")
+    default_threshold = "0.90" if kind == "rerank" else "inf"
     try:
-        threshold = float(os.getenv("RAG_RELEVANCE_THRESHOLD", "0.90") or 0.90)
+        threshold = float(os.getenv(threshold_name, default_threshold) or default_threshold)
     except (TypeError, ValueError):
-        threshold = 0.90
+        threshold = float(default_threshold)
+    if math.isnan(threshold) or kind not in {"rerank", "dense", "rrf"}:
+        return True
     best_score = max(
-        (float(hit.get("score", 0.0)) for hit in hits if isinstance(hit, dict)),
+        (_hit_relevance(hit) for hit in hits if isinstance(hit, dict)),
         default=0.0,
     )
     return len(hits) < min_hits or best_score < threshold

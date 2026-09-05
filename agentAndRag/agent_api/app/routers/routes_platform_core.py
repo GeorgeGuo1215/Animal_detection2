@@ -5,7 +5,7 @@ from datetime import timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..platform.config import get_platform_settings
@@ -24,7 +24,10 @@ from ..platform.models import (
     Subscription,
     utcnow,
 )
-from ..platform.runs import enqueue_run, run_event_stream, wait_for_run
+from ..platform.runs import CLAIMABLE_RUN_STATES, TERMINAL_RUN_STATES, append_run_event, enqueue_run, run_event_stream, wait_for_run
+from ..platform.runs.events import commit_run
+from ..platform.runs.ownership import lock_run
+from ..platform.runs.service import _finish_cancelled_in_session
 from ..platform.schemas import ConversationCreateRequest, ConversationUpdateRequest, OrderCreateRequest, RunCreateRequest, TestPaymentWebhook
 from ..platform.security import verify_webhook_signature
 from ..platform.services import audit, reserve_credits, settle_credits
@@ -60,6 +63,8 @@ def _run_payload(item: AgentRun) -> dict:
         "created_at": item.created_at,
         "started_at": item.started_at,
         "finished_at": item.finished_at,
+        "memory_status": item.memory_status,
+        "memory_synced": item.memory_status == "synced",
     }
 
 
@@ -222,16 +227,30 @@ async def delete_conversation(
 @router.get("/conversations/{conversation_id}/messages")
 async def list_messages(
     conversation_id: str,
-    limit: int = Query(default=200, ge=1, le=500),
+    limit: int = Query(default=48, ge=1, le=500),
+    before: str | None = Query(default=None, max_length=36),
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
     """列出消息。"""
     await _owned_conversation(session, principal.user_id, conversation_id)
-    rows = list((await session.scalars(select(Message).where(
+    statement = select(Message).where(
         Message.conversation_id == conversation_id,
         Message.status != "superseded",
-    ).order_by(Message.created_at.asc()).limit(limit))).all())
+    )
+    if before:
+        cursor = await session.get(Message, before)
+        if cursor is None or cursor.conversation_id != conversation_id:
+            raise HTTPException(status_code=400, detail="invalid message cursor")
+        statement = statement.where(or_(
+            Message.created_at < cursor.created_at,
+            and_(Message.created_at == cursor.created_at, Message.id < cursor.id),
+        ))
+    rows = list((await session.scalars(statement.order_by(
+        Message.created_at.desc(), Message.id.desc(),
+    ).limit(limit + 1))).all())
+    has_more = len(rows) > limit
+    rows = list(reversed(rows[:limit]))
     consultations = await consultations_by_run(session, (item.run_id for item in rows))
     trace_nodes = await trace_nodes_by_run(session, (item.run_id for item in rows))
     return {"items": [{
@@ -245,7 +264,7 @@ async def list_messages(
         "trace_nodes": trace_nodes.get(item.run_id or "", []),
         "feedback_rating": item.feedback_rating,
         "feedback_updated_at": item.feedback_updated_at,
-    } for item in rows]}
+    } for item in rows], "next_cursor": rows[0].id if has_more and rows else None}
 
 
 @router.post("/conversations/{conversation_id}/runs")
@@ -449,18 +468,22 @@ async def cancel_run(
     principal: Principal = Depends(require_user_session),
     session: AsyncSession = Depends(get_platform_session),
 ):
-    """取消运行。"""
-    run = await _owned_run(session, principal.user_id, run_id)
-    if run.status in {"queued", "retry"}:
-        run.cancel_requested = True
-        run.status = "cancelled"
-        run.finished_at = utcnow()
-        await settle_credits(session, run_id=run.id, actual_amount=0)
-        await session.commit()
-    elif run.status not in {"completed", "failed", "cancelled"}:
-        run.cancel_requested = True
+    """取消运行。
+
+    尚未被 Worker 认领的 Run 用条件更新直接终结并退款；认领与取消同时发生时，
+    条件更新失败，退化为向正在执行的 Worker 提交取消请求，由其结算。
+    """
+    await _owned_run(session, principal.user_id, run_id)
+    run = await lock_run(session, run_id, fenced=False)
+    if run.status in TERMINAL_RUN_STATES:
+        return _run_payload(run)
+    run.cancel_requested = True
+    if run.status in CLAIMABLE_RUN_STATES:
+        await _finish_cancelled_in_session(session, run)
+    else:
         run.status = "cancel_requested"
-        await session.commit()
+    await commit_run(session, run_id)
+
     return _run_payload(run)
 
 

@@ -55,11 +55,11 @@ def _load_dotenv() -> None:
 
 _load_dotenv()
 
-from app.services.moe import MoEOrchestrator, OrchestratorConfig, RouterConfig, MoETrace  # noqa: E402
-from app.tools.tool_registry import get_registry  # noqa: E402
-from app.tools.tools_builtin import register_builtin_tools, register_debug_tools  # noqa: E402
-from app.tools.rag_tools import warmup_rag_cache  # noqa: E402
-from app.hf_local_model import resolve_embedding_model_id, resolve_rerank_model_id, is_local_path  # noqa: E402
+from agent_api.app.services.moe import MoEOrchestrator, OrchestratorConfig, RouterConfig, MoETrace  # noqa: E402
+from agent_api.app.tools.tool_registry import get_registry  # noqa: E402
+from agent_api.app.tools.builtin import register_builtin_tools, register_debug_tools  # noqa: E402
+from agent_api.app.tools.rag_tools import warmup_rag_cache  # noqa: E402
+from agent_api.app.hf_local_model import resolve_embedding_model_id, resolve_rerank_model_id, is_local_path  # noqa: E402
 
 from report_writer import render  # noqa: E402
 
@@ -83,7 +83,7 @@ def _register_tools(with_mcp: bool) -> None:
         register_builtin_tools(reg)
         register_debug_tools(reg)
         if with_mcp:
-            from app.tools.tools_mcp import register_mcp_tools
+            from agent_api.app.tools.tools_mcp import register_mcp_tools
             register_mcp_tools(reg)
 
 

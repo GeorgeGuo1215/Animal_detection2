@@ -7,18 +7,18 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from app.services.moe.retrieval_policy import (  # noqa: E402
+from agent_api.app.services.moe.retrieval_policy import (  # noqa: E402
     EvidenceTask,
     assign_evidence_tasks,
     rag_requires_web_fallback,
     resolve_retrieval_requirement,
 )
-from app.services.moe.task_policy import (  # noqa: E402
+from agent_api.app.services.moe.task_policy import (  # noqa: E402
     decide_task_policy,
     parse_task_policy,
 )
-from app.services.moe.trace import MoETrace  # noqa: E402
-from app.prompts.moe_task_policy import TASK_POLICY_SYSTEM_PROMPT  # noqa: E402
+from agent_api.app.services.moe.trace import MoETrace  # noqa: E402
+from agent_api.app.prompts.moe_task_policy import TASK_POLICY_SYSTEM_PROMPT  # noqa: E402
 
 
 def _payload(**overrides):
@@ -165,8 +165,8 @@ def test_current_web_task_keeps_chinese_and_english_queries():
     )
 
 
-def test_web_fallback_dense_score_floor_defaults_to_point_nine(monkeypatch):
-    """验证网页兜底的稠密分下限默认为 0.9。"""
+def test_web_fallback_legacy_rerank_floor_defaults_to_point_nine(monkeypatch):
+    """验证兼容旧重排结果的阈值默认为 0.9。"""
     monkeypatch.delenv("RAG_RELEVANCE_THRESHOLD", raising=False)
     assert rag_requires_web_fallback(
         {"hits": [{"score": 0.899}, {"score": 0.8}]}, ok=True
@@ -257,3 +257,15 @@ def test_unified_prompt_contains_all_intent_boundaries_and_routing_guidance():
         "食品动物残留‘休药期’才写 withdrawal period",
     ):
         assert guidance in TASK_POLICY_SYSTEM_PROMPT
+
+
+def test_web_fallback_requires_explicit_dense_and_rrf_calibration(monkeypatch):
+    for kind in ('dense', 'rrf'):
+        variable = f'RAG_{kind.upper()}_RELEVANCE_THRESHOLD'
+        monkeypatch.delenv(variable, raising=False)
+        result = {'score_kind': kind, 'hits': [{'score': 0.99}, {'score': 0.98}]}
+        assert rag_requires_web_fallback(result, ok=True)
+        monkeypatch.setenv(variable, '0.95')
+        assert not rag_requires_web_fallback(result, ok=True)
+        monkeypatch.setenv(variable, 'nan')
+        assert rag_requires_web_fallback(result, ok=True)

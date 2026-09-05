@@ -6,8 +6,8 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from app.services.moe.critic import review
-from app.services.moe.task_policy import parse_task_policy
+from agent_api.app.services.moe.critic import review
+from agent_api.app.services.moe.task_policy import parse_task_policy
 
 
 class MalformedLLM:

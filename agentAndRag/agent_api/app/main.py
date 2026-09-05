@@ -44,6 +44,7 @@ from .worker_proxy import (
 from .platform import close_platform_database, get_platform_settings, init_platform_database
 from .platform.cleanup import start_platform_cleanup_task, stop_platform_cleanup_task
 from .platform.database import platform_session
+from .platform.runs import close_run_queue_redis
 from .platform.services import seed_platform_plans, seed_platform_rbac
 
 
@@ -134,7 +135,7 @@ if _cors_on:
             CORSMiddleware,
             allow_origins=[_PLATFORM_SETTINGS.frontend_origin],
             allow_credentials=True,
-            allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
             allow_headers=["Content-Type", "Authorization", "Accept", "X-API-Key", "Idempotency-Key", "Last-Event-ID", "X-Request-Id"],
             expose_headers=["X-Request-Id", "X-PetMind-Run-Id", "X-RateLimit-Limit", "X-RateLimit-Remaining", "Retry-After"],
         )
@@ -217,8 +218,11 @@ async def _startup() -> None:
 @app.on_event("shutdown")
 async def _shutdown() -> None:
     """关闭平台库、会话清理、记忆与 LLM 连接池。"""
+    from .observability.jsonl_trace import close_trace_writer
+    await close_trace_writer()
     if get_platform_settings().enabled:
         await stop_platform_cleanup_task()
+        await close_run_queue_redis()
         await close_platform_database()
     await stop_session_cleanup_task()
     await close_memory_client()

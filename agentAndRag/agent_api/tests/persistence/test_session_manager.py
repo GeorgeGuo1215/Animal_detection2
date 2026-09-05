@@ -8,8 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from app.persistence.session_manager import SessionManager, _default_db_path, select_complete_turn_context
-from app.lifecycle_tasks.session_cleanup import SessionCleanupTask
+from agent_api.app.features.chat_moe.session_store import SessionManager, _default_db_path, select_complete_turn_context
+from agent_api.app.features.chat_moe.cleanup import SessionCleanupTask
 
 
 def test_complete_turn_context_never_returns_orphan_messages():

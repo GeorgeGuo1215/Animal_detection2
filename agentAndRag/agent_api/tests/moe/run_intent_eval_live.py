@@ -24,7 +24,7 @@ _AGENT_API = _HERE.parents[1]
 if str(_AGENT_API) not in sys.path:
     sys.path.insert(0, str(_AGENT_API))
 
-from app.prompts.intent_contracts import INTENT_SPECS, intent_required_sections  # noqa: E402
+from agent_api.app.prompts.intent_contracts import INTENT_SPECS, intent_required_sections  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -288,7 +288,10 @@ def _api_key() -> str:
             value = line.strip()
             if value and not value.startswith("#"):
                 return value
-    return os.getenv("AGENT_API_KEY") or "sk-petmind-default-key-2026"
+    value = os.getenv("AGENT_API_KEY")
+    if not value:
+        raise RuntimeError("Configure AGENT_API_KEY or pass --api-key for live evaluation")
+    return value
 
 
 def _has_markdown_heading(answer: str) -> bool:

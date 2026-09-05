@@ -9,21 +9,21 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from app.prompts.solve import (
+from agent_api.app.prompts.solve import (
     answer_char_budget,
     build_solve_prompt,
 )
-from app.services.moe.orchestrator import MoEOrchestrator, OrchestratorConfig
-from app.services.moe.task_policy import IntentDecision, parse_task_policy
-from app.prompts.moe_task_policy import TASK_POLICY_SYSTEM_PROMPT
-from app.prompts.intent_contracts import (
+from agent_api.app.services.moe.orchestration.service import MoEOrchestrator, OrchestratorConfig
+from agent_api.app.services.moe.task_policy import IntentDecision, parse_task_policy
+from agent_api.app.prompts.moe_task_policy import TASK_POLICY_SYSTEM_PROMPT
+from agent_api.app.prompts.intent_contracts import (
     INTENT_SPECS,
     build_intent_aggregator_injection,
     intent_required_sections,
 )
-from app.services.moe.router import RouterDecision
-from app.services.moe.critic import CriticResult, _CRITIC_SYS_OWNER
-from app.services.moe.experts import _AUDIENCE_OWNER
+from agent_api.app.services.moe.router import RouterDecision
+from agent_api.app.services.moe.critic import CriticResult, _CRITIC_SYS_OWNER
+from agent_api.app.services.moe.expert_runtime.service import _AUDIENCE_OWNER
 
 
 _FLUTD_NARRATIVE = (

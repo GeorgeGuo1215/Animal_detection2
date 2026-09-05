@@ -10,15 +10,15 @@ import pytest
 _AGENT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_AGENT_ROOT))
 
-from app.mcp.mcp_config import McpServerConfig  # noqa: E402
-from app.concurrency import AsyncResourceLimiter  # noqa: E402
-from app.tools.tool_registry import ToolRegistry  # noqa: E402
-from app.tools.tools_mcp import register_mcp_tools_async  # noqa: E402
+from agent_api.app.mcp.mcp_config import McpServerConfig  # noqa: E402
+from agent_api.app.concurrency import AsyncResourceLimiter  # noqa: E402
+from agent_api.app.tools.tool_registry import ToolRegistry  # noqa: E402
+from agent_api.app.tools.tools_mcp import register_mcp_tools_async  # noqa: E402
 
 
 def test_async_mcp_registration_does_not_use_sync_wrapper(monkeypatch: pytest.MonkeyPatch) -> None:
     """验证异步 MCP 注册不会走同步包装。"""
-    import app.tools.tools_mcp as tools_mcp
+    import agent_api.app.tools.tools_mcp as tools_mcp
 
     server = McpServerConfig(name="demo", command=sys.executable, args=["-m", "demo"])
 
@@ -47,7 +47,7 @@ def test_async_mcp_registration_does_not_use_sync_wrapper(monkeypatch: pytest.Mo
 
 def test_mcp_limiter_covers_session_lifecycle(monkeypatch: pytest.MonkeyPatch) -> None:
     """验证 MCP 限流覆盖会话从创建到关闭的生命周期。"""
-    import app.mcp.mcp_client as mcp_client
+    import agent_api.app.mcp.mcp_client as mcp_client
 
     active = 0
     max_active = 0

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 import uuid
 from functools import partial
@@ -26,6 +27,7 @@ from ..worker_proxy import proxy_json_to_worker, should_delegate_agent_execution
 from .sse import SSE_DONE, SSE_RESPONSE_HEADERS, openai_sse_chunk
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 DEFAULT_ALLOWED_TOOLS = [
     "rag.search", "sql.search", "vitals.summary", "mcp.vitals_alert.check_vitals",
@@ -284,8 +286,8 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
                             _collect_stream_audit(
                                 json.loads(chunk[6:]), content=content, tools=tools, counters=counters,
                             )
-                        except Exception:
-                            pass
+                        except Exception:  # noqa: BLE001
+                            logger.debug("stream audit chunk skipped request_id=%s", request_id, exc_info=True)
 
             answer = "".join(content)
             memory_write_detail = await write_user_memory(
@@ -311,8 +313,8 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
                     response_time_ms=int((time.monotonic() - started) * 1000),
                     source_ip=source_ip, user_role=user_role, request_id=request_id,
                 )
-            except Exception:
-                pass
+            except Exception:  # noqa: BLE001
+                logger.exception("qa audit save failed (stream) request_id=%s", request_id)
 
         return StreamingResponse(event_generator(), media_type="text/event-stream", headers=SSE_RESPONSE_HEADERS)
 
@@ -367,8 +369,8 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
             response_time_ms=int((time.monotonic() - started) * 1000),
             source_ip=source_ip, user_role=user_role, request_id=request_id,
         )
-    except Exception:
-        pass
+    except Exception:  # noqa: BLE001
+        logger.exception("qa audit save failed request_id=%s", request_id)
     return response
 
 

@@ -9,7 +9,7 @@ from copy import deepcopy
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from app.services.moe.experts import (  # noqa: E402
+from agent_api.app.services.moe.expert_runtime.service import (  # noqa: E402
     EXPERTS,
     ExpertAgentSession,
     ExpertConfig,
@@ -17,10 +17,10 @@ from app.services.moe.experts import (  # noqa: E402
     run_expert,
     run_expert_sessions,
 )
-from app.services.moe.retrieval_policy import RetrievalRequirement  # noqa: E402
-from app.services.moe.tool_broker import ToolBroker  # noqa: E402
-from app.services.moe.trace import MoETrace  # noqa: E402
-from app.tools.tool_registry import ToolRegistry, ToolSpec  # noqa: E402
+from agent_api.app.services.moe.retrieval_policy import RetrievalRequirement  # noqa: E402
+from agent_api.app.services.moe.tool_broker import ToolBroker  # noqa: E402
+from agent_api.app.services.moe.trace import MoETrace  # noqa: E402
+from agent_api.app.tools.tool_registry import ToolRegistry, ToolSpec  # noqa: E402
 
 
 def _response(payload):

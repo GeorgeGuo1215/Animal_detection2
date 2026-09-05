@@ -19,12 +19,15 @@ def default_category_root(repo_root: Path) -> Path:
 
 
 def load_taxonomy(taxonomy_path: Path) -> Dict[str, Any]:
-    key = str(taxonomy_path.resolve())
+    stat = taxonomy_path.stat()
+    path_key = str(taxonomy_path.resolve())
+    key = (path_key, stat.st_mtime_ns, stat.st_size)
     with _LOCK:
         cached = _TAXONOMY_CACHE.get(key)
         if cached is not None:
             return cached
         data = json.loads(taxonomy_path.read_text(encoding="utf-8"))
+        _TAXONOMY_CACHE.clear()
         _TAXONOMY_CACHE[key] = data
         return data
 
@@ -32,6 +35,22 @@ def load_taxonomy(taxonomy_path: Path) -> Dict[str, Any]:
 def clear_taxonomy_cache() -> None:
     with _LOCK:
         _TAXONOMY_CACHE.clear()
+
+
+def merged_search_scope(repo_root: Path, category=None) -> tuple[Path, tuple[str, ...]] | None:
+    """Resolve one immutable release and the exact allowed category union per request."""
+    path = default_taxonomy_path(repo_root)
+    if not path.exists():
+        return None
+    tax = load_taxonomy(path)
+    merged = tax.get("merged_index")
+    if not merged:
+        return None
+    ids = [str(c["id"]) for c in tax.get("categories", []) if int(c.get("chunk_count") or 0) > 0]
+    requested = normalize_categories(category)
+    allowed = tuple(c for c in _expand_patterns(requested, ids) if c in ids) if requested else tuple(ids)
+    index = Path(merged)
+    return (index if index.is_absolute() else repo_root / index, allowed)
 
 
 def _expand_patterns(patterns: Sequence[str], all_ids: Sequence[str]) -> List[str]:
@@ -135,43 +154,3 @@ def resolve_default_category_index_dirs(*, repo_root: Path) -> List[Path]:
     if not ids:
         return []
     return resolve_category_index_dirs(repo_root=repo_root, category=ids)
-
-
-def expert_category_warmup_ids() -> List[str]:
-    """Categories used by the four MoE experts (may include empty placeholders)."""
-    return [
-        # clinical
-        "basic.anatomy",
-        "basic.terminology",
-        "clinical.internal_medicine",
-        "clinical.surgery",
-        "clinical.emergency_critical",
-        "clinical.cardiology",
-        "clinical.dermatology",
-        "clinical.ophthalmology",
-        "clinical.neurology",
-        "clinical.oncology",
-        "diagnostics.clinical_pathology",
-        "diagnostics.imaging",
-        "diagnostics.differential",
-        "diagnostics.laboratory",
-        "clinical_skills.techniques",
-        "clinical_skills.nursing",
-        "integrative.general",
-        "anesthesia.default",
-        "immunology.default",
-        "reproduction.default",
-        "infectious.placeholder",
-        "exotic.default",
-        "zoonosis.toxoplasmosis",
-        # nutrition
-        "nutrition.placeholder",
-        "equine.nutrition",
-        # pharmacy
-        "pharmacy.papich",
-        "pharmacy.applied_pharmacology",
-        "basic.pharmacology_fundamentals",
-        # behavior
-        "behavior.dog_cat_problems",
-        "behavior.feline_welfare",
-    ]

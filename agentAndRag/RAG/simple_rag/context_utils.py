@@ -24,6 +24,8 @@ def build_source_index(metas: List[dict]) -> Dict[str, Dict[int, str]]:
     Pre-build source_path -> {chunk_index: text} index.
     Call once at warmup; reuse across requests.
     """
+    if hasattr(metas, "source_index"):
+        return metas.source_index()
     by_src: Dict[str, Dict[int, str]] = {}
     for m in metas:
         sp = m.get("source_path")

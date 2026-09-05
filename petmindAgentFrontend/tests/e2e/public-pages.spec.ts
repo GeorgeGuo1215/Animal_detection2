@@ -225,8 +225,8 @@ test('conversation history can be exported and deleted', async ({ page }) => {
   expect(download.suggestedFilename()).toBe('猫咪复诊记录.md')
 
   await actions.click()
-  page.once('dialog', dialog => dialog.accept())
   await page.getByRole('menuitem', { name: '删除对话' }).click()
+  await page.getByRole('button', { name: '确认继续', exact: true }).click()
   await expect(page.locator('button[aria-label="管理对话：猫咪复诊记录"]:visible')).toHaveCount(0)
   expect(deleted).toBe(true)
 })
@@ -353,7 +353,7 @@ test('editing a user message truncates later UI and persists the replacement bra
   await expect(page.getByText('旧回答：首先排除尿道梗阻。')).toHaveCount(0)
   await expect(page.getByText('它目前还能排一点尿。')).toHaveCount(0)
   await expect(page.getByText('旧回答：继续观察。')).toHaveCount(0)
-  await expect(page.getByText('猫频繁蹲盆且只能排出几滴尿，如何排急症？')).toBeVisible()
+  await expect(firstUser.getByText('猫频繁蹲盆且只能排出几滴尿，如何排急症？')).toBeVisible()
   await expect(page.getByText('新回答：按尿道梗阻急症分诊。')).toBeVisible()
   expect(submitted).toMatchObject({
     message: '猫频繁蹲盆且只能排出几滴尿，如何排急症？',
@@ -377,8 +377,8 @@ test('API key revocation confirms, persists and replaces the action with status'
   })
 
   await page.goto('/settings#api-keys')
-  page.once('dialog', dialog => dialog.accept())
   await page.getByRole('button', { name: '撤销', exact: true }).click()
+  await page.getByRole('button', { name: '确认继续', exact: true }).click()
   await expect(page.getByText(/原密钥已立即失效/)).toBeVisible()
   await expect(page.getByText(/已撤销 ·/)).toBeVisible()
   await expect(page.getByRole('button', { name: '撤销', exact: true })).toHaveCount(0)
@@ -494,8 +494,8 @@ test('settings manages phrases, provenance-visible memory and activation navigat
   await expect(page.getByText(/中期主题来源/)).toHaveCount(0)
   await expect(page.getByPlaceholder('输入当前密码')).toHaveCount(0)
   for (const name of ['清空短期记忆', '清空长期记忆', '清空用户画像']) {
-    page.once('dialog', dialog => dialog.accept())
-    await page.getByRole('button', { name }).click()
+      await page.getByRole('button', { name }).click()
+  await page.getByRole('button', { name: '确认继续', exact: true }).click()
   }
   expect(clearedScopes).toEqual(['short_term', 'knowledge', 'profile'])
   await expect(page.getByRole('button', { name: /隐藏/ })).toHaveCount(0)
@@ -504,4 +504,62 @@ test('settings manages phrases, provenance-visible memory and activation navigat
   await page.getByRole('button', { name: /邀请码激活/ }).click()
   await expect(page).toHaveURL(/\/activate-code$/)
   await expect(page.getByRole('heading', { name: '邀请码激活' })).toBeVisible()
+})
+test('long histories page and virtualize without losing message actions', async ({ page }) => {
+  await page.route('**/api/v1/**', route => route.fulfill({ status: 200, contentType: 'application/json', body: '{"items":[]}' }))
+  await mockAuthenticated(page, { id: 'long-user', email: 'long@petmind.local', display_name: '历史验收', role: 'VET', status: 'active' })
+  const messages = Array.from({ length: 144 }, (_, i) => ({ id: `m-${i}`, role: i % 2 ? 'assistant' : 'user', content: `历史记录 ${i}：` + '这是一段用于验证分页与动态高度的测试文本。'.repeat(10 + i % 5), status: 'complete', created_at: '2026-09-05T00:00:00Z' }))
+  await page.route('**/api/v1/conversations/long/messages*', route => {
+    const cursor = new URL(route.request().url()).searchParams.get('before')
+    const end = cursor ? Number(cursor.slice(2)) : messages.length
+    const start = Math.max(0, end - 48)
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: messages.slice(start, end), next_cursor: start ? `m-${start}` : null }) })
+  })
+  await page.goto('/chat/long')
+  await expect(page.locator('.measured-message')).toHaveCount(48)
+  await page.getByRole('button', { name: '加载更早消息' }).click()
+  await expect(page.locator('.measured-message')).toHaveCount(96)
+  await page.getByRole('button', { name: '加载更早消息' }).click()
+  await expect(page.getByRole('button', { name: '加载更早消息' })).toHaveCount(0)
+  await expect.poll(() => page.locator('.measured-message').count()).toBeLessThan(40)
+  await expect(page.getByText(/^历史记录 0：/)).toBeVisible()
+  await page.locator('.message-scroll').evaluate(element => { element.scrollTop = element.scrollHeight })
+  await expect(page.getByText(/^历史记录 143：/)).toBeVisible()
+  await expect(page.getByRole('button', { name: '赞同回答' }).last()).toBeVisible()
+  await page.getByRole('button', { name: '赞同回答' }).last().focus()
+  await expect(page.locator(':focus')).toBeVisible()
+})
+
+test('mobile settings navigation closes overlay and remains reachable', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'Mobile navigation only')
+  await page.route('**/api/v1/**', route => route.fulfill({ status: 200, contentType: 'application/json', body: '{"items":[]}' }))
+  await mockAuthenticated(page, { id: 'nav-user', email: 'nav@petmind.local', display_name: '导航验收', role: 'VET', status: 'active' })
+  await page.goto('/chat')
+  await page.getByRole('button', { name: '打开侧边栏', exact: true }).click()
+  await page.getByRole('button', { name: '导 导航验收 VET' }).click()
+  await page.getByRole('link', { name: '设置', exact: true }).click()
+  await expect(page.locator('.mobile-sidebar')).not.toHaveClass(/shown/)
+  await expect(page.getByRole('link', { name: '返回会诊台', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '打开侧边栏', exact: true }).click()
+  await expect(page.locator('.mobile-sidebar')).toHaveClass(/shown/)
+  await page.getByRole('button', { name: '收起侧边栏', exact: true }).click()
+  await page.getByRole('link', { name: '返回会诊台', exact: true }).click()
+  await expect(page).toHaveURL(/\/chat$/)
+})
+
+test('history search removes unrelated previous results', async ({ page, isMobile }) => {
+  await page.route('**/api/v1/**', route => route.fulfill({ status: 200, contentType: 'application/json', body: '{"items":[]}' }))
+  await mockAuthenticated(page, { id: 'search-user', email: 'search@petmind.local', display_name: '搜索验收', role: 'VET', status: 'active' })
+  const first = { id: 'first', title: '匹配病例', created_at: '2026-09-05', last_active_at: '2026-09-05', status: 'active' }
+  const second = { ...first, id: 'second', title: '无关病例' }
+  await page.route('**/api/v1/conversations', route => route.fulfill({ json: { items: [first, second] } }))
+  await page.route('**/api/v1/conversations/search*', route => route.fulfill({ json: { items: new URL(route.request().url()).searchParams.get('q') === '匹配' ? [first] : [] } }))
+  await page.goto('/chat')
+  if (isMobile) await page.getByRole('button', { name: '打开侧边栏', exact: true }).click()
+  await expect(page.locator('.history-row')).toHaveCount(2)
+  await page.getByRole('textbox', { name: '搜索对话' }).fill('匹配')
+  await expect(page.locator('.history-row')).toHaveCount(1)
+  await expect(page.locator('.history-main')).toContainText('匹配病例')
+  await page.getByRole('textbox', { name: '搜索对话' }).fill('不存在')
+  await expect(page.locator('.history-row')).toHaveCount(0)
 })

@@ -8,14 +8,14 @@ from copy import deepcopy
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from app.prompts.moe import build_pethealth_vitals_injection
-from app.prompts.moe_task_policy import build_task_policy_messages
-from app.schemas.openai_schemas import ChatCompletionRequest
-from app.services.moe.critic import CriticResult
-from app.services.moe.experts import EXPERTS, ExpertAgentSession
-from app.services.moe.orchestrator import MoEOrchestrator, OrchestratorConfig
-from app.services.moe.router import RouterDecision
-from app.tools.tool_registry import ToolRegistry, ToolSpec
+from agent_api.app.prompts.moe import build_pethealth_vitals_injection
+from agent_api.app.prompts.moe_task_policy import build_task_policy_messages
+from agent_api.app.schemas.openai_schemas import ChatCompletionRequest
+from agent_api.app.services.moe.critic import CriticResult
+from agent_api.app.services.moe.expert_runtime.service import EXPERTS, ExpertAgentSession
+from agent_api.app.services.moe.orchestration.service import MoEOrchestrator, OrchestratorConfig
+from agent_api.app.services.moe.router import RouterDecision
+from agent_api.app.tools.tool_registry import ToolRegistry, ToolSpec
 
 
 def _decision() -> RouterDecision:

@@ -47,7 +47,7 @@ os.environ.setdefault("HTTPX_TRUST_ENV", "0")
 from agent_api.app.integrations.llm.client import OpenAIChatClient, extract_text  # noqa: E402
 from agent_api.app.prompts.intent_contracts import get_intent_spec  # noqa: E402
 from agent_api.app.services.moe.critic import CriticResult  # noqa: E402
-from agent_api.app.services.moe.orchestrator import MoEOrchestrator, OrchestratorConfig  # noqa: E402
+from agent_api.app.services.moe.orchestration.service import MoEOrchestrator, OrchestratorConfig  # noqa: E402
 from agent_api.app.services.moe.retrieval_policy import EvidenceTask  # noqa: E402
 from agent_api.app.services.moe.router import RouterDecision  # noqa: E402
 from agent_api.app.services.moe.task_policy import IntentDecision, TaskPolicyDecision  # noqa: E402

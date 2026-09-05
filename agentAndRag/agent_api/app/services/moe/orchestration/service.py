@@ -113,20 +113,27 @@ class MoEOrchestrator:
         self._active_intent_decision: Optional[IntentDecision] = None
         self._active_task_policy: Optional[TaskPolicyDecision] = None
         self._active_evidence_tasks: Tuple[EvidenceTask, ...] = ()
+        self._active_species: Optional[Tuple[Optional[str], Optional[str], Optional[str]]] = None
 
     # ------------------------------------------------------------------ stages
-    def _resolve_species(self) -> Tuple[Optional[str], Optional[str], Optional[str]]:
-        # Resolve (species_en, species_zh, breed) for the request-scoped animal.
-        """解析请求物种（画像或文本）。"""
+    async def _resolve_species(self) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+        """解析请求物种 ``(species_en, species_zh, breed)``。
+
+        画像来自同步 MySQL 查询，必须放到线程池执行以免阻塞事件循环；同一请求内
+        任务策略与专家阶段都需要该结果，因此只查一次并缓存。
+        """
+        if self._active_species is not None:
+            return self._active_species
         animal_id = self.config.animal_id or get_request_animal_id()
-        if not animal_id:
-            return None, None, None
-        profile = fetch_animal_profile(animal_id)
-        if not profile:
-            return None, None, None
-        breed = profile.get("breed")
-        breed_s = str(breed).strip() if breed else None
-        return (profile.get("species") or None), species_label(profile), (breed_s or None)
+        resolved: Tuple[Optional[str], Optional[str], Optional[str]] = (None, None, None)
+        if animal_id:
+            profile = await asyncio.to_thread(fetch_animal_profile, animal_id)
+            if profile:
+                breed = profile.get("breed")
+                breed_s = str(breed).strip() if breed else None
+                resolved = ((profile.get("species") or None), species_label(profile), (breed_s or None))
+        self._active_species = resolved
+        return resolved
 
     def _aggregator_max_tokens(self, query: str) -> int:
         """融合器 max_tokens。"""
@@ -186,7 +193,7 @@ class MoEOrchestrator:
         recorder: Optional[MoETrace],
     ) -> TaskPolicyDecision:
         """调用统一任务策略分类。"""
-        _, species_zh, breed = self._resolve_species()
+        _, species_zh, breed = await self._resolve_species()
         return await decide_task_policy(
             query=query,
             user_role=self.config.user_role,
@@ -330,7 +337,7 @@ class MoEOrchestrator:
         conversation_history = conversation_history or self._active_conversation_history
         expert_context_history = expert_context_history or self._active_expert_context_history
         memory_text = self._active_user_memory if user_memory is None else user_memory
-        species_en, species_zh, breed = self._resolve_species()
+        species_en, species_zh, breed = await self._resolve_species()
         intent_id = (
             self._active_intent_decision.intent_id
             if self._active_intent_decision is not None
@@ -575,6 +582,7 @@ class MoEOrchestrator:
         self._active_intent_decision = None
         self._active_task_policy = None
         self._active_evidence_tasks = ()
+        self._active_species = None
         yield _event(
             status="intent_classifying",
             detail={"message": "正在统一识别任务、专家与证据需求…"},
@@ -865,6 +873,7 @@ class MoEOrchestrator:
         self._active_intent_decision = None
         self._active_task_policy = None
         self._active_evidence_tasks = ()
+        self._active_species = None
         decision = await self._prepare_request_policy(query, recorder)
         if self._active_intent_decision is not None:
             self.last_run_context["intent"] = self._active_intent_decision.as_dict()

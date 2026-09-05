@@ -10,8 +10,8 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from app.services.moe.experts import EXPERTS, run_expert, _SPECIES_BREED_GUARD
-from app.services.moe.retrieval_policy import RetrievalRequirement
+from agent_api.app.services.moe.expert_runtime.service import EXPERTS, run_expert, _SPECIES_BREED_GUARD
+from agent_api.app.services.moe.retrieval_policy import RetrievalRequirement
 
 
 class FakeRegistry:
@@ -21,7 +21,7 @@ class FakeRegistry:
 
     def list_tools(self):
         """列出测试替身所暴露的工具。"""
-        from app.tools.tool_registry import ToolSpec
+        from agent_api.app.tools.tool_registry import ToolSpec
 
         async def _rag(**kwargs):
             """返回测试用的假 RAG 检索结果。"""
@@ -146,7 +146,7 @@ def test_run_expert_without_species():
 
 def test_run_expert_only_executes_tool_assigned_by_task_policy():
     """验证专家只执行任务策略分配给它的工具。"""
-    from app.tools.tool_registry import ToolSpec
+    from agent_api.app.tools.tool_registry import ToolSpec
 
     class Reg(FakeRegistry):
         def list_tools(self):

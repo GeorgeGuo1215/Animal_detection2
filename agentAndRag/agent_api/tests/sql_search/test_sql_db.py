@@ -13,11 +13,11 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 
 import pytest
 
-from app.sql_search.config import load_mysql_config
-from app.sql_search.tool import sql_search_tool
-from app.sql_search.vitals_summary import vitals_summary_tool
-from app.sql_search.animal_profile import fetch_animal_profile
-from app.context.request_context import set_request_animal_id
+from agent_api.app.integrations.petmind_mysql.config import load_mysql_config
+from agent_api.app.integrations.petmind_mysql.readonly_tool import sql_search_tool
+from agent_api.app.integrations.petmind_mysql.vitals_repository import vitals_summary_tool
+from agent_api.app.integrations.petmind_mysql.animal_repository import fetch_animal_profile
+from agent_api.app.tools.request_scope import set_request_animal_id
 
 
 def _db_available() -> bool:
@@ -133,7 +133,7 @@ def test_fetch_animal_profile():
 
 def test_pool_reuses_connections_across_calls():
     """验证连接池在多次查询间复用连接。"""
-    from app.sql_search.pool import close_pool, get_pool
+    from agent_api.app.integrations.petmind_mysql.connection_pool import close_pool, get_pool
 
     cfg = load_mysql_config()
     close_pool()  # start from a clean pool for a deterministic count

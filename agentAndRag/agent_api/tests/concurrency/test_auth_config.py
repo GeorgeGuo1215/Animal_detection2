@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-import app.middleware.auth as auth
+import agent_api.app.middleware.auth as auth
 
 
 MISSING_KEYS_PATH = Path(__file__).with_name("_missing_auth_test_keys.txt")

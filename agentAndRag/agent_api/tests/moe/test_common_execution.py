@@ -9,14 +9,14 @@ from pydantic import ValidationError
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from app.routers.sse import SSE_DONE, openai_sse_chunk
-from app.schemas.openai_schemas import ChatCompletionRequest
-from app.services.agent_execution import (
+from agent_api.app.routers.sse import SSE_DONE, openai_sse_chunk
+from agent_api.app.schemas.openai_schemas import ChatCompletionRequest
+from agent_api.app.services.agent_execution import (
     AGENT_MODEL_ID,
     build_moe_orchestrator,
     public_moe_allowed_tools,
 )
-from app.tools.tool_registry import ToolRegistry
+from agent_api.app.tools.tool_registry import ToolRegistry
 
 
 def test_agent_model_is_moe_only():

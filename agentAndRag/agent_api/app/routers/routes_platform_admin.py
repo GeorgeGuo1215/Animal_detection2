@@ -6,7 +6,7 @@ import json
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..platform.config import get_platform_settings
@@ -183,9 +183,9 @@ async def overview(
     session: AsyncSession = Depends(get_platform_session),
 ):
     """管理后台总览。"""
-    users = len(list((await session.scalars(select(PlatformUser.id))).all()))
-    pending_orders = len(list((await session.scalars(select(Order.id).where(Order.status == "pending_payment"))).all()))
-    active_runs = len(list((await session.scalars(select(AgentRun.id).where(AgentRun.status.in_(["queued", "running", "cancel_requested"])))).all()))
+    users = await session.scalar(select(func.count()).select_from(PlatformUser))
+    pending_orders = await session.scalar(select(func.count()).select_from(Order).where(Order.status == "pending_payment"))
+    active_runs = await session.scalar(select(func.count()).select_from(AgentRun).where(AgentRun.status.in_(["queued", "retry", "running", "cancel_requested"])))
     return {"users": users, "pending_orders": pending_orders, "active_runs": active_runs}
 
 
@@ -234,6 +234,7 @@ async def create_invitation(
     )
     session.add(invitation)
     session.add(OutboxEvent(topic="auth.invitation", payload={"email": email, "token": raw}))
+    await session.flush()
     await audit(session, action="invitation.created", resource_type="invitation", actor_user_id=principal.user_id, resource_id=invitation.id)
     await session.commit()
     result = {"id": invitation.id, "email": email, "role": invitation.role, "expires_at": invitation.expires_at}

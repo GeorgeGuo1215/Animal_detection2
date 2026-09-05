@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from .experts import EXPERTS
+from agent_api.app.services.moe.expert_runtime.service import EXPERTS
 
 
 # 急症必须有临床分诊。药学专家仅在语义分数显示涉及用药、中毒或药理安全决策时入选；

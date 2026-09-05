@@ -112,86 +112,13 @@ def split_sentences(text: str) -> list[str]:
     """
     以句号/问号/感叹号为主的“近似句子切分”。
     - 英文：. ! ?
-    - 中文：。！？ 
+    - 中文：。！？
     """
     s = re.sub(r"\s+", " ", (text or "").strip())
     if not s:
         return []
     parts = _RE_SENT_SPLIT.split(s)
     out = [p.strip() for p in parts if p and p.strip()]
-    return out
-
-
-def recursive_sentence_chunks(
-    *,
-    text: str,
-    chunk_words: int,
-    chunk_overlap_words: int,
-    min_chunk_words: int,
-) -> list[str]:
-    """
-    递归分块（句子边界优先）：
-    - 先切句子
-    - 句子过长则降级按逗号/分号切，再不行按词切
-    - 再按 chunk_words 合并，并做 overlap
-    """
-    assert chunk_words > 0
-    assert 0 <= chunk_overlap_words < chunk_words
-
-    def split_fallback(s: str) -> list[str]:
-        s = s.strip()
-        if not s:
-            return []
-        # 二级：逗号/分号
-        parts = re.split(r"(?<=[,;，；])\s+", s)
-        parts = [p.strip() for p in parts if p and p.strip()]
-        if len(parts) >= 2:
-            return parts
-        # 三级：按词硬切
-        ws = [w for w in re.split(r"\s+", s) if w]
-        if not ws:
-            return []
-        step = max(20, chunk_words // 3)
-        out = []
-        for i in range(0, len(ws), step):
-            out.append(" ".join(ws[i : i + step]))
-        return out
-
-    # 1) 句子切分
-    sentences: list[str] = []
-    for sent in split_sentences(text):
-        if word_count(sent) > chunk_words * 1.2:
-            sentences.extend(split_fallback(sent))
-        else:
-            sentences.append(sent)
-
-    # 2) 合并到目标大小
-    merged: list[str] = []
-    cur: list[str] = []
-    cur_words = 0
-    for s in sentences:
-        w = word_count(s)
-        if cur and (cur_words + w) > chunk_words:
-            merged.append(" ".join(cur).strip())
-            cur = [s]
-            cur_words = w
-        else:
-            cur.append(s)
-            cur_words += w
-    if cur:
-        merged.append(" ".join(cur).strip())
-
-    # 3) overlap（按词近似）
-    out: list[str] = []
-    for i, block in enumerate(merged):
-        units = word_count(block)
-        if units < min_chunk_words:
-            continue
-        if chunk_overlap_words <= 0 or i == 0:
-            out.append(block.strip())
-        else:
-            tail = _tail_by_units(merged[i - 1], chunk_overlap_words)
-            out.append("\n\n".join(x for x in (tail, block.strip()) if x))
     return out
 
 

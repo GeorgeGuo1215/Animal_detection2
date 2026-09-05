@@ -2,8 +2,10 @@ FROM node:22-alpine AS build
 WORKDIR /app
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 COPY package.json pnpm-lock.yaml ./
+# Pin pnpm to the version declared in package.json#packageManager so Docker and
+# local installs resolve the lockfile identically.
+RUN corepack enable && corepack install
 RUN pnpm install --frozen-lockfile
 COPY index.html vite.config.ts tsconfig.json tsconfig.app.json tsconfig.node.json ./
 COPY public ./public

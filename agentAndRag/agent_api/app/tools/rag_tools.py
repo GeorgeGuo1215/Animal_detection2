@@ -1,18 +1,19 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 from collections import OrderedDict
 from functools import wraps
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Callable, Dict, Hashable, List, Optional, Sequence, TypeVar, Union
 import threading
 
 from ..concurrency import get_resource_limits
 
 _RAG_DEVICE: Optional[str] = os.getenv("AGENT_WARMUP_DEVICE") or None
 
-from RAG.simple_rag.category_index import resolve_category_index_dirs, resolve_default_category_index_dirs
+from RAG.simple_rag.category_index import resolve_category_index_dirs, resolve_default_category_index_dirs, merged_search_scope
 from RAG.simple_rag.config import RagConfig, default_config
 from RAG.simple_rag.context_utils import build_neighbor_contexts, build_source_index
 from RAG.simple_rag.embeddings import Embedder
@@ -22,12 +23,19 @@ from RAG.simple_rag.retrieval import BM25Retriever, MultiRouteRetriever, Retriev
 from RAG.simple_rag.reranker import CrossEncoderReranker
 from RAG.simple_rag.vector_store import NumpyVectorStore
 
-from RAG.query import overlap_score
+from RAG.simple_rag.scoring import overlap_score
 
 from ..hf_local_model import resolve_embedding_model_id, resolve_rerank_model_id
 from .rag_query import require_english_rag_query
 
+logger = logging.getLogger(__name__)
+
+_T = TypeVar("_T")
+
+# 全局锁只保护缓存字典本身；真正的索引/模型加载在 per-key 锁下进行，
+# 否则一次冷加载（整库 npy + 模型权重）会让所有 RAG 查询连缓存读取都被卡住。
 _LOCK = threading.RLock()
+_LOAD_LOCKS: Dict[Hashable, threading.Lock] = {}
 _STORE_CACHE: Dict[str, NumpyVectorStore] = {}
 _EMBEDDER_CACHE: Dict[tuple[str, Optional[str]], Embedder] = {}
 _BM25_CACHE: Dict[str, BM25Retriever] = {}
@@ -43,69 +51,66 @@ def _query_emb_key(query: str, model: str) -> str:
     return hashlib.md5(f"{model}||{query}".encode()).hexdigest()
 
 
+def _cached_load(cache: Dict[Any, _T], key: Hashable, loader: Callable[[], _T]) -> _T:
+    """双检缓存：快速路径只读字典；未命中时按 key 串行加载，不阻塞其它 key。"""
+    with _LOCK:
+        cached = cache.get(key)
+        if cached is not None:
+            return cached
+        load_lock = _LOAD_LOCKS.setdefault(("load", id(cache), key), threading.Lock())
+    with load_lock:
+        with _LOCK:
+            cached = cache.get(key)
+            if cached is not None:
+                return cached
+        loaded = loader()
+        with _LOCK:
+            cache[key] = loaded
+        return loaded
+
+
 def _get_store(index_dir: Path) -> NumpyVectorStore:
     """加载或缓存向量库。"""
     key = str(index_dir.resolve())
-    with _LOCK:
-        st = _STORE_CACHE.get(key)
-        if st is not None:
-            return st
+
+    def _load() -> NumpyVectorStore:
         st = NumpyVectorStore(index_dir)
         st.load()
-        _STORE_CACHE[key] = st
         return st
+
+    return _cached_load(_STORE_CACHE, key, _load)
 
 
 def _get_embedder(embedding_model: str, device: Optional[str]) -> Embedder:
     """加载或缓存 Embedder。"""
     resolved = resolve_embedding_model_id(embedding_model, _repo_root())
     key = (resolved, device)
-    with _LOCK:
-        em = _EMBEDDER_CACHE.get(key)
-        if em is not None:
-            return em
-        em = Embedder(resolved, device=device)
-        _EMBEDDER_CACHE[key] = em
-        return em
+    return _cached_load(_EMBEDDER_CACHE, key, lambda: Embedder(resolved, device=device))
 
 
 def _get_bm25(index_dir: Path) -> BM25Retriever:
     """加载或缓存 BM25 检索器。"""
     key = str(index_dir.resolve())
-    with _LOCK:
-        bm = _BM25_CACHE.get(key)
-        if bm is not None:
-            return bm
-        st = _get_store(index_dir)
-        bm = BM25Retriever(metas=st._meta)  # noqa: SLF001
-        _BM25_CACHE[key] = bm
-        return bm
+    return _cached_load(
+        _BM25_CACHE, key,
+        lambda: BM25Retriever(metas=_get_store(index_dir)._meta),  # noqa: SLF001
+    )
 
 
 def _get_reranker(rerank_model: str, device: Optional[str]) -> CrossEncoderReranker:
     """加载或缓存 reranker。"""
     resolved = resolve_rerank_model_id(rerank_model, _repo_root())
     key = (resolved, device)
-    with _LOCK:
-        rr = _RERANKER_CACHE.get(key)
-        if rr is not None:
-            return rr
-        rr = CrossEncoderReranker(resolved, device=device)
-        _RERANKER_CACHE[key] = rr
-        return rr
+    return _cached_load(_RERANKER_CACHE, key, lambda: CrossEncoderReranker(resolved, device=device))
 
 
 def _get_source_index(index_dir: Path) -> Dict[str, Dict[int, str]]:
     """加载或缓存来源索引。"""
     key = str(index_dir.resolve())
-    with _LOCK:
-        si = _SOURCE_INDEX_CACHE.get(key)
-        if si is not None:
-            return si
-        st = _get_store(index_dir)
-        si = build_source_index(st._meta)  # noqa: SLF001
-        _SOURCE_INDEX_CACHE[key] = si
-        return si
+    return _cached_load(
+        _SOURCE_INDEX_CACHE, key,
+        lambda: build_source_index(_get_store(index_dir)._meta),  # noqa: SLF001
+    )
 
 
 def _embed_query_cached(embedder: Embedder, query: str, model_name: str):
@@ -115,6 +120,9 @@ def _embed_query_cached(embedder: Embedder, query: str, model_name: str):
         if ck in _QUERY_EMB_CACHE:
             _QUERY_EMB_CACHE.move_to_end(ck)
             return _QUERY_EMB_CACHE[ck]
+    tokenizer = getattr(getattr(embedder, "model", None), "tokenizer", None)
+    if tokenizer is not None and len(tokenizer("query: " + query, add_special_tokens=True)["input_ids"]) > 256:
+        raise ValueError("rag.search query exceeds 256 embedding tokens")
     vec = embedder.embed_queries([query], batch_size=1, normalize=True).vectors[0]
     with _LOCK:
         _QUERY_EMB_CACHE[ck] = vec
@@ -194,10 +202,11 @@ class _LimitedSyncRewriter:
 
 class _CachedDenseRetriever:
     """使用缓存查询向量的稠密检索器。"""
-    def __init__(self, *, store: NumpyVectorStore, embedder: Embedder) -> None:
+    def __init__(self, *, store: NumpyVectorStore, embedder: Embedder, categories: tuple[str, ...] | None = None) -> None:
         """绑定向量库与 Embedder。"""
         self.store = store
         self.embedder = embedder
+        self.categories = categories
 
     def retrieve(self, query: str, *, top_k: int) -> List[RetrievedChunk]:
         """对查询做稠密检索。"""
@@ -205,7 +214,7 @@ class _CachedDenseRetriever:
         if not q:
             return []
         q_emb = _embed_query_cached(self.embedder, q, self.embedder.model_name_or_path)
-        hits = self.store.search(q_emb, top_k=int(top_k))
+        hits = self.store.search(q_emb, top_k=int(top_k), **({"categories": self.categories} if self.categories is not None else {}))
         return [RetrievedChunk(chunk_id=str(m.get("chunk_id")), score=float(s), meta=m) for m, s in hits]
 
 
@@ -220,12 +229,21 @@ def _build_cached_multiroute(
     rewrite_model: Optional[str],
     rewrite_max_out: int,
     rewrite_timeout_s: float,
+    categories: tuple[str, ...] | None = None,
+    retrieve_k: int = 20,
 ) -> MultiRouteRetriever:
     """构建带缓存的多路检索器。"""
     st = _get_store(index_dir)
     em = _get_embedder(embedding_model, device)
-    dense = _CachedDenseRetriever(store=st, embedder=em)
+    dense = _CachedDenseRetriever(store=st, embedder=em, categories=categories)
     bm25 = _get_bm25(index_dir)
+    if categories is not None:
+        base_bm25 = bm25
+        rows = st.rows_for_categories(categories)
+        class ScopedBM25:
+            def retrieve(self, query, *, top_k):
+                return base_bm25.retrieve(query, top_k=top_k, rows=rows)
+        bm25 = ScopedBM25()
     if rewrite == "none":
         rewriter = NoRewrite()
     elif rewrite == "llm":
@@ -240,7 +258,7 @@ def _build_cached_multiroute(
         )
     else:
         rewriter = TemplateRewriter(max_out=int(rewrite_max_out))
-    return MultiRouteRetriever(retrievers=[("dense", dense), ("bm25", bm25)], rewriter=rewriter, top_k_per_route=20)
+    return MultiRouteRetriever(retrievers=[("dense", dense), ("bm25", bm25)], rewriter=rewriter, top_k_per_route=retrieve_k)
 
 
 def _hit_from_meta(meta: dict, score: float, *, category: Optional[str], index_dir: Path) -> Dict[str, Any]:
@@ -257,6 +275,7 @@ def _hit_from_meta(meta: dict, score: float, *, category: Optional[str], index_d
         "chunking_version": meta.get("chunking_version"),
         "text": meta.get("text"),
         "chunk_id": meta.get("chunk_id"),
+        **{key: meta[key] for key in ("category_ids", "source_version", "source_spans", "duplicate_source_spans", "page_sequence_start", "page_sequence_end", "page_sequence_kind", "section_path", "content_type", "content_hash", "token_count") if key in meta},
         "category": category,
         "_index_dir": str(index_dir),
     }
@@ -277,6 +296,7 @@ def _retrieve_from_index(
     rewrite_max_out: int,
     rewrite_timeout_s: float,
     category: Optional[str] = None,
+    categories: tuple[str, ...] | None = None,
 ) -> List[Dict[str, Any]]:
     """在单个分类索引上执行稠密或多路检索，并规范化命中元数据。
 
@@ -288,7 +308,12 @@ def _retrieve_from_index(
     # Empty placeholder stores: still loadable, size==0 → no hits
     try:
         st = _get_store(index_dir)
+    except FileNotFoundError:
+        logger.warning("rag index missing files, treated as empty index_dir=%s", index_dir)
+        return []
     except Exception:  # noqa: BLE001
+        # 维度不匹配、meta 损坏等不是"无命中"，静默吞掉会让上层误判为证据不足而走 Web 兜底。
+        logger.exception("rag index failed to load, treated as empty index_dir=%s", index_dir)
         return []
     if st.size == 0:
         return []
@@ -296,7 +321,7 @@ def _retrieve_from_index(
     if not multi_route:
         em = _get_embedder(embedding_model, device)
         q_emb = _embed_query_cached(em, query, embedding_model)
-        raw_hits = st.search(q_emb, top_k=retrieve_k)
+        raw_hits = st.search(q_emb, top_k=retrieve_k, **({"categories": categories} if categories is not None else {}))
         return [_hit_from_meta(meta, score, category=category, index_dir=index_dir) for meta, score in raw_hits]
 
     mr = _build_cached_multiroute(
@@ -309,6 +334,8 @@ def _retrieve_from_index(
         rewrite_model=rewrite_model,
         rewrite_max_out=int(rewrite_max_out),
         rewrite_timeout_s=float(rewrite_timeout_s),
+        categories=categories,
+        retrieve_k=retrieve_k,
     )
     return [
         _hit_from_meta(h.meta, h.score, category=category, index_dir=index_dir)
@@ -321,11 +348,18 @@ def _merge_hits_by_score(hits: List[Dict[str, Any]], *, top_k: int) -> List[Dict
     best: Dict[str, Dict[str, Any]] = {}
     orphans: List[Dict[str, Any]] = []
     for h in hits:
-        cid = h.get("chunk_id")
+        cid = h.get("content_hash") or h.get("chunk_id")
         if not isinstance(cid, str) or not cid:
             orphans.append(h)
             continue
         prev = best.get(cid)
+        if prev is not None:
+            provenance = prev.get("provenance") or [{k: prev.get(k) for k in ("chunk_id", "book_id", "source_path", "source_version", "source_spans")}]
+            provenance = [*provenance, {k: h.get(k) for k in ("chunk_id", "book_id", "source_path", "source_version", "source_spans")}]
+            if float(h.get("score") or 0) > float(prev.get("score") or 0):
+                h = {**h, "provenance": provenance}
+            else:
+                prev["provenance"] = provenance
         if prev is None or float(h.get("score") or 0) > float(prev.get("score") or 0):
             best[cid] = h
     merged = list(best.values()) + orphans
@@ -390,9 +424,13 @@ def rag_search_tool(
     resolved_emb = resolve_embedding_model_id(embedding_model, repo_root)
     resolved_rr = resolve_rerank_model_id(rerank_model, repo_root)
 
-    cat_dirs = resolve_category_index_dirs(repo_root=repo_root, category=category)
+    merged_scope = merged_search_scope(repo_root, category) if not index_dir else None
+    cat_dirs = resolve_category_index_dirs(repo_root=repo_root, category=category) if merged_scope is None else []
     # Explicit index_dir wins over category when both provided without category dirs
-    if cat_dirs:
+    if merged_scope is not None:
+        primary_index, allowed_categories = merged_scope
+        search_targets = [(None, primary_index)]
+    elif cat_dirs:
         search_targets: List[tuple[Optional[str], Path]] = []
         # recover category id from dir name
         for d in cat_dirs:
@@ -415,11 +453,10 @@ def rag_search_tool(
         min_chunk_words=cfg0.min_chunk_words,
     )
 
+    # 每个分类索引都按合并后的候选数取 top，再跨索引按分数合并。
     retrieve_k = int(top_k)
     if rerank:
         retrieve_k = max(retrieve_k, int(rerank_candidates))
-    # 合并多个分类索引时，先对每个库多取再合并
-    per_store_k = retrieve_k if len(search_targets) == 1 else max(retrieve_k, int(top_k))
 
     hits: List[Dict[str, Any]] = []
     for cat_id, idir in search_targets:
@@ -427,7 +464,7 @@ def rag_search_tool(
             _retrieve_from_index(
                 index_dir=idir,
                 query=query,
-                retrieve_k=per_store_k,
+                retrieve_k=retrieve_k,
                 embedding_model=cfg.embedding_model,
                 device=device,
                 multi_route=multi_route,
@@ -438,6 +475,7 @@ def rag_search_tool(
                 rewrite_max_out=int(rewrite_max_out),
                 rewrite_timeout_s=float(rewrite_timeout_s),
                 category=cat_id,
+                **({"categories": allowed_categories} if merged_scope is not None else {}),
             )
         )
     hits = _merge_hits_by_score(hits, top_k=retrieve_k)
@@ -450,12 +488,6 @@ def rag_search_tool(
     should_rerank = rerank and hits and dense_top_score < _rerank_skip_thr
 
     if should_rerank:
-        # Pre-filter: remove bottom 25% of candidates to reduce reranker workload
-        if len(hits) > 4:
-            cutoff = max(int(len(hits) * 0.75), int(top_k))
-            hits_sorted = sorted(hits, key=lambda h: h.get("score", 0), reverse=True)
-            hits = hits_sorted[:cutoff]
-
         passages = [(h.get("text") or "").strip() for h in hits]
         rr = _get_reranker(resolved_rr, device)
         order = rr.rerank(query=query, passages=passages, top_k=int(top_k), batch_size=int(rerank_batch_size))
@@ -498,8 +530,10 @@ def rag_search_tool(
         return s
 
     # Strip internal field before return
+    score_kind = "rerank" if should_rerank else "rrf" if multi_route else "dense"
     for h in hits:
         h.pop("_index_dir", None)
+        h["score_kind"] = score_kind
 
     if not include_hits_text:
         for h in hits:
@@ -519,6 +553,7 @@ def rag_search_tool(
 
     return {
         "query": query,
+        "score_kind": score_kind,
         "params": {
             "top_k": int(top_k),
             "multi_route": bool(multi_route),
@@ -549,6 +584,10 @@ def rag_reindex_tool(
     """从原文重建向量索引。"""
     repo_root = _repo_root()
     cfg0 = default_config(repo_root)
+    target = (Path(index_dir) if index_dir else cfg0.index_dir).resolve()
+    managed = {path.resolve() for path in resolve_default_category_index_dirs(repo_root=repo_root)}
+    if target in managed or target.is_relative_to((repo_root / "RAG/data/releases").resolve()):
+        raise ValueError("managed production indexes require an audited immutable release; rag.reindex cannot modify them")
     resolved_emb = resolve_embedding_model_id(embedding_model, repo_root)
     cfg = RagConfig(
         raw_dir=Path(raw_dir) if raw_dir else cfg0.raw_dir,

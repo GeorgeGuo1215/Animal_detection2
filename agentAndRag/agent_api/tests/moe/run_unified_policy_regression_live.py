@@ -45,13 +45,13 @@ def _load_dotenv() -> None:
 _load_dotenv()
 os.environ.setdefault("HTTPX_TRUST_ENV", "0")
 
-from app.llm.llm_client import get_shared_async_client  # noqa: E402
-from app.prompts.intent_contracts import intent_required_sections  # noqa: E402
-from app.services.moe import MoEOrchestrator, MoETrace, OrchestratorConfig  # noqa: E402
-from app.services.moe.task_policy import decide_task_policy  # noqa: E402
-from app.tools.tool_registry import get_registry  # noqa: E402
-from app.tools.tools_builtin import register_builtin_tools, register_debug_tools  # noqa: E402
-from app.tools.tools_mcp import register_mcp_tools  # noqa: E402
+from agent_api.app.integrations.llm.client import get_shared_async_client  # noqa: E402
+from agent_api.app.prompts.intent_contracts import intent_required_sections  # noqa: E402
+from agent_api.app.services.moe import MoEOrchestrator, MoETrace, OrchestratorConfig  # noqa: E402
+from agent_api.app.services.moe.task_policy import decide_task_policy  # noqa: E402
+from agent_api.app.tools.tool_registry import get_registry  # noqa: E402
+from agent_api.app.tools.builtin import register_builtin_tools, register_debug_tools  # noqa: E402
+from agent_api.app.tools.tools_mcp import register_mcp_tools  # noqa: E402
 
 
 RAG = "rag.search"

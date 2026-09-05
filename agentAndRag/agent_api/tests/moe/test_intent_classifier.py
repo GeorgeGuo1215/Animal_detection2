@@ -8,14 +8,14 @@ from typing import Any, Dict, List
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from app.prompts.intent_contracts import (  # noqa: E402
+from agent_api.app.prompts.intent_contracts import (  # noqa: E402
     INTENT_SPECS,
     build_intent_aggregator_injection,
     intent_required_sections,
 )
-from app.services.moe.critic import CriticResult  # noqa: E402
-from app.services.moe.orchestrator import MoEOrchestrator, OrchestratorConfig  # noqa: E402
-from app.services.moe.trace import MoETrace  # noqa: E402
+from agent_api.app.services.moe.critic import CriticResult  # noqa: E402
+from agent_api.app.services.moe.orchestration.service import MoEOrchestrator, OrchestratorConfig  # noqa: E402
+from agent_api.app.services.moe.trace import MoETrace  # noqa: E402
 
 
 def _response(content: str) -> Dict[str, Any]:

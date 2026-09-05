@@ -26,8 +26,8 @@ from agent_api.tests.moe.run_evidence_architecture_compare_live import (  # noqa
     load_cases,
     retrieval_metrics,
 )
-from app.tools.rag_query import is_english_rag_query  # noqa: E402
-from app.tools.rag_tools import rag_search_tool  # noqa: E402
+from agent_api.app.tools.rag_query import is_english_rag_query  # noqa: E402
+from agent_api.app.tools.rag_tools import rag_search_tool  # noqa: E402
 
 
 def _percentile(values: Sequence[float], quantile: float) -> float:

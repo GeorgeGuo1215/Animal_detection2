@@ -129,9 +129,9 @@ class BM25Retriever:
         df = self.df.get(term, 0)
         return math.log(1.0 + (self.N - df + 0.5) / (df + 0.5))
 
-    def retrieve(self, query: str, *, top_k: int) -> List[RetrievedChunk]:
+    def retrieve(self, query: str, *, top_k: int, rows: np.ndarray | None = None) -> List[RetrievedChunk]:
         q_terms = _tokenize(query)
-        if not q_terms or self.N == 0:
+        if not q_terms or self.N == 0 or top_k <= 0 or (rows is not None and not rows.size):
             return []
 
         scores = np.zeros(self.N, dtype=np.float32)
@@ -145,8 +145,11 @@ class BM25Retriever:
             denom = freqs + self.k1 * (1.0 - self.b + self.b * (dl / (self.avgdl + 1e-9)))
             scores[ids] += idf * (freqs * (self.k1 + 1.0) / (denom + 1e-9))
 
-        k = min(int(top_k), self.N)
-        idx = np.argpartition(-scores, kth=k - 1)[:k]
+        candidate_scores = scores if rows is None else scores[rows]
+        k = min(int(top_k), len(candidate_scores))
+        idx = np.argpartition(-candidate_scores, kth=k - 1)[:k]
+        if rows is not None:
+            idx = rows[idx]
         idx = idx[np.argsort(-scores[idx])]
         out: List[RetrievedChunk] = []
         for i in idx:

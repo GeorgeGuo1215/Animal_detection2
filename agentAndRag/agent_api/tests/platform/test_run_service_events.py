@@ -1,4 +1,4 @@
-from agent_api.app.platform.run_service import (
+from agent_api.app.platform.runs.service import (
     _public_expert_trace,
     _trace_nodes_for_agent_event,
 )

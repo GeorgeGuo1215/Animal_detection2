@@ -15,9 +15,9 @@ for _p in (str(_THIS.parents[2]), str(_THIS.parents[3])):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from app.services.moe import MoEOrchestrator, OrchestratorConfig, RouterConfig, MoETrace
-from app.services.moe.orchestrator import _OUT_OF_SCOPE_TEXT
-from app.tools.tool_registry import ToolRegistry, ToolSpec
+from agent_api.app.services.moe import MoEOrchestrator, OrchestratorConfig, RouterConfig, MoETrace
+from agent_api.app.services.moe.orchestration.service import _OUT_OF_SCOPE_TEXT
+from agent_api.app.tools.tool_registry import ToolRegistry, ToolSpec
 from report_writer import render
 
 

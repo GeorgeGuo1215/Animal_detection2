@@ -1,171 +1,89 @@
-## 简易 RAG（基于 `.mmd` 书籍）
+# PetMind RAG
 
-本目录会把 `RAG/data/raw/**/*.mmd` 中的内容清洗、分块、生成向量，并建立本地索引（纯 `numpy` 持久化，避免 Windows 下编译依赖）。
+本目录只保留生产检索核心、当前索引配置、受维护的离线工具和分层测试。历史实验、训练数据生成脚本与旧索引不属于生产依赖。
 
----
+## 目录
 
-## 目录结构（你现在项目里实际存在的）
+```text
+RAG/
+├── simple_rag/             # 清洗、分块、embedding、检索、重排和上下文扩展
+├── maintenance/
+│   ├── indexing/           # 建库、增量导入、分类切分和验证
+│   └── benchmarks/         # 性能、资源和容量基准
+├── tests/
+│   ├── unit/               # 不加载真实模型和生产索引
+│   ├── integration/        # 临时小索引或真实组件链路
+│   ├── regression/         # 固定 D1–D8 检索质量基线
+│   └── fixtures/
+└── data/
+    ├── releases/          # 不可变清洗版本、来源与隔离记录，不纳入 Git
+    ├── rag_index_e5/       # 旧全量索引，保留以便复现/回退
+    ├── rag_index_e5_by_cat/# 旧分类索引，保留以便回退
+    ├── category_taxonomy.json
+    └── veterinary_materials_classification_2.0.xlsx
+```
 
-- `RAG/data/veterinary_materials_classification_2.0.xlsx`: 当前书号与二级分类标准（纳入 Git）
-- `RAG/data/category_taxonomy.json`: 运行时分类映射与入库审计状态（纳入 Git）
-- `RAG/data/rag_index_e5/`: 默认全量索引（本地大文件，不纳入 Git）
-- `RAG/data/rag_index_e5_by_cat/`: 专家实际使用的分类索引（本地大文件，不纳入 Git）
-  - `embeddings.npy`: 文本块向量矩阵（float32，已归一化）
-  - `meta.jsonl`: 每行一个 chunk 元数据（含 source_path/chunk_index/text 等），与 embeddings 行号一一对应
-  - `store_config.json`: 向量维度等配置
-- `RAG/simple_rag/`: RAG 核心库（清洗/分块/embedding/向量库/检索扩展点）
-- `RAG/experiments/`: 评测与实验脚本（Accuracy@K、trace、断点续传、错题归因、截断检查等）
-- `RAG/ingest.py`: 建库/增量入库入口
-- `RAG/query.py`: 查询入口（可选启用多路召回 + query rewrite）
+生产代码只能依赖 `RAG.simple_rag`。`RAG.maintenance` 是离线运维入口，禁止从 Agent 请求路径导入。
 
-### 1) 安装依赖
+## 依赖
 
-在仓库根目录执行：
-
-```bash
+```powershell
 python -m pip install -r RAG/requirements.txt
 ```
 
-说明：
-- `sentence-transformers` 会依赖 `torch`；如果你的环境没自动装好，可按你机器情况安装 CPU 或 CUDA 版本的 PyTorch。
+默认 embedding 为 `intfloat/multilingual-e5-small`，Reranker 为 `BAAI/bge-reranker-large`。E5 的 query/passage 前缀由封装自动添加。
 
-### 2) 入库（建立索引）
+## 索引维护
 
-```bash
-python RAG/ingest.py
+生产采用 `clean_rebuild` 的不可变 release 流程。命令从 `agentAndRag` 目录执行，`<NEW_RELEASE>` 必须是尚未发布的新路径，例如 `RAG/data/releases/clean-YYYYMMDD`。
+
+```powershell
+python -m RAG.maintenance.indexing.clean_rebuild prepare --source-root <OCR_OUTPUT> --output-root <NEW_RELEASE>
+python -m RAG.maintenance.indexing.clean_rebuild embed --output-root <NEW_RELEASE> --device cuda --batch-size 64
 ```
 
-默认：
-- 原始数据目录：`RAG/data/raw`
-- 索引输出：`RAG/data/rag_index`
-- embedding 模型：`intfloat/multilingual-e5-small`（中英都能用）
+`prepare` 只读原始书籍，按现有分类表选书；缺少原文的书籍可由旧索引顺序去重还原为普通 MMD，然后走相同清洗/分块流程。保留来源哈希、章节、页序、字符区间和可逆隔离记录。`page_sequence` 是源分页序号；`reconstructed` 明确表示旧索引重建，不能当作印刷页码。`books/086.mmd` 等是逻辑来源标识，对应 release 的 `sources/086.mmd`，不是公开下载地址。
 
-注意（重要）：E5 系列模型建议使用 `query:` / `passage:` 前缀。
-本项目已在 `simple_rag/embeddings.py` 中对包含 `e5` 的模型名自动加前缀。
-如果你之前建库时没有前缀，**建议重新运行 `ingest.py` 重建索引**，检索质量通常会更稳。
+分块按实际 tokenizer 计数，目标320、最大384、相邻重叠48 tokens；表格按完整行并携带表头。任何解析规则或来源变化都会使分块缓存失效。向量复用须匹配文本及 embedding 模型指纹。
 
-常用参数示例：
+随后使用 `audit_clean_release` 验证源文和分块可复现性，使用 `compare_clean_release` 比较旧版与候选的固定问题质量及三轮并发1/4/8性能，再由 `accept_clean_release` 生成绑定当前制品哈希的 `acceptance.json`。具体命令见维护文档。只有三个门禁都通过才能发布：
 
-```bash
-python RAG/ingest.py --batch-size 32
-python RAG/ingest.py --limit-books 3
-python RAG/ingest.py --embedding-model sentence-transformers/all-MiniLM-L6-v2
+```powershell
+python -m RAG.maintenance.indexing.clean_rebuild publish --output-root <NEW_RELEASE>
 ```
 
-#### 分块策略说明（semantic-v2）
+发布只原子切换 `category_taxonomy.json`，备份旧配置至 release 的 `previous_taxonomy.json`。taxonomy 按 mtime 失效；部署时仍应滚动重启并检查 `/ready`，保证每个进程都装载新索引且释放旧缓存。已发布 release 禁止原地 prepare/embed；下一次清洗使用新的目录。
 
-`simple_rag/text_utils.py` 的 `chunk_text()` 现在会：
-- 英文按单词、中文按汉字统一计算 lexical unit，不再依赖空白计数；
-- 保留 OCR 段落/标题边界，将相邻短段聚合到目标长度；
-- 超长段优先按句子切分，最后才按 lexical-unit span 硬切；
-- 默认目标 380 units、重叠 60 units，书尾短段并入前块而不是丢弃。
+回退时先确认 `previous_taxonomy.json` 引用的旧索引仍完整，再通过同目录临时文件加 `os.replace` 原子恢复活动 taxonomy，滚动重启服务并复核 readiness/固定查询。不要删除仍被当前进程或回退版本引用的索引。
 
-旧实现逐段应用最短长度，导致旧索引中位块长仅 92；semantic-v2 会聚合
-相邻短段，本次全量重建后的中位块长为 345。
+本次活动版本为 `clean-20260905`。Git 仅提交代码、配置和不含原文的指标；部署到其他机器必须先传输经过校验的 release（含向量/元数据），或用相同源文件重建并重新验收，不能仅拉取代码就期望索引存在。原 `rebuild_category_indexes` 等入口仅用于旧格式维护，不应覆盖受管理的 release。
 
-### 2.1) 按分类表全量重建（生产推荐）
+其他维护入口和适用范围见 [maintenance/README.md](maintenance/README.md)。
 
-先输出到临时目录，验证成功后再切换运行时目录：
+## 手工查询
 
-```bash
-python -m RAG.tools.rebuild_category_indexes \
-  --xlsx RAG/data/veterinary_materials_classification_2.0.xlsx \
-  --source-root /path/to/DeepSeek-OCR-vllm/output \
-  --full-index-out RAG/data/rag_index_e5_v2_build \
-  --category-root-out RAG/data/rag_index_e5_by_cat_v2_build \
-  --taxonomy-out RAG/data/category_taxonomy_v2_build.json \
-  --device cuda --batch-size 64 \
-  --allow-missing 084 \
-  --exclude-book '005=MMD与书名分类不符' \
-  --exclude-book '078=多语混合，翻译质检前不入库'
+```powershell
+python -m RAG.maintenance.query "feline urinary obstruction emergency" `
+  --category clinical.emergency_critical --top-k 5 --rerank --as-json
 ```
 
-脚本优先选择 `<book_id>/<book_id>.mmd`，其次精确匹配 Excel F 列原文件名；
-排除 `*_det.mmd`，不使用数字前缀模糊猜测。相同分类内的完全重复正文会按
-SHA1 自动保留一个规范书号；相同正文跨分类时会停止并要求人工核对。
+Agent 工具要求传入英文检索词；中文问题应先由统一意图/查询规划阶段转换成英文检索表达。
 
-逐书检索和类别隔离验证：
+## 测试
 
-```bash
-python -m RAG.tools.validate_category_indexes \
-  --taxonomy RAG/data/category_taxonomy_v2_build.json \
-  --category-root RAG/data/rag_index_e5_by_cat_v2_build \
-  --device cuda --top-k 5 \
-  --output RAG/data/retrieval_validation_v2.json
+```powershell
+python -m pytest -c RAG/pytest.ini RAG/tests/unit -q
+python -m pytest -c RAG/pytest.ini RAG/tests/integration -q
+$env:RUN_RAG_REGRESSION='1'
+python -m pytest -c RAG/pytest.ini RAG/tests/regression -q
 ```
 
-### 3) 查询（检索 topK 片段）
+`unit` 默认适合 CI；`regression`、`slow`、`gpu` 需要本地模型或生产索引。
 
-```bash
-python RAG/query.py "麻醉镇痛的基本原则是什么？" --top-k 5
+## 容量基准
+
+```powershell
+python -m RAG.maintenance.benchmarks.run_capacity_benchmark
 ```
 
-也可用 JSON 输出（便于你后续接 DeepSeek/LLM 生成回答）：
-
-```bash
-python RAG/query.py "radiography positioning" --top-k 5 --as-json
-```
-
-#### 小块命中后拼接邻居（推荐用于喂给 LLM）
-
-对于英文书籍类语料，建议用“小块检索 + 邻居拼接”的方式获得更完整的证据链：
-
-```bash
-python RAG/query.py "Which medium is used for growing salmonellae?" --top-k 5 --multi-route --rewrite template --expand-neighbors 1
-```
-
-说明：
-- `--expand-neighbors 1` 会把命中 chunk 的 `i-1,i,i+1` 拼成一个更完整的 context（同一本书中重叠窗口会自动合并去重）
-- `--as-json` 时会输出 `{hits, contexts, expand_neighbors}`，其中 `contexts` 更适合直接作为 LLM 输入
-
-#### 加入 reranker（bge-reranker-large）
-
-推荐的顺序是：**先召回一批小块 candidates → reranker 重排 → 只取 topK 种子块 → 再做邻居拼接**。
-
-命令行用法示例（先召回 10 个候选，用 reranker 取最终 top5）：
-
-```bash
-python RAG/query.py "salmonellae culture medium" --multi-route --rewrite template --rerank --rerank-model BAAI/bge-reranker-large --rerank-candidates 10 --top-k 5 --expand-neighbors 1
-```
-
-#### 多路召回 + Query Rewrite（复杂 RAG 特质的扩展点）
-
-你现在可以在 `query.py` 开启多路召回（dense + bm25）并做 query 重写：
-
-```bash
-python RAG/query.py "Which medium is used for growing salmonellae?" --top-k 5 --multi-route --rewrite template
-```
-
-实现位置：
-- **Query 重写**：`simple_rag/query_rewrite.py`
-  - `NoRewrite`: 不重写
-  - `TemplateRewriter`: 规则/模板扩展（definition/what is/indications 等），便于你后续加“模板转换、术语扩展、题干清洗”等
-- **多路召回融合**：`simple_rag/retrieval.py`
-  - `MultiRouteRetriever`: 支持多个 retriever + 多 query 融合
-  - `build_default_multiroute`: 默认 dense + bm25 的便捷构造
-
-你可以通过“新增这些类的实例”来扩展复杂系统特质：
-- 替换/叠加 query rewriter（比如你后面加 LLM rewrite、同义词扩展、领域词典扩展）
-- 替换/叠加检索路由（dense/bm25/章节检索/书级检索/重排序器等）
-
-### 4) 产物说明
-
-索引目录 `RAG/data/rag_index/` 会生成：
-- `embeddings.npy`: 所有文本块的向量（已归一化）
-- `meta.jsonl`: 每个向量对应的文本块与来源信息
-- `store_config.json`: 向量库配置（dim 等）
-
----
-
-## 评测（Accuracy@K + Trace + 断点续传）
-
-你当前的评测主入口是：
-- `RAG/experiments/run_one_click_sweep.py`：一键跑组合（不同 embedding/index、不同策略、不同 k），并输出：
-  - `qa_sweep_results.csv`：组合级 Accuracy@K 汇总
-  - `qa_trace.jsonl`：逐题 trace（包含 contexts、reasoning_content、pred、是否正确），支持断点续传
-
-错题归因与截断影响检查：
-- `RAG/experiments/analyze_wrong_traces.py`：抽样错题（no_rag 错）并在 k=5 的各组合下做归因分析
-- `RAG/experiments/inspect_context_effect.py`：把 query 写死在脚本顶部，自由调截断参数，直观看“截断/切片”对 context 与作答的影响
-
-
+默认报告写入项目 `.test-tmp/reports/rag-runtime-capacity-20260824`，不会纳入 Git。基准不调用外部 LLM 或 Web Search。

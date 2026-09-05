@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown'
 import rehypeSanitize from 'rehype-sanitize'
 import { api } from './api'
 import { useAuth } from './auth'
+import { useConfirmation } from './Confirmation'
 import { writeClipboard } from './clipboard'
 
 type Preference = { theme: 'light' | 'dark' | 'system'; locale: string; default_expand_experts: boolean; memory_recall_enabled: boolean; memory_write_enabled: boolean }
@@ -62,7 +63,8 @@ function MemoryGroups({ items, busy, onDelete, onClear }: { items: MemoryItem[];
 }
 
 export function SettingsPage() {
-  const { user, logout } = useAuth(); const navigate = useNavigate()
+  const confirm = useConfirmation()
+  const { user, logout, refreshUser } = useAuth(); const navigate = useNavigate()
   const [preference, setPreference] = useState(defaults); const [panel, setPanel] = useState('')
   const [phrases, setPhrases] = useState<Phrase[]>([]); const [phraseTitle, setPhraseTitle] = useState(''); const [phraseContent, setPhraseContent] = useState('')
   const [memories, setMemories] = useState<MemoryItem[]>([]); const [memoryBusy, setMemoryBusy] = useState(false)
@@ -70,6 +72,7 @@ export function SettingsPage() {
   const [credits, setCredits] = useState({ balance: 0, reserved: 0 }); const [notice, setNotice] = useState('')
   const [displayName, setDisplayName] = useState(user?.display_name || '')
   const [editingPhrase, setEditingPhrase] = useState<Phrase | null>(null)
+  function closePanel() { setNewKey(''); setPanel('') }
 
   async function load() {
     const [p, phraseData, keyData, creditData] = await Promise.allSettled([
@@ -90,12 +93,12 @@ export function SettingsPage() {
   async function updatePhrase(event: FormEvent) { event.preventDefault(); if (!editingPhrase) return; await api(`/api/v1/me/common-phrases/${editingPhrase.id}`, { method: 'PATCH', body: JSON.stringify({ title: editingPhrase.title, content: editingPhrase.content, sort_order: editingPhrase.sort_order }) }); setEditingPhrase(null); await load() }
   async function deletePhrase(id: string) { await api(`/api/v1/me/common-phrases/${id}`, { method: 'DELETE' }); setPhrases(rows => rows.filter(row => row.id !== id)) }
   async function loadMemories() { setMemoryBusy(true); try { setMemories((await api<{items: MemoryItem[]}>('/api/v1/me/memories')).items) } finally { setMemoryBusy(false) } }
-  async function deleteMemory(item: MemoryItem) { const kind = item.type === 'short_term' ? '短期' : '长期'; if (!confirm(`这会永久删除所选${kind}记忆，但不会删除历史对话。是否继续？`)) return; await api(`/api/v1/me/memories/${encodeURIComponent(item.id)}`, { method: 'DELETE' }); await loadMemories() }
-  async function clearMemories(scope: MemoryScope) { const labels: Record<MemoryScope, string> = { short_term: '短期记忆', knowledge: '长期记忆', profile: '用户画像' }; const label = labels[scope]; if (!confirm(`确定清空全部${label}吗？此操作无法恢复。`)) return; await api('/api/v1/me/memories', { method: 'DELETE', body: JSON.stringify({ scope }) }); await loadMemories(); setNotice(`${label}已清空`) }
+  async function deleteMemory(item: MemoryItem) { const kind = item.type === 'short_term' ? '短期' : '长期'; if (!await confirm(`这会永久删除所选${kind}记忆，但不会删除历史对话。是否继续？`)) return; await api(`/api/v1/me/memories/${encodeURIComponent(item.id)}`, { method: 'DELETE' }); await loadMemories() }
+  async function clearMemories(scope: MemoryScope) { const labels: Record<MemoryScope, string> = { short_term: '短期记忆', knowledge: '长期记忆', profile: '用户画像' }; const label = labels[scope]; if (!await confirm(`确定清空全部${label}吗？此操作无法恢复。`)) return; await api('/api/v1/me/memories', { method: 'DELETE', body: JSON.stringify({ scope }) }); await loadMemories(); setNotice(`${label}已清空`) }
   async function createKey(event: FormEvent) { event.preventDefault(); const created = await api<{key: string}>('/api/v1/me/api-keys', { method: 'POST', body: JSON.stringify({ name: keyName, scopes: ['chat:write', 'models:read', 'runs:read'] }) }); setNewKey(created.key); setKeyName(''); await load() }
-  async function revokeKey(id: string) { if (!confirm('撤销后使用该密钥的客户端会立即失效。')) return; await api(`/api/v1/me/api-keys/${id}`, { method: 'DELETE' }); await load(); setNotice('原密钥已立即失效，无法恢复。') }
+  async function revokeKey(id: string) { if (!await confirm('撤销后使用该密钥的客户端会立即失效。')) return; await api(`/api/v1/me/api-keys/${id}`, { method: 'DELETE' }); await load(); setNotice('原密钥已立即失效，无法恢复。') }
   async function signOut() { await logout(); navigate('/login', { replace: true }) }
-  async function saveProfile(event: FormEvent) { event.preventDefault(); await api('/api/v1/me', { method: 'PATCH', body: JSON.stringify({ display_name: displayName }) }); setNotice('账号信息已保存'); setPanel('') }
+  async function saveProfile(event: FormEvent) { event.preventDefault(); try { await api('/api/v1/me', { method: 'PATCH', body: JSON.stringify({ display_name: displayName }) }); await refreshUser(); setNotice('账号信息已保存'); setPanel('') } catch (e) { setNotice(e instanceof Error ? e.message : '账号保存失败') } }
 
   const row = (icon: ReactNode, label: string, value: string, action: () => void) => <button className="setting-row" onClick={action}>{icon}<span>{label}</span><small>{value}</small><ChevronRight /></button>
   return <main className="settings-page"><header><p className="eyebrow">PETMIND PREFERENCES</p><h1>设置</h1></header>
@@ -107,7 +110,7 @@ export function SettingsPage() {
     <section><h2>帮助与关于</h2><div className="settings-group">{row(<UserRound />, '帮助中心', '', () => setPanel('help'))}{row(<MessageSquareText />, '反馈问题', '', () => navigate('/feedback'))}<Link className="setting-row" to="/legal/terms"><ShieldCheck /><span>用户协议</span><ChevronRight /></Link><Link className="setting-row" to="/legal/privacy"><ShieldCheck /><span>隐私政策</span><ChevronRight /></Link>{row(<Sparkles />, '功能介绍', '', () => setPanel('features'))}</div></section>
     <button className="settings-logout" onClick={signOut}><LogOut />退出登录</button>{notice && <div className="notice">{notice}</div>}
 
-    {panel && <div className="settings-modal" onMouseDown={event => { if (event.target === event.currentTarget) setPanel('') }}><div className={`settings-modal-card${panel === 'memory' ? ' memory-modal-card' : ''}`}><button className="modal-close" aria-label="关闭设置弹窗" onClick={() => setPanel('')}>×</button>
+    {panel && <div className="settings-modal" onMouseDown={event => { if (event.target === event.currentTarget) closePanel() }}><div className={`settings-modal-card${panel === 'memory' ? ' memory-modal-card' : ''}`}><button className="modal-close" aria-label="关闭设置弹窗" onClick={closePanel}>×</button>
       {panel === 'profile' && <div className="account-settings"><h2>账号设置</h2><div className="account-settings-avatar" aria-label="当前头像">{user?.display_name?.[0] || '医'}</div><form onSubmit={saveProfile}><label>显示名称<input required value={displayName} onChange={e => setDisplayName(e.target.value)} maxLength={100} placeholder="填写你的显示名称" /></label><label>登录邮箱<input readOnly value={user?.email || ''} /></label><button className="primary">保存</button></form></div>}
       {panel === 'phrases' && <><h2>常用语</h2>{editingPhrase ? <form onSubmit={updatePhrase}><input value={editingPhrase.title} onChange={e => setEditingPhrase({ ...editingPhrase, title: e.target.value })} placeholder="名称（可选）" maxLength={100} /><textarea required value={editingPhrase.content} onChange={e => setEditingPhrase({ ...editingPhrase, content: e.target.value })} maxLength={2000} /><div className="inline-form"><button type="button" onClick={() => setEditingPhrase(null)}>取消</button><button className="primary">保存修改</button></div></form> : <form onSubmit={addPhrase}><input value={phraseTitle} onChange={e => setPhraseTitle(e.target.value)} placeholder="名称（可选）" maxLength={100} /><textarea required value={phraseContent} onChange={e => setPhraseContent(e.target.value)} placeholder="输入常用病例描述或要求" maxLength={2000} /><button className="primary">保存常用语</button></form>}<div className="memory-list">{phrases.map(item => <article key={item.id}><button className="phrase-main" onClick={() => setEditingPhrase(item)}><strong>{item.title || '未命名常用语'}</strong><p>{item.content}</p></button><button aria-label="删除常用语" onClick={() => deletePhrase(item.id)}><Trash2 /></button></article>)}</div></>}
       {panel === 'memory' && <><h2>记忆</h2><p className="muted">系统会自动整理短期和长期记忆；删除对话不会影响已经形成的记忆。</p><div className="toggle-grid"><label>允许调用记忆<input type="checkbox" checked={preference.memory_recall_enabled} onChange={e => patchPreference({ memory_recall_enabled: e.target.checked })} /></label><label>允许写入记忆<input type="checkbox" checked={preference.memory_write_enabled} onChange={e => patchPreference({ memory_write_enabled: e.target.checked })} /></label></div><MemoryGroups items={memories} busy={memoryBusy} onDelete={deleteMemory} onClear={clearMemories} /></>}

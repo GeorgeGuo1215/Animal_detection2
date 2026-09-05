@@ -8,17 +8,17 @@ import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from app.concurrency import AsyncResourceLimiter
-from app.llm.llm_client_stream import AsyncOpenAIStreamClient
-from app.llm.openai_compat import build_chat_payload
-from app.schemas.openai_schemas import ChatCompletionChoice, ChatMessage
-from app.services.moe.critic import CriticResult
-from app.services.moe.orchestrator import (
+from agent_api.app.concurrency import AsyncResourceLimiter
+from agent_api.app.integrations.llm.client import AsyncOpenAIStreamClient
+from agent_api.app.integrations.llm.config import build_chat_payload
+from agent_api.app.schemas.openai_schemas import ChatCompletionChoice, ChatMessage
+from agent_api.app.services.moe.critic import CriticResult
+from agent_api.app.services.moe.orchestration.service import (
     MoEOrchestrator,
     OrchestratorConfig,
     normalize_finish_reason,
 )
-from app.tools.tool_registry import ToolRegistry
+from agent_api.app.tools.tool_registry import ToolRegistry
 
 
 class _StageOrchestrator(MoEOrchestrator):
@@ -216,7 +216,7 @@ def test_interrupted_partial_stream_resets_and_uses_complete_fallback():
 
 def test_stream_client_preserves_upstream_length_reason(monkeypatch: pytest.MonkeyPatch):
     """验证流式客户端保留上游的 length 结束原因。"""
-    import app.llm.llm_client_stream as stream_module
+    import agent_api.app.integrations.llm.client as stream_module
 
     class FakeResponse:
         def raise_for_status(self):

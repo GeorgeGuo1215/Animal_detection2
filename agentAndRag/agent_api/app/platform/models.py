@@ -261,6 +261,11 @@ class AgentRun(Base, TimestampMixin):
     reserved_credits: Mapped[int] = mapped_column(Integer, default=0)
     actual_credits: Mapped[int] = mapped_column(Integer, default=0)
     cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False)
+    claimed_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    execution_epoch: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    event_sequence: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    memory_status: Mapped[str] = mapped_column(String(20), default="disabled", server_default="disabled")
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

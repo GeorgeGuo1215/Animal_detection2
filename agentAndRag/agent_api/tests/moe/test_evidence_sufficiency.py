@@ -5,10 +5,10 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from app.prompts.moe_evidence_sufficiency import (  # noqa: E402
+from agent_api.app.prompts.moe_evidence_sufficiency import (  # noqa: E402
     EVIDENCE_SUFFICIENCY_SYSTEM_PROMPT,
 )
-from app.services.moe.evidence_sufficiency import (  # noqa: E402
+from agent_api.app.services.moe.evidence_sufficiency import (  # noqa: E402
     EvidenceSufficiencyItem,
     _prompt_items,
     parse_evidence_sufficiency,

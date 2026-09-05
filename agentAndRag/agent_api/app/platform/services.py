@@ -3,7 +3,8 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models import (
@@ -127,14 +128,16 @@ async def audit(
 
 async def ensure_credit_account(session: AsyncSession, user_id: str, *, lock: bool = False) -> CreditAccount:
     """获取用户积分账户，不存在则创建；``lock=True`` 时使用 ``FOR UPDATE``。"""
-    statement = select(CreditAccount).where(CreditAccount.user_id == user_id)
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+    from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+    insert = pg_insert if session.get_bind().dialect.name == "postgresql" else sqlite_insert
+    await session.execute(insert(CreditAccount).values(user_id=user_id, balance=0, reserved=0)
+                          .on_conflict_do_nothing(index_elements=[CreditAccount.user_id]))
     if lock:
-        statement = statement.with_for_update()
-    account = await session.scalar(statement)
-    if account is None:
-        account = CreditAccount(user_id=user_id, balance=0, reserved=0)
-        session.add(account)
-        await session.flush()
+        await session.execute(update(CreditAccount).where(CreditAccount.user_id == user_id)
+                              .values(balance=CreditAccount.balance))
+    account = await session.get(CreditAccount, user_id, populate_existing=True)
+    assert account is not None
     return account
 
 
@@ -153,18 +156,27 @@ async def adjust_credits(
     同一 ``idempotency_key`` 重复调用直接返回已有账本记录。
     调整后余额不得低于已预留额度，也不得为负。
     """
-    existing = await session.scalar(select(CreditLedger).where(
+    statement = select(CreditLedger).where(
         CreditLedger.user_id == user_id,
         CreditLedger.idempotency_key == idempotency_key,
-    ))
-    if existing is not None:
+    )
+    def checked(existing: CreditLedger) -> CreditLedger:
+        if (existing.amount, existing.reason, existing.reference_type, existing.reference_id) != (
+            int(amount), reason, reference_type, reference_id,
+        ):
+            raise ValueError("idempotency key conflicts with a different credit adjustment")
         return existing
+    existing = await session.scalar(statement)
+    if existing is not None:
+        return checked(existing)
     account = await ensure_credit_account(session, user_id, lock=True)
+    # The first lookup can precede another transaction's commit while waiting for this lock.
+    existing = await session.scalar(statement)
+    if existing is not None:
+        return checked(existing)
     new_balance = account.balance + int(amount)
     if new_balance < account.reserved or new_balance < 0:
         raise ValueError("insufficient credits")
-    account.balance = new_balance
-    account.updated_at = utcnow()
     ledger = CreditLedger(
         user_id=user_id,
         amount=int(amount),
@@ -174,8 +186,17 @@ async def adjust_credits(
         reference_id=reference_id,
         idempotency_key=idempotency_key,
     )
-    session.add(ledger)
-    await session.flush()
+    try:
+        async with session.begin_nested():
+            account.balance = new_balance
+            account.updated_at = utcnow()
+            session.add(ledger)
+            await session.flush()
+    except IntegrityError:
+        existing = await session.scalar(statement)
+        if existing is None:
+            raise
+        return checked(existing)
     return ledger
 
 

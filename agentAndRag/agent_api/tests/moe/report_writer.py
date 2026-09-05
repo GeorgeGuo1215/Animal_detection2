@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List
 
-from app.services.moe.trace import MoETrace
+from agent_api.app.services.moe.trace import MoETrace
 
 
 def _esc_cell(s: Any) -> str:

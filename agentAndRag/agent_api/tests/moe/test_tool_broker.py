@@ -6,8 +6,8 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from app.services.moe.tool_broker import ToolBroker, ToolRequest
-from app.tools.tool_registry import ToolRegistry, ToolSpec
+from agent_api.app.services.moe.tool_broker import ToolBroker, ToolRequest
+from agent_api.app.tools.tool_registry import ToolRegistry, ToolSpec
 
 
 def test_different_rag_requests_are_not_deduplicated_and_run_serially():
@@ -288,7 +288,7 @@ def test_non_english_rag_query_is_rejected_without_execution():
 
 def test_direct_rag_tool_rejects_non_english_query_before_loading_index():
     """验证直接 RAG 工具在加载索引前拒绝非英文查询。"""
-    from app.tools.rag_tools import rag_search_tool
+    from agent_api.app.tools.rag_tools import rag_search_tool
 
     try:
         rag_search_tool(query="猫尿道梗阻指南")

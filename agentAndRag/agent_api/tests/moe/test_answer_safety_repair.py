@@ -6,15 +6,15 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from app.prompts.moe_answer_safety import build_answer_safety_messages
-from app.services.moe.orchestrator import (
+from agent_api.app.prompts.moe_answer_safety import build_answer_safety_messages
+from agent_api.app.services.moe.orchestration.service import (
     MoEOrchestrator,
     OrchestratorConfig,
     _answer_requires_evidence_repair,
     _explicit_forbidden_claims,
     _remove_forbidden_claims,
 )
-from app.tools.tool_registry import ToolRegistry
+from agent_api.app.tools.tool_registry import ToolRegistry
 
 
 def _audit(status: str):

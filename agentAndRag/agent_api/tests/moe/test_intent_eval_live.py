@@ -10,7 +10,7 @@ _AGENT_API = _MOE_TESTS.parents[1]
 sys.path.insert(0, str(_AGENT_API))
 sys.path.insert(0, str(_MOE_TESTS))
 
-from app.prompts.intent_contracts import INTENT_SPECS, intent_required_sections  # noqa: E402
+from agent_api.app.prompts.intent_contracts import INTENT_SPECS, intent_required_sections  # noqa: E402
 from run_intent_eval_live import CASES, EvalResult, revalidate_results, validate  # noqa: E402
 
 

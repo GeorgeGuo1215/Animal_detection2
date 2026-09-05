@@ -2,6 +2,7 @@ import type { TraceNode } from './types'
 
 export const phaseLabels: Record<string, string> = {
   queued: '等待会诊资源',
+  cancelling: '正在停止生成',
   reconnecting: '正在恢复会诊流',
   understanding: '理解问题',
   routing: '组织会诊路径',

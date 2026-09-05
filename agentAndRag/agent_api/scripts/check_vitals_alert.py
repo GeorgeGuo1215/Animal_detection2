@@ -25,8 +25,8 @@ for _p in (_AGENT_API, _REPO_ROOT):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from app.mcp.mcp_client import call_mcp_tool_async, list_mcp_tools_async  # noqa: E402
-from app.mcp.mcp_config import load_mcp_servers  # noqa: E402
+from agent_api.app.mcp.mcp_client import call_mcp_tool_async, list_mcp_tools_async  # noqa: E402
+from agent_api.app.mcp.mcp_config import load_mcp_servers  # noqa: E402
 
 SERVER_NAME = "vitals_alert"
 
@@ -44,8 +44,8 @@ def _unwrap(result: dict) -> dict:
 
 async def _check_registry() -> bool:
     """复用后端启动时的 MCP 注册流程，确认 vitals_alert 工具已挂上。"""
-    from app.tools.tool_registry import ToolRegistry
-    from app.tools.tools_mcp import register_mcp_tools_async
+    from agent_api.app.tools.tool_registry import ToolRegistry
+    from agent_api.app.tools.tools_mcp import register_mcp_tools_async
 
     registry = ToolRegistry()
     summary = await register_mcp_tools_async(registry)

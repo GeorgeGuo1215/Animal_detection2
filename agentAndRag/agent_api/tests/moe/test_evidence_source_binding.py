@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from app.prompts.moe_aggregator import build_aggregator_prompt
-from app.services.moe.orchestrator import (
+from agent_api.app.prompts.moe_aggregator import build_aggregator_prompt
+from agent_api.app.services.moe.orchestration.service import (
     _collect_retrieved_sources,
     _evidence_audit_summary,
 )

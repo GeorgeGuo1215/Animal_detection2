@@ -5,8 +5,8 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from app.routers.routes_openai import _resolve_request_allowed_tools
-from app.schemas.openai_schemas import ChatCompletionRequest, ChatMessage
+from agent_api.app.routers.routes_openai import _resolve_request_allowed_tools
+from agent_api.app.schemas.openai_schemas import ChatCompletionRequest, ChatMessage
 
 
 AVAILABLE = {"rag.search", "mcp.vitals_alert.check_vitals", "mcp.web_search.web_search"}

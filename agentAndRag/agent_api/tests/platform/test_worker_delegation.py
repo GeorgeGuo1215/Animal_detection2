@@ -7,8 +7,9 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 import httpx
 
-from agent_api.app.routers import routes_chat_ui, routes_openai
-from agent_api.app.schemas.chat_moe import ChatMoeCompletionRequest
+from agent_api.app.features.chat_moe import router as routes_chat_ui
+from agent_api.app.routers import routes_openai
+from agent_api.app.features.chat_moe.schemas import ChatMoeCompletionRequest
 from agent_api.app.schemas.openai_schemas import ChatCompletionRequest
 from agent_api.app.platform.config import reset_platform_settings_cache
 from agent_api.app.worker_proxy import should_delegate_agent_execution

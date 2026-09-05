@@ -7,7 +7,7 @@ import re
 
 from agent_api.app.prompts.solve import build_solve_prompt
 from agent_api.app.services.moe.critic import CriticResult
-from agent_api.app.services.moe.orchestrator import MoEOrchestrator, OrchestratorConfig
+from agent_api.app.services.moe.orchestration.service import MoEOrchestrator, OrchestratorConfig
 from agent_api.app.services.moe.retrieval_policy import EvidenceTask
 from agent_api.app.services.moe.router import RouterDecision
 from agent_api.app.services.moe.trace import MoETrace, extract_usage

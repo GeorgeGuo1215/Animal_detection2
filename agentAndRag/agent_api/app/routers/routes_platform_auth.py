@@ -418,6 +418,7 @@ async def create_user_api_key(
         idempotency_key=idem,
     )
     session.add(key)
+    await session.flush()
     await audit(session, action="api_key.created", resource_type="api_key", actor_user_id=principal.user_id, resource_id=key.id)
     await session.commit()
     return {"id": key.id, "name": key.name, "key": raw, "prefix": prefix, "scopes": key.scopes}

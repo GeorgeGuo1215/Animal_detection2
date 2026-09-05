@@ -74,3 +74,11 @@ git-filter-repo/
 git-filter-repo
 agentAndRag/MemoryOS-upstream/
 agentAndRag/memory_service/reports/
+
+# Local validation workspaces (never publish books, credentials or databases)
+.test-tmp/
+**/.test-tmp/
+.pnpm-store/
+.codex-test-final/
+.doc-work/
+tmp/

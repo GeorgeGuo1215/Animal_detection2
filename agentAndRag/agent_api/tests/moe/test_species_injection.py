@@ -9,7 +9,7 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from app.prompts.moe_task_policy import build_task_policy_messages
+from agent_api.app.prompts.moe_task_policy import build_task_policy_messages
 
 
 SENTINEL = "SPECIES_SENTINEL_XYZ"

@@ -1,6 +1,6 @@
 # PetMind 兽医 Agent 生产平台维护文档
 
-> 最后全量核对：2026-08-23（Asia/Shanghai）
+> 最后全量核对：2026-08-24（Asia/Shanghai）
 >
 > Docker Nginx 部署复核：2026-08-18（Asia/Shanghai）
 >
@@ -46,6 +46,7 @@
 26. LLM 流式/非流式调用共用一个异步 HTTP 连接池；应用并发槽位负责在途任务上限，httpx 连接池只负责 TCP/Keep-Alive 容量。
 27. `animal_id` 使用可嵌套并可靠复位的工具请求作用域，不以全局变量或 HTTP 中间件代替；异常、取消及 SSE 断开不会把动物身份泄漏到下一请求。
 28. 用户消息气泡外提供复制和再次编写，助手消息提供复制、赞同/不赞同和从指定消息创建分支；赞踩状态、更新时间、来源会话及分支点均写入 Agent PostgreSQL，并执行用户归属校验和审计记录。
+29. RAG 已收敛为 `simple_rag` 生产核心、`maintenance` 离线运维和分层测试三类目录；生产请求路径不再依赖查询 CLI、历史实验或旧 HNSW 实现。
 
 首期明确不做：
 
@@ -138,7 +139,12 @@ Animal_detection2/
     |   |-- scripts/bootstrap_platform_admin.py
     |   `-- tests/platform/               # 平台专项测试
     |-- memory_service/                   # 独立记忆 API + Worker + SQL + 测试
-    |-- RAG/                              # ingest、检索和本地索引
+    |-- RAG/
+    |   |-- simple_rag/                   # 生产检索、重排和上下文核心
+    |   |-- maintenance/indexing/         # 建库、增量导入、分类与校验
+    |   |-- maintenance/benchmarks/       # CPU/GPU、并发与容量基准
+    |   |-- tests/{unit,integration,regression,fixtures}/
+    |   `-- data/                         # 当前索引、taxonomy 与分类表
     |-- mcp_servers/                      # WebSearch、营养、体征 MCP
     `-- agent_api_logs/                   # 本地日志/SQLite，禁止提交
 ```
@@ -406,6 +412,10 @@ MoE 的 Task Policy、专家结构化意见、Critic 与 Aggregator 对 DeepSeek
 
 RAG 当前使用 multilingual-e5-small、384 维向量、Dense/BM25/邻居扩展/可选 CrossEncoder 重排和分类索引。索引位于 `RAG/data/`，体积大且禁止提交。分类配置复制到 data 中，但活动路径迁移服务器后必须重新核对。MoE 专家提交 `rag.search.query` 时使用英语，用户输入和最终回答仍可为中文。
 
+RAG 生产模块只能导入 `RAG.simple_rag`；建库、增量导入、分类切分和容量测试统一位于 `RAG.maintenance`。手工查询入口为 `python -m RAG.maintenance.query`，分类重建入口为 `python -m RAG.maintenance.indexing.rebuild_category_indexes`。旧 `RAG.tools`、`RAG.experiments`、根级 `ingest.py/query.py` 和 HNSW 实现已从生产树移除。
+
+2026-08-24 本机隔离基准：当前 GPU 方案（Embedding + Reranker 均为 CUDA）热查询 P50 264.9 ms、P95 292.7 ms、约 3.59 QPS；CPU Reranker P95 约 6.6 s，不适合生产热路径。单卡启动 2/3 个完整模型副本后热查询总吞吐降至约 2.46/2.43 QPS，说明模型争用抵消实例数收益。无 Reranker 的 13 ms 只作为性能下界，24 条分类/目标书籍用例不足以证明段落级质量不下降，不能据此关闭生产 Reranker。可溯源报告位于本地忽略目录 `../.test-tmp/reports/rag-runtime-capacity-20260824/`。
+
 2026-08-14 真实联调：同一测试用户跨会话召回宠物“小栗”和标记 `MEM-c9032c50`；随后真实调用 `mcp.web_search.web_search` 检索 WSAVA 疫苗指南。QA 审计记录 `tools_used=["mcp.web_search.web_search"]`、`used_web_search=1`，终答包含 VIN/PMC 来源链接，并成功写回记忆。
 
 ## 12. 前端实现
@@ -558,11 +568,14 @@ systemd 模板当前指向 `/home/sam/Animal_detection2/agentAndRag`、Python �
 
 ## 17. 验证基线
 
-2026-08-23 最新自动化回归（真实 DeepSeek 生命周期测试见下方独立记录）：
+2026-08-24 最新自动化回归（真实 DeepSeek 生命周期测试见下方独立记录）：
 
 | 范围 | 结果 |
 | --- | --- |
 | Agent API + Memory + RAG 全量 pytest | 468 passed |
+| 本轮 Agent API 全量 pytest | 311 passed |
+| RAG 快速单元/小索引集成 | 24 passed / 10 passed |
+| RAG 真实 GPU 分类检索回归 | 24 passed，覆盖 D1～D8、分类隔离和目标书籍 Top-5 |
 | Alembic 空库升级/全量回滚/再次升级 | passed（revision `20260823_0004`） |
 | 前端 Vitest | 10 passed |
 | 前端 ESLint | passed（0 error，0 warning） |

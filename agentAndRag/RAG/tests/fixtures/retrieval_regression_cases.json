@@ -1,0 +1,335 @@
+[
+  {
+    "id": "D1-01",
+    "domain": "D1",
+    "query": "feline urethral obstruction emergency stabilization hyperkalemia",
+    "category": "clinical.emergency_critical",
+    "expected_books": [
+      "052"
+    ],
+    "evidence_patterns": [
+      "urethr|urinary obstruction",
+      "hyperkal|potassium"
+    ]
+  },
+  {
+    "id": "D1-02",
+    "domain": "D1",
+    "query": "veterinary shock initial fluid resuscitation monitoring",
+    "category": "clinical.emergency_critical",
+    "expected_books": [
+      "052"
+    ],
+    "evidence_patterns": [
+      "shock|resuscitat",
+      "fluid|perfusion"
+    ]
+  },
+  {
+    "id": "D1-03",
+    "domain": "D1",
+    "query": "acute respiratory distress oxygen therapy triage dog cat",
+    "category": "clinical.emergency_critical",
+    "expected_books": [
+      "052"
+    ],
+    "evidence_patterns": [
+      "respiratory|ARDS",
+      "oxygen|hypox"
+    ]
+  },
+  {
+    "id": "D2-01",
+    "domain": "D2",
+    "query": "feline chronic kidney disease diagnosis staging management",
+    "category": "clinical.internal_medicine",
+    "expected_books": [
+      "037",
+      "033",
+      "058"
+    ],
+    "evidence_patterns": [
+      "kidney|renal|CKD",
+      "stag|manag|treat"
+    ]
+  },
+  {
+    "id": "D2-02",
+    "domain": "D2",
+    "query": "canine diabetes mellitus insulin monitoring complications",
+    "category": "clinical.internal_medicine",
+    "expected_books": [
+      "037",
+      "033",
+      "058"
+    ],
+    "evidence_patterns": [
+      "diabet|insulin",
+      "monitor|hypoglyc|complicat"
+    ]
+  },
+  {
+    "id": "D2-03",
+    "domain": "D2",
+    "query": "dog chronic cough differential diagnosis internal medicine",
+    "category": "clinical.internal_medicine",
+    "expected_books": [
+      "037",
+      "033",
+      "058"
+    ],
+    "evidence_patterns": [
+      "cough|bronch",
+      "diagnos|differential"
+    ]
+  },
+  {
+    "id": "D3-01",
+    "domain": "D3",
+    "query": "small animal surgical wound closure suture principles",
+    "category": "clinical.surgery",
+    "expected_books": [
+      "056",
+      "066",
+      "024"
+    ],
+    "evidence_patterns": [
+      "sutur|wound",
+      "clos|tension|tissue"
+    ]
+  },
+  {
+    "id": "D3-02",
+    "domain": "D3",
+    "query": "canine intestinal foreign body surgical management",
+    "category": "clinical.surgery",
+    "expected_books": [
+      "056",
+      "066",
+      "024"
+    ],
+    "evidence_patterns": [
+      "intestin|bowel",
+      "foreign body|foreign bodies|obstruct"
+    ]
+  },
+  {
+    "id": "D3-03",
+    "domain": "D3",
+    "query": "postoperative complications monitoring small animal surgery",
+    "category": "clinical.surgery",
+    "expected_books": [
+      "056",
+      "066",
+      "024"
+    ],
+    "evidence_patterns": [
+      "postoperat",
+      "monitor|complicat|assess"
+    ]
+  },
+  {
+    "id": "D4-01",
+    "domain": "D4",
+    "query": "feline polyuria polydipsia differential diagnosis",
+    "category": "diagnostics.differential",
+    "expected_books": [
+      "047"
+    ],
+    "evidence_patterns": [
+      "polyuria|polydipsia",
+      "renal|kidney|diabet|differential"
+    ]
+  },
+  {
+    "id": "D4-02",
+    "domain": "D4",
+    "query": "canine anemia differential diagnosis diagnostic approach",
+    "category": "diagnostics.differential",
+    "expected_books": [
+      "047"
+    ],
+    "evidence_patterns": [
+      "anemia|anaemia",
+      "hemoly|haemoly|blood loss|erythro|diagnos"
+    ]
+  },
+  {
+    "id": "D4-03",
+    "domain": "D4",
+    "query": "veterinary vomiting differential diagnosis problem list",
+    "category": "diagnostics.differential",
+    "expected_books": [
+      "047"
+    ],
+    "evidence_patterns": [
+      "vomit",
+      "differential|causes|obstruct|diagnos"
+    ]
+  },
+  {
+    "id": "D5-01",
+    "domain": "D5",
+    "query": "gabapentin dosage dogs cats veterinary drug handbook",
+    "category": "pharmacy.papich",
+    "expected_books": [
+      "049"
+    ],
+    "evidence_patterns": [
+      "gabapentin",
+      "dose|dosage|mg"
+    ]
+  },
+  {
+    "id": "D5-02",
+    "domain": "D5",
+    "query": "maropitant indications adverse effects dog cat",
+    "category": "pharmacy.papich",
+    "expected_books": [
+      "049"
+    ],
+    "evidence_patterns": [
+      "maropitant",
+      "adverse|vomit|emesis|side effect"
+    ]
+  },
+  {
+    "id": "D5-03",
+    "domain": "D5",
+    "query": "amoxicillin clavulanate veterinary dosage contraindications",
+    "category": "pharmacy.papich",
+    "expected_books": [
+      "049"
+    ],
+    "evidence_patterns": [
+      "amoxicillin|clavulan",
+      "dose|dosage|contraindicat"
+    ]
+  },
+  {
+    "id": "D6-01",
+    "domain": "D6",
+    "query": "canine separation anxiety behavior modification",
+    "category": "behavior.dog_cat_problems",
+    "expected_books": [
+      "029"
+    ],
+    "evidence_patterns": [
+      "separation|absence|alone",
+      "behavio|desensiti|countercondition"
+    ]
+  },
+  {
+    "id": "D6-02",
+    "domain": "D6",
+    "query": "dog aggression fear behavior assessment management",
+    "category": "behavior.dog_cat_problems",
+    "expected_books": [
+      "029"
+    ],
+    "evidence_patterns": [
+      "aggress|fear",
+      "assess|manage|treat|desensiti"
+    ]
+  },
+  {
+    "id": "D6-03",
+    "domain": "D6",
+    "query": "canine house soiling behavioral differential diagnosis",
+    "category": "behavior.dog_cat_problems",
+    "expected_books": [
+      "029"
+    ],
+    "evidence_patterns": [
+      "housesoil|house.soil|urination|defecation",
+      "diagnos|behavio|medical"
+    ]
+  },
+  {
+    "id": "D7-01",
+    "domain": "D7",
+    "query": "obesity weight loss nutritional plan dogs cats",
+    "category": "nutrition.general",
+    "expected_books": [
+      "076",
+      "077"
+    ],
+    "evidence_patterns": [
+      "obes|weight loss|ideal body weight",
+      "energy|calori|feed|diet"
+    ]
+  },
+  {
+    "id": "D7-02",
+    "domain": "D7",
+    "query": "feline chronic kidney disease dietary phosphorus nutrition",
+    "category": "nutrition.general",
+    "expected_books": [
+      "076",
+      "077"
+    ],
+    "evidence_patterns": [
+      "kidney|renal|CKD",
+      "phosphorus|phosphate"
+    ]
+  },
+  {
+    "id": "D7-03",
+    "domain": "D7",
+    "query": "growth nutrition requirements puppy kitten feeding",
+    "category": "nutrition.general",
+    "expected_books": [
+      "076",
+      "077"
+    ],
+    "evidence_patterns": [
+      "pupp|kitten|growth",
+      "nutrient|feed|protein|requirement"
+    ]
+  },
+  {
+    "id": "D8-01",
+    "domain": "D8",
+    "query": "canine congestive heart failure diagnosis treatment",
+    "category": "clinical.cardiology",
+    "expected_books": [
+      "045",
+      "031",
+      "046"
+    ],
+    "evidence_patterns": [
+      "heart failure|CHF",
+      "therap|treat|diagnos"
+    ]
+  },
+  {
+    "id": "D8-02",
+    "domain": "D8",
+    "query": "feline hypertrophic cardiomyopathy echocardiography",
+    "category": "clinical.cardiology",
+    "expected_books": [
+      "045",
+      "031",
+      "046"
+    ],
+    "evidence_patterns": [
+      "hypertrophic|HCM",
+      "echocardi|ventric"
+    ]
+  },
+  {
+    "id": "D8-03",
+    "domain": "D8",
+    "query": "dog cardiac murmur auscultation diagnostic evaluation",
+    "category": "clinical.cardiology",
+    "expected_books": [
+      "045",
+      "031",
+      "046"
+    ],
+    "evidence_patterns": [
+      "murmur|auscultat",
+      "diagnos|evaluat|cardiac"
+    ]
+  }
+]

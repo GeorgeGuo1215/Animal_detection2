@@ -12,8 +12,8 @@ import pytest
 _AGENT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_AGENT_ROOT))
 
-from app.concurrency import AsyncResourceLimiter, ResourceBusyError, SyncResourceLimiter  # noqa: E402
-from app.llm.llm_client_stream import AsyncOpenAIStreamClient  # noqa: E402
+from agent_api.app.concurrency import AsyncResourceLimiter, ResourceBusyError, SyncResourceLimiter  # noqa: E402
+from agent_api.app.integrations.llm.client import AsyncOpenAIStreamClient  # noqa: E402
 
 
 def test_async_limiter_caps_concurrency() -> None:
@@ -149,7 +149,7 @@ def test_async_and_sync_callers_share_one_counter() -> None:
 
 def test_stream_close_releases_llm_slot(monkeypatch: pytest.MonkeyPatch) -> None:
     """验证关闭流会释放 LLM 限流名额。"""
-    import app.llm.llm_client_stream as stream_module
+    import agent_api.app.integrations.llm.client as stream_module
 
     class _FakeResponse:
         def raise_for_status(self) -> None:

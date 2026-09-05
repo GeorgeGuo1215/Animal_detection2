@@ -36,7 +36,7 @@ def _warmup_rag_unlimited() -> dict[str, Any]:
             resolve_default_category_index_dirs,
         )
 
-        category_dirs = resolve_default_category_index_dirs(repo_root=repo_root)
+        category_dirs = list(dict.fromkeys(resolve_default_category_index_dirs(repo_root=repo_root)))
         category_root = default_category_root(repo_root).resolve()
         warmed: list[dict[str, Any]] = []
         index_size = 0

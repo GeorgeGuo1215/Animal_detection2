@@ -1,17 +1,16 @@
 {
-  "version": 2,
+  "version": 3,
   "generated_at": "2026-08-06T05:47:25.624823+00:00",
   "classification_file": "veterinary_materials_classification_2.0.xlsx",
   "embedding_model": "intfloat/multilingual-e5-small",
   "dim": 384,
   "chunking": {
-    "version": "semantic-v2",
-    "target_units": 380,
-    "overlap_units": 60,
-    "min_units": 30,
-    "unit": "English word or CJK character"
+    "version": "semantic-v3",
+    "target_tokens": 320,
+    "max_tokens": 384,
+    "overlap_tokens": 48
   },
-  "source_index": "RAG/data/rag_index_e5",
+  "source_index": "RAG/data/releases/clean-20260905/merged",
   "out_root": "RAG/data/rag_index_e5_by_cat",
   "matched_books": 79,
   "unmatched_books": [
@@ -44,7 +43,7 @@
       ]
     }
   ],
-  "total_chunks": 110964,
+  "total_chunks": 294317,
   "books": [
     {
       "book_id": "048",
@@ -964,8 +963,8 @@
         "books/039.mmd",
         "books/027.mmd"
       ],
-      "chunk_count": 4677,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/basic.anatomy"
+      "chunk_count": 9711,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "basic.terminology",
@@ -986,8 +985,8 @@
       "source_paths": [
         "books/064.mmd"
       ],
-      "chunk_count": 1171,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/basic.terminology"
+      "chunk_count": 2420,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "basic.physiology",
@@ -997,7 +996,7 @@
       "books": [],
       "source_paths": [],
       "chunk_count": 0,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/basic.physiology"
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "basic.pathology",
@@ -1027,8 +1026,8 @@
         "books/068.mmd",
         "books/069.mmd"
       ],
-      "chunk_count": 2321,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/basic.pathology"
+      "chunk_count": 7246,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "basic.histology",
@@ -1049,8 +1048,8 @@
       "source_paths": [
         "books/073.mmd"
       ],
-      "chunk_count": 548,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/basic.histology"
+      "chunk_count": 1628,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "basic.microbiology",
@@ -1060,7 +1059,7 @@
       "books": [],
       "source_paths": [],
       "chunk_count": 0,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/basic.microbiology"
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "basic.pharmacology_fundamentals",
@@ -1070,7 +1069,7 @@
       "books": [],
       "source_paths": [],
       "chunk_count": 0,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/basic.pharmacology_fundamentals"
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "clinical.internal_medicine",
@@ -1118,8 +1117,8 @@
         "books/058.mmd",
         "books/055.mmd"
       ],
-      "chunk_count": 15775,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/clinical.internal_medicine"
+      "chunk_count": 43407,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "clinical.surgery",
@@ -1158,8 +1157,8 @@
         "books/066.mmd",
         "books/024.mmd"
       ],
-      "chunk_count": 12418,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/clinical.surgery"
+      "chunk_count": 27627,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "clinical.emergency_critical",
@@ -1180,8 +1179,8 @@
       "source_paths": [
         "books/052.mmd"
       ],
-      "chunk_count": 3378,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/clinical.emergency_critical"
+      "chunk_count": 8336,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "clinical.cardiology",
@@ -1220,8 +1219,8 @@
         "books/045.mmd",
         "books/031.mmd"
       ],
-      "chunk_count": 1205,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/clinical.cardiology"
+      "chunk_count": 3462,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "clinical.dermatology",
@@ -1251,8 +1250,8 @@
         "books/053.mmd",
         "books/061.mmd"
       ],
-      "chunk_count": 662,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/clinical.dermatology"
+      "chunk_count": 1369,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "clinical.ophthalmology",
@@ -1273,8 +1272,8 @@
       "source_paths": [
         "books/050.mmd"
       ],
-      "chunk_count": 1223,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/clinical.ophthalmology"
+      "chunk_count": 3281,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "clinical.neurology",
@@ -1295,8 +1294,8 @@
       "source_paths": [
         "books/034.mmd"
       ],
-      "chunk_count": 19,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/clinical.neurology"
+      "chunk_count": 31,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "clinical.oncology",
@@ -1317,8 +1316,8 @@
       "source_paths": [
         "books/071.mmd"
       ],
-      "chunk_count": 1956,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/clinical.oncology"
+      "chunk_count": 4092,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "clinical.reference",
@@ -1356,8 +1355,8 @@
         "books/079.mmd",
         "books/083.mmd"
       ],
-      "chunk_count": 8580,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/clinical.reference"
+      "chunk_count": 35177,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "diagnostics.clinical_pathology",
@@ -1378,8 +1377,8 @@
       "source_paths": [
         "books/030.mmd"
       ],
-      "chunk_count": 1043,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/diagnostics.clinical_pathology"
+      "chunk_count": 2114,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "diagnostics.imaging",
@@ -1436,8 +1435,8 @@
         "books/027.mmd",
         "books/059.mmd"
       ],
-      "chunk_count": 6821,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/diagnostics.imaging"
+      "chunk_count": 14344,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "diagnostics.differential",
@@ -1458,8 +1457,8 @@
       "source_paths": [
         "books/047.mmd"
       ],
-      "chunk_count": 175,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/diagnostics.differential"
+      "chunk_count": 1779,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "diagnostics.laboratory",
@@ -1498,8 +1497,8 @@
         "books/042.mmd",
         "books/072.mmd"
       ],
-      "chunk_count": 1272,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/diagnostics.laboratory"
+      "chunk_count": 3762,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "pharmacy.papich",
@@ -1520,8 +1519,8 @@
       "source_paths": [
         "books/049.mmd"
       ],
-      "chunk_count": 1391,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/pharmacy.papich"
+      "chunk_count": 7780,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "pharmacy.applied_pharmacology",
@@ -1542,8 +1541,8 @@
       "source_paths": [
         "books/026.mmd"
       ],
-      "chunk_count": 851,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/pharmacy.applied_pharmacology"
+      "chunk_count": 3074,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "pharmacy.clinical_therapeutics",
@@ -1564,8 +1563,8 @@
       "source_paths": [
         "books/070.mmd"
       ],
-      "chunk_count": 1396,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/pharmacy.clinical_therapeutics"
+      "chunk_count": 4755,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "anesthesia.default",
@@ -1586,8 +1585,8 @@
       "source_paths": [
         "books/025.mmd"
       ],
-      "chunk_count": 1026,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/anesthesia.default"
+      "chunk_count": 2894,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "immunology.default",
@@ -1617,8 +1616,8 @@
       "source_paths": [
         "books/062.mmd"
       ],
-      "chunk_count": 571,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/immunology.default"
+      "chunk_count": 1335,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "reproduction.default",
@@ -1639,8 +1638,8 @@
       "source_paths": [
         "books/065.mmd"
       ],
-      "chunk_count": 2452,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/reproduction.default"
+      "chunk_count": 4659,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "behavior.dog_cat_problems",
@@ -1661,8 +1660,8 @@
       "source_paths": [
         "books/029.mmd"
       ],
-      "chunk_count": 1619,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/behavior.dog_cat_problems"
+      "chunk_count": 3524,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "behavior.feline_welfare",
@@ -1683,8 +1682,8 @@
       "source_paths": [
         "books/067.mmd"
       ],
-      "chunk_count": 1518,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/behavior.feline_welfare"
+      "chunk_count": 1865,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "integrative.general",
@@ -1694,7 +1693,7 @@
       "books": [],
       "source_paths": [],
       "chunk_count": 0,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/integrative.general"
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "clinical_skills.techniques",
@@ -1715,8 +1714,8 @@
       "source_paths": [
         "books/051.mmd"
       ],
-      "chunk_count": 208,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/clinical_skills.techniques"
+      "chunk_count": 740,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "clinical_skills.nursing",
@@ -1755,8 +1754,8 @@
         "books/032.mmd",
         "books/057.mmd"
       ],
-      "chunk_count": 1200,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/clinical_skills.nursing"
+      "chunk_count": 3069,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "infectious.placeholder",
@@ -1766,7 +1765,7 @@
       "books": [],
       "source_paths": [],
       "chunk_count": 0,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/infectious.placeholder"
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "infectious.general",
@@ -1796,8 +1795,8 @@
         "books/074.mmd",
         "books/075.mmd"
       ],
-      "chunk_count": 3658,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/infectious.general"
+      "chunk_count": 12442,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "nutrition.placeholder",
@@ -1807,7 +1806,7 @@
       "books": [],
       "source_paths": [],
       "chunk_count": 0,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/nutrition.placeholder"
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "nutrition.general",
@@ -1837,8 +1836,8 @@
         "books/076.mmd",
         "books/077.mmd"
       ],
-      "chunk_count": 2296,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/nutrition.general"
+      "chunk_count": 7327,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "exotic.default",
@@ -1886,8 +1885,8 @@
         "books/038.mmd",
         "books/041.mmd"
       ],
-      "chunk_count": 5226,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/exotic.default"
+      "chunk_count": 11983,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "equine.large_animal_internal",
@@ -1908,8 +1907,8 @@
       "source_paths": [
         "books/023.mmd"
       ],
-      "chunk_count": 7945,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/equine.large_animal_internal"
+      "chunk_count": 20593,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "equine.sports_medicine",
@@ -1939,8 +1938,8 @@
         "books/006.mmd",
         "books/010.mmd"
       ],
-      "chunk_count": 3466,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/equine.sports_medicine"
+      "chunk_count": 8108,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "equine.colic",
@@ -2015,8 +2014,8 @@
         "books/016.mmd",
         "books/017.mmd"
       ],
-      "chunk_count": 4228,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/equine.colic"
+      "chunk_count": 7770,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "equine.neurology",
@@ -2046,8 +2045,8 @@
         "books/020.mmd",
         "books/021.mmd"
       ],
-      "chunk_count": 1564,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/equine.neurology"
+      "chunk_count": 3353,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "equine.cardiology",
@@ -2068,8 +2067,8 @@
       "source_paths": [
         "books/009.mmd"
       ],
-      "chunk_count": 82,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/equine.cardiology"
+      "chunk_count": 171,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "equine.reproduction",
@@ -2090,8 +2089,8 @@
       "source_paths": [
         "books/008.mmd"
       ],
-      "chunk_count": 260,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/equine.reproduction"
+      "chunk_count": 596,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "equine.nutrition",
@@ -2112,8 +2111,8 @@
       "source_paths": [
         "books/022.mmd"
       ],
-      "chunk_count": 166,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/equine.nutrition"
+      "chunk_count": 556,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "equine.infectious",
@@ -2134,8 +2133,8 @@
       "source_paths": [
         "books/018.mmd"
       ],
-      "chunk_count": 653,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/equine.infectious"
+      "chunk_count": 1193,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "equine.oncology",
@@ -2156,8 +2155,8 @@
       "source_paths": [
         "books/007.mmd"
       ],
-      "chunk_count": 1608,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/equine.oncology"
+      "chunk_count": 5121,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "equine.complications",
@@ -2178,7 +2177,7 @@
       ],
       "source_paths": [],
       "chunk_count": 0,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/equine.complications"
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "zoonosis.toxoplasmosis",
@@ -2199,8 +2198,8 @@
       "source_paths": [
         "books/019.mmd"
       ],
-      "chunk_count": 861,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/zoonosis.toxoplasmosis"
+      "chunk_count": 3571,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "integrative.tcm_support",
@@ -2230,8 +2229,8 @@
         "books/040.mmd",
         "books/082.mmd"
       ],
-      "chunk_count": 1182,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/integrative.tcm_support"
+      "chunk_count": 3868,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "individual.genetics_breed",
@@ -2252,8 +2251,8 @@
       "source_paths": [
         "books/080.mmd"
       ],
-      "chunk_count": 271,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/individual.genetics_breed"
+      "chunk_count": 817,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "guidelines.general",
@@ -2318,8 +2317,8 @@
         "books/088.mmd",
         "books/089.mmd"
       ],
-      "chunk_count": 2302,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/guidelines.general"
+      "chunk_count": 3947,
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "individual.placeholder",
@@ -2329,7 +2328,7 @@
       "books": [],
       "source_paths": [],
       "chunk_count": 0,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/individual.placeholder"
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "tcm.placeholder",
@@ -2339,7 +2338,7 @@
       "books": [],
       "source_paths": [],
       "chunk_count": 0,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/tcm.placeholder"
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "guidelines.placeholder",
@@ -2349,7 +2348,7 @@
       "books": [],
       "source_paths": [],
       "chunk_count": 0,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/guidelines.placeholder"
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     },
     {
       "id": "profession.placeholder",
@@ -2359,7 +2358,7 @@
       "books": [],
       "source_paths": [],
       "chunk_count": 0,
-      "index_dir": "RAG/data/rag_index_e5_by_cat/profession.placeholder"
+      "index_dir": "RAG/data/releases/clean-20260905/merged"
     }
   ],
   "resolved_source_records": 84,
@@ -2394,5 +2393,7 @@
         "equine.colic"
       ]
     }
-  ]
+  ],
+  "release_id": "clean-20260905",
+  "merged_index": "RAG/data/releases/clean-20260905/merged"
 }

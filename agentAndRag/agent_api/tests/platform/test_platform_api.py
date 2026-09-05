@@ -10,7 +10,7 @@ from sqlalchemy import select
 from agent_api.app.platform.config import reset_platform_settings_cache
 from agent_api.app.platform.database import close_platform_database, init_platform_database, platform_session
 from agent_api.app.platform.expert_consultations import persist_expert_consultation
-from agent_api.app.platform.models import AgentRun, Conversation, ExpertConsultation, Invitation, Message, PlatformUser, RefreshToken, RunEvent, utcnow
+from agent_api.app.platform.models import AgentRun, AuditLog, Conversation, ExpertConsultation, Invitation, Message, PlatformUser, RefreshToken, RunEvent, utcnow
 from agent_api.app.platform.security import hash_password
 from agent_api.app.platform.services import grant_plan, seed_platform_plans, seed_platform_rbac
 from agent_api.app.middleware.auth import APIKeyAuthMiddleware
@@ -81,6 +81,9 @@ def test_auth_conversation_isolation_and_api_key(tmp_path, monkeypatch):
             assert key_response.status_code == 201
             raw_key = key_response.json()["key"]
             key_id = key_response.json()["id"]
+            async with platform_session() as session:
+                created_audit = await session.scalar(select(AuditLog).where(AuditLog.action == "api_key.created"))
+                assert created_audit.resource_id == key_id
             assert raw_key.startswith("pm_live_")
             replayed_key = await client.post(
                 "/api/v1/me/api-keys",
@@ -216,6 +219,9 @@ def test_support_admin_cannot_escalate_invitation_role_or_plan(tmp_path, monkeyp
                 json={"email": "vet-trial@example.com", "role": "VET", "initial_plan_code": "trial"},
             )
             assert ordinary.status_code == 201
+            async with platform_session() as session:
+                created_audit = await session.scalar(select(AuditLog).where(AuditLog.action == "invitation.created"))
+                assert created_audit.resource_id == ordinary.json()["id"]
 
             async with platform_session() as session:
                 protected = Invitation(

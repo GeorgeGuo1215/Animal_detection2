@@ -34,10 +34,43 @@ class CrossEncoderReranker:
         batch_size: int = 32,
     ) -> List[float]:
         q = (query or "").strip()
-        pairs: List[Tuple[str, str]] = [(q, (p or "").strip()) for p in passages]
+        if not passages:
+            return []
+        tokenizer = self.model.tokenizer
+        query_ids = tokenizer(q, add_special_tokens=False)["input_ids"]
+        if len(query_ids) > 256:
+            raise ValueError("reranker query exceeds 256 tokens")
+        limit = min(int(self.model.max_length or 512), 512)
+        budget = limit - len(query_ids) - tokenizer.num_special_tokens_to_add(pair=True)
+        if budget < 32:
+            raise ValueError("reranker pair budget too small")
+        pairs: List[Tuple[str, str]] = []
+        owners: list[int] = []
+        for index, passage in enumerate(passages):
+            text = (passage or "").strip()
+            encoded = tokenizer(text, add_special_tokens=False, return_offsets_mapping=True, verbose=False)
+            offsets = encoded["offset_mapping"]
+            if not offsets:
+                pairs.append((q, text)); owners.append(index)
+                continue
+            start = 0
+            while start < len(offsets):
+                end = min(start + budget, len(offsets))
+                window = text[offsets[start][0]:offsets[end-1][1]]
+                # Re-tokenizing a subword boundary can add a token; shrink to the actual pair budget.
+                while len(tokenizer(q, window)["input_ids"]) > limit and end > start + 1:
+                    end -= 1
+                    window = text[offsets[start][0]:offsets[end-1][1]]
+                pairs.append((q, window)); owners.append(index)
+                if end == len(offsets):
+                    break
+                start = max(start + 1, end - 32)
         # CrossEncoder.predict 返回 np.ndarray 或 list[float]
         scores = self.model.predict(pairs, batch_size=int(batch_size), show_progress_bar=False)
-        return [float(s) for s in scores]
+        result = [float("-inf")] * len(passages)
+        for owner, score in zip(owners, scores):
+            result[owner] = max(result[owner], float(score))
+        return result
 
     def rerank(
         self,

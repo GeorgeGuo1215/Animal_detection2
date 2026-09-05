@@ -9,10 +9,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 
 import pytest
 
-from app.sql_search.schema_catalog import ALLOWED_TABLES, validate_columns, validate_table
-from app.sql_search.query_compiler import compile_select
-from app.sql_search.tool import _merge_animal_scope
-from app.sql_search.animal_profile import species_label
+from agent_api.app.integrations.petmind_mysql.schema_catalog import ALLOWED_TABLES, validate_columns, validate_table
+from agent_api.app.integrations.petmind_mysql.query_compiler import compile_select
+from agent_api.app.integrations.petmind_mysql.readonly_tool import _merge_animal_scope
+from agent_api.app.integrations.petmind_mysql.animal_repository import species_label
 
 
 def test_whitelist_has_new_tables():
