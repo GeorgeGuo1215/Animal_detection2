@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import copy
 import json
 from datetime import datetime
 from typing import Any
@@ -9,6 +10,7 @@ from typing import Any
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.sqltypes import DateTime
+from .message_feedback import rating_to_good, good_to_rating
 
 from .models import (
     AgentRun,
@@ -83,7 +85,7 @@ async def export_records(session: AsyncSession, *, user_id: str) -> dict[str, An
         UsageRecord.__tablename__: [_row(item) for item in await by_runs(UsageRecord, UsageRecord.run_id)],
         CreditReservation.__tablename__: [_row(item) for item in await by_runs(CreditReservation, CreditReservation.run_id)],
     }
-    payload = {"schema_version": 1, "user_id": user_id, "records": records}
+    payload = {"schema_version": 2, "user_id": user_id, "records": records}
     return {**payload, "checksum": checksum(payload)}
 
 
@@ -116,14 +118,26 @@ async def restore_records(
         各表恢复的行数。
     """
     payload = {key: value for key, value in snapshot.items() if key != "checksum"}
-    if snapshot.get("schema_version") != 1 or snapshot.get("user_id") != user_id:
+    if snapshot.get("schema_version") not in (1, 2) or snapshot.get("user_id") != user_id:
         raise ValueError("snapshot schema or user does not match")
     if snapshot.get("checksum") != checksum(payload):
         raise ValueError("snapshot checksum mismatch")
-    records = snapshot.get("records")
+    records = copy.deepcopy(snapshot.get("records"))
     expected = {model.__tablename__ for model in _MODELS}
     if not isinstance(records, dict) or set(records) != expected:
         raise ValueError("snapshot record set is invalid")
+
+    for row in records[Message.__tablename__]:
+        if snapshot["schema_version"] == 1:
+            if "feedback_is_good" in row:
+                raise ValueError("v1 snapshot contains v2 feedback column")
+            row["feedback_is_good"] = rating_to_good(row.pop("feedback_rating", None))
+        good_to_rating(row.get("feedback_is_good"))  # Reject 0/1 and strings, preserve False.
+
+    # Validate every row before any destructive restore operation.
+    for model in _MODELS:
+        for row in records[model.__tablename__]:
+            _restore_values(model, row)
 
     conversations = list(records[Conversation.__tablename__])
     conversation_ids = {row.get("id") for row in conversations}

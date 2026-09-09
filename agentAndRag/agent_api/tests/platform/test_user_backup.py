@@ -71,6 +71,7 @@ def test_conversation_snapshot_overwrite_restore(tmp_path, monkeypatch):
                 run_id=run.id,
                 role="assistant",
                 content=run.response,
+                feedback_is_good=False,
             )
             session.add(answer)
             await session.flush()
@@ -89,6 +90,8 @@ def test_conversation_snapshot_overwrite_restore(tmp_path, monkeypatch):
         async with platform_session() as session:
             snapshot = await user_backup.export_records(session, user_id=user_id)
             assert snapshot["checksum"]
+            assert snapshot["schema_version"] == 2
+            assert any(row["feedback_is_good"] is False for row in snapshot["records"]["platform_messages"])
             conversation = await session.scalar(select(Conversation).where(
                 Conversation.user_id == user_id
             ))
@@ -109,11 +112,12 @@ def test_conversation_snapshot_overwrite_restore(tmp_path, monkeypatch):
             assert len(list((await session.scalars(select(RunEvent))).all())) == 1
 
         legacy_snapshot = copy.deepcopy(snapshot)
+        legacy_snapshot["schema_version"] = 1
         for row in legacy_snapshot["records"]["platform_conversations"]:
             row.pop("source_conversation_id")
             row.pop("forked_from_message_id")
         for row in legacy_snapshot["records"]["platform_messages"]:
-            row.pop("feedback_rating")
+            row.pop("feedback_is_good")
             row.pop("feedback_updated_at")
         legacy_payload = {
             key: value for key, value in legacy_snapshot.items() if key != "checksum"

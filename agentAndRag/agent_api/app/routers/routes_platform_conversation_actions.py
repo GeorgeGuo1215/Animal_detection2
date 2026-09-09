@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import timezone
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -8,11 +10,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..platform.database import get_platform_session
 from ..platform.dependencies import Principal, require_user_session
 from ..platform.models import Conversation, Message, utcnow
+from ..platform.message_feedback import rating_to_good
 from ..platform.schemas import ConversationForkRequest, MessageFeedbackRequest
 from ..platform.services import audit
 
 
 router = APIRouter(prefix="/api/v1", tags=["platform-conversation-actions"])
+
+
+def _feedback_payload(message: Message) -> dict:
+    updated = message.feedback_updated_at
+    if updated is not None and updated.tzinfo is None:
+        updated = updated.replace(tzinfo=timezone.utc)
+    return {"message_id": message.id, "rating": message.feedback_rating, "updated_at": updated}
 
 
 def _conversation_payload(item: Conversation, *, copied_messages: int) -> dict:
@@ -53,8 +63,9 @@ async def _owned_message(
     session: AsyncSession,
     user_id: str,
     message_id: str,
+    *, lock: bool = False,
 ) -> Message:
-    item = await session.scalar(
+    statement = (
         select(Message)
         .join(Conversation, Conversation.id == Message.conversation_id)
         .where(
@@ -63,6 +74,9 @@ async def _owned_message(
             Conversation.deleted_at.is_(None),
         )
     )
+    if lock:
+        statement = statement.with_for_update(of=Message)
+    item = await session.scalar(statement.execution_options(populate_existing=True))
     if item is None:
         raise HTTPException(status_code=404, detail="message not found")
     return item
@@ -77,10 +91,14 @@ async def set_message_feedback(
     session: AsyncSession = Depends(get_platform_session),
 ):
     """保存或取消当前用户对一条助手消息的赞踩。"""
-    message = await _owned_message(session, principal.user_id, message_id)
+    message = await _owned_message(session, principal.user_id, message_id, lock=True)
     if message.role != "assistant" or message.status != "complete":
         raise HTTPException(status_code=400, detail="only completed assistant messages can be rated")
-    message.feedback_rating = body.rating
+    next_value = rating_to_good(body.rating)
+    if message.feedback_is_good is next_value:
+        return _feedback_payload(message)
+    previous = message.feedback_is_good
+    message.feedback_is_good = next_value
     message.feedback_updated_at = utcnow() if body.rating else None
     await audit(
         session,
@@ -90,14 +108,10 @@ async def set_message_feedback(
         resource_id=message.id,
         request_id=getattr(request.state, "request_id", None),
         ip_address=request.client.host if request.client else None,
-        detail={"rating": body.rating},
+        detail={"rating": body.rating, "previous_is_good": previous, "is_good": next_value},
     )
     await session.commit()
-    return {
-        "message_id": message.id,
-        "rating": message.feedback_rating,
-        "updated_at": message.feedback_updated_at,
-    }
+    return _feedback_payload(message)
 
 
 @router.post("/conversations/{conversation_id}/forks", status_code=status.HTTP_201_CREATED)

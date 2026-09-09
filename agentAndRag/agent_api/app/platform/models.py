@@ -238,8 +238,14 @@ class Message(Base):
     content: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(20), default="complete")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
-    feedback_rating: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    feedback_is_good: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     feedback_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    @property
+    def feedback_rating(self) -> str | None:
+        """Legacy API representation; not a second stored value."""
+        from .message_feedback import good_to_rating
+        return good_to_rating(self.feedback_is_good)
 
 
 class AgentRun(Base, TimestampMixin):

@@ -241,6 +241,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--terracotta); box
 .message-actions>button{width:30px;height:30px;display:grid;place-items:center;border:0;border-radius:8px;background:transparent;color:inherit;cursor:pointer;transition:background .18s,color .18s,transform .18s}
 .message-actions>button:hover:not(:disabled){background:color-mix(in srgb,var(--paper-deep) 76%,transparent);color:var(--ink);transform:translateY(-1px)}
 .message-actions>button.selected{background:color-mix(in srgb,var(--sage) 17%,transparent);color:var(--sage)}
+.message-actions>button:focus-visible{outline:2px solid var(--sage);outline-offset:2px}
 .message-actions>button:disabled{cursor:wait;opacity:.55}.message-actions svg{width:15px;height:15px}.message-actions .spin{animation:spin .8s linear infinite}
 .action-notice{min-width:80px;margin-left:5px;font-size:11px;color:var(--sage)}.action-notice.error{color:var(--danger)}
 @keyframes copied-pop { 0% { transform: scale(.86); opacity: .45; } 65% { transform: scale(1.08); } 100% { transform: scale(1); opacity: 1; } }

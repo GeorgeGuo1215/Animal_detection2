@@ -59,8 +59,10 @@ class _FakeOrchestrator:
         self._events = events
         self._gate = gate
         self.last_finish_reason = "stop"
+        self.started = asyncio.Event()
 
     async def stream(self, **_: Any) -> AsyncIterator[dict[str, Any]]:
+        self.started.set()
         for event in self._events:
             if self._gate is not None:
                 await self._gate.wait()
@@ -143,13 +145,14 @@ def test_user_cancel_during_stream_marks_cancelled_and_refunds(tmp_path, monkeyp
     async def scenario() -> None:
         user_id, run_id = await _setup(tmp_path, monkeypatch, "cancel")
         gate = asyncio.Event()
-        _install_fake_agent(monkeypatch, _FakeOrchestrator([
+        orchestrator = _FakeOrchestrator([
             {"status": "streaming", "content": "第一段"},
             {"status": "streaming", "content": "第二段"},
-        ], gate=gate))
+        ], gate=gate)
+        _install_fake_agent(monkeypatch, orchestrator)
         monkeypatch.setattr(run_service, "_CANCEL_CHECK_INTERVAL_S", 0.0)
         task = asyncio.create_task(run_service.execute_run(run_id))
-        await asyncio.sleep(0.05)
+        await asyncio.wait_for(orchestrator.started.wait(), timeout=5)
         async with platform_session() as session:
             run = await session.get(AgentRun, run_id)
             assert run.status == "running"
@@ -173,12 +176,13 @@ def test_worker_shutdown_returns_run_to_retry_instead_of_cancelling(tmp_path, mo
     async def scenario() -> None:
         user_id, run_id = await _setup(tmp_path, monkeypatch, "shutdown")
         gate = asyncio.Event()
-        _install_fake_agent(monkeypatch, _FakeOrchestrator([
+        orchestrator = _FakeOrchestrator([
             {"status": "streaming", "content": "部分答复"},
             {"status": "streaming", "content": "永远不会到达"},
-        ], gate=gate))
+        ], gate=gate)
+        _install_fake_agent(monkeypatch, orchestrator)
         task = asyncio.create_task(run_service.execute_run(run_id))
-        await asyncio.sleep(0.05)
+        await asyncio.wait_for(orchestrator.started.wait(), timeout=5)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task

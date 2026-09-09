@@ -460,21 +460,21 @@ async def admin_revoke_api_key(
 
 @router.get("/rate-limits")
 async def rate_limit_status(
+    request: Request,
     principal: Principal = Depends(require_roles("SUPPORT_ADMIN", "SUPER_ADMIN")),
 ):
     """查看限流状态。"""
     settings = get_platform_settings()
     redis_ok = False
-    if settings.redis_url:
+    service = getattr(request.app.state, "http_limits", None)
+    if service is not None and service.backend.client is not None:
         try:
-            from redis.asyncio import Redis
-
-            redis = Redis.from_url(settings.redis_url)
-            redis_ok = bool(await redis.ping())
-            await redis.aclose()
+            redis_ok = bool(await service.backend.client.ping())
         except Exception:  # noqa: BLE001
             redis_ok = False
-    return {"default_per_minute": settings.rate_limit_per_minute, "default_burst": settings.rate_limit_burst, "redis_configured": bool(settings.redis_url), "redis_available": redis_ok}
+    return {"default_per_minute": settings.rate_limit_per_minute, "default_burst": settings.rate_limit_burst,
+            "redis_configured": bool(settings.redis_url), "redis_available": redis_ok,
+            **(service.snapshot() if service else {})}
 
 
 @router.post("/users/{user_id}/credits")

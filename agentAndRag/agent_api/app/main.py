@@ -18,8 +18,7 @@ from .features.chat_moe.cleanup import (
 )
 from .middleware.auth import APIKeyAuthMiddleware, load_api_keys
 from .middleware.platform_http import PlatformRequestMiddleware
-from .middleware.platform_rate_limit import PlatformRateLimitMiddleware
-from .middleware.rate_limit import RateLimitMiddleware
+from .http_limits import HttpLimits, HttpRateLimitMiddleware, install_http_limits
 from .memory import close_memory_client, memory_status, start_memory_client
 from .features.qa_audit.repository import init_db as _init_qa_db
 from .features.qa_audit.router import router as qa_audit_router
@@ -68,10 +67,8 @@ app.include_router(qa_audit_router)
 
 app.add_middleware(APIKeyAuthMiddleware)
 
-_rl_rate = float(os.getenv("AGENT_RATE_LIMIT", "30"))
-_rl_burst = int(os.getenv("AGENT_RATE_BURST", str(int(_rl_rate))))
-app.add_middleware(RateLimitMiddleware, rate=_rl_rate, burst=_rl_burst)
-app.add_middleware(PlatformRateLimitMiddleware)
+_HTTP_LIMITS = HttpLimits()
+app.add_middleware(HttpRateLimitMiddleware, service=_HTTP_LIMITS)
 app.add_middleware(PlatformRequestMiddleware)
 
 if _PLATFORM_SETTINGS.production:
@@ -220,6 +217,7 @@ async def _shutdown() -> None:
     """关闭平台库、会话清理、记忆与 LLM 连接池。"""
     from .observability.jsonl_trace import close_trace_writer
     await close_trace_writer()
+    await _HTTP_LIMITS.close()
     if get_platform_settings().enabled:
         await stop_platform_cleanup_task()
         await close_run_queue_redis()
@@ -270,3 +268,6 @@ async def ready() -> JSONResponse:
 
 
 __all__ = ["app"]
+
+# Bind every declared route after registration, before the server starts.
+install_http_limits(app, _HTTP_LIMITS, add_middleware=False)

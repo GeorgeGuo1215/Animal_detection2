@@ -69,10 +69,21 @@ async function authorizedFetch(path: string, init: RequestInit, retry = true): P
   return response
 }
 
-async function errorFromResponse(response: Response, fallback: string): Promise<Error> {
-  const payload = await response.json().catch(() => ({})) as { message?: string; detail?: unknown }
+export class ApiError extends Error {
+  constructor(message: string, public status: number, public code?: string, public retryAfter?: number) {
+    super(message)
+    this.name = 'ApiError'
+  }
+}
+
+async function errorFromResponse(response: Response, fallback: string): Promise<ApiError> {
+  const payload = await response.json().catch(() => ({})) as { message?: string; detail?: unknown; code?: string }
   const detail = typeof payload.detail === 'string' ? payload.detail : undefined
-  return new Error(payload.message || detail || `${fallback} (${response.status})`)
+  const header = response.headers.get('Retry-After')
+  const seconds = header === null ? NaN : /^\d+(?:\.\d+)?$/.test(header.trim())
+    ? Number(header) : (Date.parse(header) - Date.now()) / 1000
+  return new ApiError(payload.message || detail || `${fallback} (${response.status})`, response.status,
+    payload.code, Number.isFinite(seconds) ? Math.max(1, Math.ceil(seconds)) : undefined)
 }
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {

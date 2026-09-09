@@ -169,5 +169,7 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
                 status_code=401,
                 content={"error": {"message": "Invalid API key.", "type": "auth_error"}},
             )
+        import hashlib
+        request.state.http_legacy_identity = "legacy:" + hashlib.sha256(key.encode()).hexdigest()
         await _record_legacy_key_use(request, key)
         return await call_next(request)

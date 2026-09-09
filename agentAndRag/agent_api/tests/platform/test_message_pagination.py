@@ -1,4 +1,5 @@
 import asyncio
+import uuid
 from datetime import timedelta
 from types import SimpleNamespace
 
@@ -15,8 +16,9 @@ def test_latest_page_and_tied_timestamp_cursors_cover_history_once(tmp_path, mon
             run = await session.get(AgentRun, run_id)
             conversation = run.conversation_id
             same_time = utcnow() + timedelta(seconds=1)
+            prefix = uuid.uuid4().hex[:24]
             for i in range(130):
-                session.add(Message(id=f'{i:032d}', conversation_id=conversation, role='assistant', content=f'evidence {i}', created_at=same_time, status='complete'))
+                session.add(Message(id=f'{prefix}{i:08d}', conversation_id=conversation, role='assistant', content=f'evidence {i}', created_at=same_time, status='complete'))
             await session.commit()
         ids, cursor = [], None
         for page_number in range(3):

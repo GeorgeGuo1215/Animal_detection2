@@ -106,6 +106,19 @@ def test_feedback_fork_delete_and_cross_user_isolation(tmp_path, monkeypatch):
             )
             assert liked.status_code == 200
             assert liked.json()["rating"] == "up"
+            duplicate = await client.put(
+                f"/api/v1/messages/{assistant_message_id}/feedback",
+                headers=owner_headers, json={"rating": "up"},
+            )
+            assert duplicate.json() == liked.json()
+            async with platform_session() as session:
+                stored = await session.get(Message, assistant_message_id)
+                assert stored.feedback_is_good is True
+                logs = list((await session.scalars(select(AuditLog).where(
+                    AuditLog.resource_id == assistant_message_id,
+                    AuditLog.action == "message.feedback.updated",
+                ))).all())
+                assert len(logs) == 1
 
             switched = await client.put(
                 f"/api/v1/messages/{assistant_message_id}/feedback",
@@ -114,6 +127,8 @@ def test_feedback_fork_delete_and_cross_user_isolation(tmp_path, monkeypatch):
             )
             assert switched.status_code == 200
             assert switched.json()["rating"] == "down"
+            async with platform_session() as session:
+                assert (await session.get(Message, assistant_message_id)).feedback_is_good is False
             listed = await client.get(
                 f"/api/v1/conversations/{conversation_id}/messages",
                 headers=owner_headers,
@@ -145,6 +160,8 @@ def test_feedback_fork_delete_and_cross_user_isolation(tmp_path, monkeypatch):
                 )
             ).status_code == 404
 
+            assert (await client.put(f"/api/v1/messages/{assistant_message_id}/feedback",
+                                     headers=owner_headers, json={"rating": "up"})).status_code == 200
             fork_headers = {**owner_headers, "Idempotency-Key": "fork-action-0001"}
             forked = await client.post(
                 f"/api/v1/conversations/{conversation_id}/forks",
@@ -168,6 +185,8 @@ def test_feedback_fork_delete_and_cross_user_isolation(tmp_path, monkeypatch):
                 f"/api/v1/conversations/{fork_id}/messages",
                 headers=owner_headers,
             )
+            assert all(item["feedback_rating"] is None and item["feedback_updated_at"] is None
+                       for item in fork_messages.json()["items"])
             assert [item["content"] for item in fork_messages.json()["items"]] == [
                 "猫频繁进出猫砂盆",
                 "先排除尿道梗阻。",
@@ -201,8 +220,8 @@ def test_feedback_fork_delete_and_cross_user_isolation(tmp_path, monkeypatch):
                     )
                 ).all()
             )
-            assert stored_message.feedback_rating is None
-            assert stored_message.feedback_updated_at is None
+            assert stored_message.feedback_rating == "up"
+            assert stored_message.feedback_updated_at is not None
             assert stored_fork.deleted_at is not None
             assert "message.feedback.updated" in actions
             assert "conversation.forked" in actions

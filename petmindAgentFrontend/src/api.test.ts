@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { consumeSse, getAccessToken, parseSseBlock, restoreSession, setAccessToken, resumeRun } from './api'
+import { api, ApiError, consumeSse, getAccessToken, parseSseBlock, restoreSession, setAccessToken, resumeRun } from './api'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -74,4 +74,15 @@ describe('session bootstrap', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(getAccessToken()).toBe('access-2')
   })
+})
+
+it('preserves HTTP rate limit metadata and never retries a rejected write', async () => {
+  const fetchMock = vi.fn().mockResolvedValue(new Response('{"code":"rate_limited","message":"慢一点"}', {
+    status: 429, headers: { 'Retry-After': '3' },
+  }))
+  vi.stubGlobal('fetch', fetchMock)
+  const error = await api('/api/v1/messages/test/feedback', { method: 'PUT', body: '{"rating":"down"}' }).catch(e => e)
+  expect(error).toBeInstanceOf(ApiError)
+  expect(error).toMatchObject({ status: 429, code: 'rate_limited', retryAfter: 3 })
+  expect(fetchMock).toHaveBeenCalledTimes(1)
 })
